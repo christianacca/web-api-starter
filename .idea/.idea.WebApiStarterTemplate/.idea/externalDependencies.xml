@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalDependencies">
+    <plugin id="com.intellij" min-version="213.5744.299" />
+    <plugin id="com.intellij.resharper.azure" min-version="3.50.0.1312-2021.3" />
+    <plugin id="eu.gillissen.rider.usersecrets" min-version="1.2.0" />
+    <plugin id="fr.socolin.application-insights-debug-log-viewer" min-version="1.3.0" />
+  </component>
+</project>

@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="All" type="CompoundRunConfigurationType">
+    <toRun name="Template.Api" type="LaunchSettings" />
+    <toRun name="Template.Functions" type="AzureFunctionsHost" />
+    <method v="2" />
+  </configuration>
+</component>

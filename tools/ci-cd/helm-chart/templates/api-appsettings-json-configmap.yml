@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-api-appsettings-json
+data:
+  appsettings.json: |-
+{{ .Files.Get "Template.Api/appsettings.json" | indent 4 }}

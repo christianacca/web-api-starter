@@ -1,0 +1,20 @@
+<Project>
+    <PropertyGroup>
+        <IsPublishable>false</IsPublishable>
+        <PublishDir>$(SolutionDir)/publish/$(MSBuildProjectName)</PublishDir>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <NoWarn>1701;1702;1591</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(IsPublishable)'=='true'">
+        <None Remove="Dockerfile"/>
+        <Content Include="Dockerfile">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <None Remove=".dockerignore"/>
+        <Content Include=".dockerignore">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+</Project>

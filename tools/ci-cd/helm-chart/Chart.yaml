@@ -1,0 +1,12 @@
+apiVersion: v2
+name: web-api-starter
+description: Helm chart for MRI Web API starter template
+type: application
+version: 0.1.0
+appVersion: 0.0.1
+
+dependencies:
+  - name: aspnet-core
+    version: ^3.1.0
+    repository: https://charts.bitnami.com/bitnami
+    alias: api
