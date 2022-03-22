@@ -13,6 +13,7 @@
 
         . "$PSScriptRoot/ps-functions/Add-AksPodIdentityByConvention.ps1"
         . "$PSScriptRoot/ps-functions/Get-ResourceConvention.ps1"
+        . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
     }
     process {
         try {

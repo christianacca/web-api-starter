@@ -120,11 +120,8 @@ function Get-ResourceConvention {
     }
     $aksSecondaryClusterName = '{0}-aks-{1}' -f $aksClusterPrefix, $azureSecondaryRegion
     $aksSecondaryCluster = @{
-        ResourceName    =   $aksSecondaryClusterName
-        ResourceGroup   =   @{
-            ResourceName        = $aksSecondaryClusterName
-            ResourceLocation    = $azureSecondaryRegion
-        }
+        ResourceName        =   $aksSecondaryClusterName
+        ResourceGroupName   =   $aksSecondaryClusterName
     }
 
     $subProductsConventions = @{}
@@ -187,6 +184,7 @@ function Get-ResourceConvention {
         }
         AppResourceGroup        =   $appReourceGroup
         DataResourceGroup       =   $dataResourceGroup
+        CompanyName             =   $CompanyName
         ProductName             =   $ProductName
         SubProducts             =   $subProductsConventions
     }
