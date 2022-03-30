@@ -1,13 +1,13 @@
 name: Deploy Infrastructure
 
 on:
-  push:
-    paths:
-      - tools/infrastructure/**
-      - .github/workflows/*deploy-infrastructure.yml
-    branches:
-      - master
-      - release/**
+#  push:
+#    paths:
+#      - tools/infrastructure/**
+#      - .github/workflows/*deploy-infrastructure.yml
+#    branches:
+#      - master
+#      - release/**
   workflow_dispatch:
     
 jobs:

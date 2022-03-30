@@ -28,4 +28,4 @@
 
    To enable the CI/CD triggers:
    1. open [deploy-infrastructure.yml](../.github/workflows/deploy-infrastructure.yml)
-   2. uncomment the `on.push.branches` section
+   2. uncomment the `on.push` section
