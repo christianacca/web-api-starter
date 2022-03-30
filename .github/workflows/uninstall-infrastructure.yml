@@ -1,0 +1,49 @@
+name: Uninstall Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment-name:
+        description: 'Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - demo
+          - staging
+          - prod-na
+          - prod-emea
+          - prod-apac
+      subscription-id:
+        description: 'Subscription ID (leave blank to use the default subscription for the Environment)'
+        required: false
+        type: string
+      uninstall-aks-app:
+        description: 'Uninstall app in AKS?'
+        default: false
+        required: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment-name }}
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          github-environment: ${{ github.event.inputs.environment-name }}
+          subscription-id: ${{ github.event.inputs.subscription-id }}
+
+      - name: 'Uninstall infrastructure'
+        shell: pwsh
+        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -UninstallAksApp:$${{ github.event.inputs.uninstall-aks-app }} -UninstallDataResource -DeleteResourceGroup -DeleteSqlAADGroups  -InfA Continue

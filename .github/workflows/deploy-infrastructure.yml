@@ -1,0 +1,85 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    paths:
+      - tools/infrastructure/**
+      - .github/workflows/*deploy-infrastructure.yml
+    branches:
+      - master
+      - release/**
+  workflow_dispatch:
+    
+jobs:
+  dev:
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: dev
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      
+  qa:
+    needs: dev
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: qa
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  demo:
+    needs: dev
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: demo
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      
+  staging:
+    needs: dev
+    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: staging
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-na:
+    needs: staging
+    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: prod-na
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      
+  prod-emea:
+    needs: staging
+    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: prod-emea
+    permissions:
+      actions: read
+      contents: read
+      id-token: write      
+      
+  prod-apac:
+    needs: staging
+    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    uses: ./.github/workflows/do-deploy-infrastructure.yml
+    with:
+      environment-name: prod-apac
+    permissions:
+      actions: read
+      contents: read
+      id-token: write

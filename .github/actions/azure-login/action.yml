@@ -1,0 +1,32 @@
+name: 'Azure login'
+description: 'Login to Azure using OIDC'
+inputs:
+  github-environment:
+    description: 'Name of the github environment within which the login is performed'
+    required: true
+  enable-AzPSSession:
+    description: 'Set this value to true to enable Azure PowerShell Login in addition to Az CLI login'
+    required: false
+    default: 'false'
+  subscription-id:
+    description: 'Azure subscriptionId'
+    required: false
+    
+runs:
+  using: 'composite'
+  steps:     
+    - name: Set Azure connection variables
+      id: vars
+      shell: pwsh
+      run: |
+        ${{ github.action_path }}/set-azure-connection-variables.ps1 -EnvironmentName ${{ inputs.github-environment }} -SubscriptionId '${{ inputs.subscription-id }}'
+      
+    # Logs in with federated github credential
+    # (for more info see: https://docs.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#use-the-azure-login-action-with-openid-connect)
+    - name: Azure login
+      uses: azure/login@v1
+      with:
+        enable-AzPSSession: ${{ inputs.enable-AzPSSession }}
+        client-id: ${{ steps.vars.outputs.clientId }}
+        tenant-id: ${{ steps.vars.outputs.tenantId }}
+        subscription-id: ${{ steps.vars.outputs.subscriptionId }}

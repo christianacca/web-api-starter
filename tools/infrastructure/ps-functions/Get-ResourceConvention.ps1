@@ -7,6 +7,10 @@ function Get-ResourceConvention {
         [string] $EnvironmentName = 'dev',
 
         [string] $CompanyName = 'mri',
+        
+        [string] $GitOrganisationName = 'MRI-Software',
+        
+        [string] $GitRepositoryName,
 
         [Hashtable] $SubProducts = @{},
 
@@ -173,6 +177,12 @@ function Get-ResourceConvention {
         }
     }
 
+    $GitRepositoryName = if ($GitRepositoryName) { 
+        $GitRepositoryName 
+    } else {
+        "$(git rev-parse --show-toplevel)" -split [IO.Path]::DirectorySeparatorChar | Select-Object -Last 1
+    }
+
     $results = @{
         Aks                     =   @{
             Primary             = $aksPrimaryCluster
@@ -182,9 +192,13 @@ function Get-ResourceConvention {
             RegistryName        =   'mrisoftwaredevops'
             ProdRegistryName    =   'mrisoftwaredevopsprod'
         }
+        AutomationPrincipalName =   'automation-principal'
         AppResourceGroup        =   $appReourceGroup
         DataResourceGroup       =   $dataResourceGroup
         CompanyName             =   $CompanyName
+        GitOrganisationName     =   $GitOrganisationName
+        GitRepositoryName       =   $GitRepositoryName
+        GithubCredentialName    =   'github-actions-{0}-{1}' -f $ProductName, $EnvironmentName
         ProductName             =   $ProductName
         SubProducts             =   $subProductsConventions
     }

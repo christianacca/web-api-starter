@@ -106,6 +106,8 @@ function Set-AADGroup {
         $ErrorActionPreference = 'Stop'
         
         . "$PSScriptRoot/Invoke-EnsureHttpSuccess.ps1"
+
+        Write-Verbose "Current signed-in account type: '$($currentAzContext.Account.Type)'"
     }
     process {
         try {
@@ -118,16 +120,18 @@ function Set-AADGroup {
             $servicePrincipals = $Member | Where-Object Type -eq 'ServicePrincipal'
             $users = $Member | Where-Object { $_ -notin $servicePrincipals }
             
-            $servicePrincipals = if ($IncludeCurrentUser -and $currentAzContext.Account.Type -eq 'ServicePrincipal')             {
+            $servicePrincipals = if ($IncludeCurrentUser -and $currentAzContext.Account.Type -in 'ServicePrincipal', 'ClientAssertion') {
+                Write-Verbose "Adding current signed-in service principal account to member list for group '$($currentAzContext.Account.Type)'"
                 $servicePrincipals
                 @{
-                    ApplicationId   =   (Get-AzContext).Account.Id
+                    ApplicationId   =   $currentAzContext.Account.Id
                 }
             } else {
                 $servicePrincipals
             }
 
             $users = if ($IncludeCurrentUser -and $currentAzContext.Account.Type -eq 'User') {
+                Write-Verbose "Adding current signed-in user account to member list for group '$($currentAzContext.Account.Type)'"
                 $users
                 @{
                     UserPrincipalName  =   (Get-AzADUser -SignedIn -EA Stop).UserPrincipalName

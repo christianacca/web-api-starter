@@ -27,13 +27,11 @@
             }
             Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
             
+<#
             # If you need to override conventions, follow the example below...
-<#            
             $convention = Get-ResourceConvention @conventionsParams -AsHashtable
-            $convention.Aks.Primary.ResourceGroupName = 'aks-pod-identity'
-            $convention.Aks.Primary.ResourceName = $convention.Aks.Primary.ResourceGroupName
+            $convention.SubProducts.Sql.Failover = $null
             $convention.Aks.Failover = $null
-            $convention.Aks.RegistryName = 'kcgmail'
             
             if ($AsHashtable) {
                 $convention

@@ -48,6 +48,15 @@
       .PARAMETER ModuleInstallAllowClobber
       Allow the -Clobber switch when installing dependent powershell modules
     
+      .PARAMETER InstallModulesOnly
+      Only install powershell modules that this script depends on. Do NOT actually provision infrastructure
+        
+      .PARAMETER ListModuleRequirementsOnly
+      Return the list of powershell modules that this script depends on. Do NOT actually provision infrastructure
+            
+      .PARAMETER SkipInstallModules
+      Do NOT install powershell modules that this script depends on. Assumes that these modules are already installed
+    
       .EXAMPLE
       ./provision-azure-resources.ps1 -InformationAction Continue
     
@@ -104,7 +113,10 @@
 
         [string] $SubscriptionId,
 
-        [switch] $ModuleInstallAllowClobber
+        [switch] $ModuleInstallAllowClobber,
+        [switch] $InstallModulesOnly,
+        [switch] $ListModuleRequirementsOnly,
+        [switch] $SkipInstallModules
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -114,6 +126,7 @@
 
         . "$PSScriptRoot/ps-functions/Get-AppRoleId.ps1"
         . "$PSScriptRoot/ps-functions/Get-ResourceConvention.ps1"
+        . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
         . "$PSScriptRoot/ps-functions/Grant-ADAppRolePermision.ps1"
         . "$PSScriptRoot/ps-functions/Install-FunctionAppAzureResource.ps1"
         . "$PSScriptRoot/ps-functions/Install-ManagedIdentityAzureResource.ps1"
@@ -134,16 +147,30 @@
     }
     process {
         try {
-            Install-ScriptDependency -Module @(
+            $modules = @(
                 @{
                     Name            = 'Az'
                     MinimumVersion  = '7.2.1'
+                }
+                @{
+                    Name            = 'Az.ManagedServiceIdentity'
+                    MinimumVersion  = '0.7.3'
                 }
                 @{
                     Name            = 'SqlServer'
                     MinimumVersion  = '21.1.18257-preview'
                 }
             )
+            if ($ListModuleRequirementsOnly) {
+                Get-ScriptDependencyList -Module $modules
+                return
+            } else {
+                Install-ScriptDependency -ImportOnly:$SkipInstallModules -Module $modules
+            }
+            
+            if ($InstallModulesOnly) {
+                return
+            }
 
             if ($Login) {
                 Write-Information 'Connecting to Azure AD Account...'
