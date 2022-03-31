@@ -9,7 +9,7 @@ on:
 #      - master
 #      - release/**
   workflow_dispatch:
-    
+
 jobs:
   dev:
     uses: ./.github/workflows/do-deploy-infrastructure.yml
@@ -19,7 +19,7 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      
+  
   qa:
     needs: dev
     uses: ./.github/workflows/do-deploy-infrastructure.yml
@@ -32,6 +32,7 @@ jobs:
 
   demo:
     needs: dev
+    if:  startsWith(github.ref, 'refs/heads/release/')
     uses: ./.github/workflows/do-deploy-infrastructure.yml
     with:
       environment-name: demo
@@ -39,10 +40,10 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      
+  
   staging:
     needs: dev
-    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    if:  startsWith(github.ref, 'refs/heads/release/')
     uses: ./.github/workflows/do-deploy-infrastructure.yml
     with:
       environment-name: staging
@@ -53,7 +54,7 @@ jobs:
   
   prod-na:
     needs: staging
-    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    if:  startsWith(github.ref, 'refs/heads/release/')
     uses: ./.github/workflows/do-deploy-infrastructure.yml
     with:
       environment-name: prod-na
@@ -61,21 +62,21 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      
+  
   prod-emea:
     needs: staging
-    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    if:  startsWith(github.ref, 'refs/heads/release/')
     uses: ./.github/workflows/do-deploy-infrastructure.yml
     with:
       environment-name: prod-emea
     permissions:
       actions: read
       contents: read
-      id-token: write      
-      
+      id-token: write
+  
   prod-apac:
     needs: staging
-    if:  startsWith(github.ref, 'refs/heads/release/') || github.ref_name == 'master'
+    if:  startsWith(github.ref, 'refs/heads/release/')
     uses: ./.github/workflows/do-deploy-infrastructure.yml
     with:
       environment-name: prod-apac

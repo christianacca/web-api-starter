@@ -29,4 +29,7 @@ See [architecture-and-project-structure.md](docs/architecture-and-project-struct
 currently there is a problem connecting the API running on a dev machine to Azure functions. 
 A support ticket with Microsoft has been opened to resolve this
 
-See [deploy-app.md](docs/deploy-app)
+## Deployment
+
+* [How to deploy](docs/deploy-app.md)
+* [Branching / deployment strategy](docs/branch-and-deployment-strategy.md)
