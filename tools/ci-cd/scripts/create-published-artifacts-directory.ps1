@@ -25,7 +25,9 @@
                     New-Item $dest -Type File -Force | Out-Null
                     Copy-Item $_.FullName -Destination $dest -Force
                 }
-            Copy-Item (Join-Path $BuildArtifactsPath Template.Functions) $Destination -Recurse
+            Get-ChildItem $BuildArtifactsPath/* -Directory  |
+                Where-Object { Get-ChildItem $_ -Filter 'host.json' } |
+                ForEach-Object { Copy-Item $_.FullName $Destination -Recurse }
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA

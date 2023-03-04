@@ -2,6 +2,8 @@
     param(
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
+
+        [switch] $PodIdentityOnly,
         
         [switch] $Login,
         [string] $SubscriptionId
@@ -26,7 +28,7 @@
             }
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            $convention | Remove-AksAppByConvention
+            $convention | Remove-AksAppByConvention -PodIdentityOnly:$PodIdentityOnly
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA

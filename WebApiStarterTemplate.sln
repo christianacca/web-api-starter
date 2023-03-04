@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Template.Functions", "src\T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Template.Shared", "src\Template.Shared\Template.Shared.csproj", "{55547C6A-F5FF-437D-AAC2-9E559DA85BF6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Azure.ManagedIdentity", "src\Azure.ManagedIdentity\Azure.ManagedIdentity.csproj", "{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{55547C6A-F5FF-437D-AAC2-9E559DA85BF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{55547C6A-F5FF-437D-AAC2-9E559DA85BF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{55547C6A-F5FF-437D-AAC2-9E559DA85BF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

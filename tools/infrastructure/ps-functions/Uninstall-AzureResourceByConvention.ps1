@@ -18,27 +18,12 @@ function Uninstall-AzureResourceByConvention {
       .PARAMETER InputObject
       The conventions that determine the resources that require uninstalling
 
-      .PARAMETER DeleteSqlAADGroups
-      Delete the Azure AD groups that were created as security groups for Azure SQL?
+      .PARAMETER DeleteAADGroups
+      Delete the Azure AD groups that were created as security groups?
       Note: a missing group will be reported as an error but NOT cause the script to stop.
-
-      .PARAMETER DeleteResourceGroup
-      Delete the Azure resource group rather than just remove all the resources found in that group?
-
-      .PARAMETER UninstallDataResource
-      Remove not only the application related Azure resources but also the data related resources as well?
-      Note: you must supply this flag if both application and data Azure resources are contained in the same resource group.
-      In otherwords it is not possible for this script to remove just application resources when they are co-located with data.
 
       .PARAMETER UninstallAksApp
       Uninstall the AKS release for the application? This flag only makes sense if your application is deployed to AKS via helm
-
-      .PARAMETER DeprovisionResourceGroupTemplatePath
-      The path to the bicep template that will be used to deprovision resources within the resource group
-
-      .PARAMETER AdditionalRBACRoleRemoval
-      A script block that will called with the name of the managed identity. Use this script block to remove
-      any other RBAC role that is assigned to the managed identity that are not defined by conventions
     
       .EXAMPLE
       $conventionsParams = @{
@@ -53,14 +38,7 @@ function Uninstall-AzureResourceByConvention {
       }
       $convention = Get-ResourceConvention @conventionsParams -AsHashtable
  
-      $uninstallParams = @{
-          DeleteSqlAADGroups                      =   $true
-          DeleteResourceGroup                     =   $true
-          UninstallDataResource                   =   $true
-          UninstallAksApp                         =   $true
-          DeprovisionResourceGroupTemplatePath    =   ./deprovision-resource-group.bicep
-      }
-      $convention | Uninstall-AzureResourceByConvention @uninstallParams
+      $convention | Uninstall-AzureResourceByConvention -DeleteAADGroups -UninstallAksApp
     
     #>
     [CmdletBinding()]
@@ -70,15 +48,8 @@ function Uninstall-AzureResourceByConvention {
         [Alias('Convention')]
         [Hashtable] $InputObject,
 
-        [switch] $DeleteSqlAADGroups,
-        [switch] $DeleteResourceGroup,
-        [switch] $UninstallDataResource,
-        [switch] $UninstallAksApp,
-
-        [Parameter(Mandatory)]
-        [string] $DeprovisionResourceGroupTemplatePath,
-    
-        [ScriptBlock] $AdditionalRBACRoleRemoval
+        [switch] $DeleteAADGroups,
+        [switch] $UninstallAksApp
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -88,63 +59,24 @@ function Uninstall-AzureResourceByConvention {
         . "$PSScriptRoot/Invoke-Exe.ps1"
         . "$PSScriptRoot/Remove-ADAppRegistration.ps1"
         . "$PSScriptRoot/Remove-AksAppByConvention.ps1"
-        . "$PSScriptRoot/Remove-RBACRoleFromManagedIdentity.ps1"
-
-        function Uninstall-ResourceGroup {
-            [CmdletBinding()]
-            param(
-                [Parameter(Mandatory)]
-                [string] $Name
-            )
-            process {
-                if ($DeleteResourceGroup) {
-                    Write-Information "Deleting resource group '$Name'"
-                    Invoke-Exe { az group delete --name $Name --yes } | Out-Null
-                } else {
-                    Write-Information "Deleting all resources within resource group '$Name'"
-                    Invoke-Exe {
-                        az deployment group create -g $Name -f $DeprovisionResourceGroupTemplatePath --mode Complete
-                    } | Out-Null
-                }
-            }
-        }
     }
     process {
         try {
             $appResourceGroup = $InputObject.AppResourceGroup.ResourceName
-            $dataResourceGroup = $InputObject.DataResourceGroup.ResourceName
 
-            if (-not($UninstallDataResource) -and($appResourceGroup -eq $dataResourceGroup)) {
-                throw "Cannot deprovision just the application resources as both the data and app resources are in the same resource group. To uninstall data resources supply -UninstallDataResource"
-            }
-
-            $functionAppName = $InputObject.SubProducts.GetEnumerator() |
-                Where-Object { $_.Value.Type -eq 'FunctionApp' } |
-                Select-Object -ExpandProperty Value |
-                Select-Object -ExpandProperty ResourceName
+            $functionAppName = $InputObject.SubProducts.Values | 
+                Where-Object { $_.Type -eq 'FunctionApp' } |
+                Select-Object -Exp ResourceName
 
             $functionAppName | Remove-ADAppRegistration
 
-            $managedIdentityName = $InputObject.SubProducts.GetEnumerator() |
-                Where-Object { $_.Value.Type -in 'AksPod','FunctionApp' -and $_.Value.ManagedIdentity } |
-                Select-Object -ExpandProperty Value |
-                Select-Object -ExpandProperty ManagedIdentity
+            $removePodIdentityOnly = !$UninstallAksApp
+            $InputObject | Remove-AksAppByConvention -PodIdentityOnly:$removePodIdentityOnly
 
-            $managedIdentityName | ForEach-Object {
-                Remove-RBACRoleFromManagedIdentity -Name ($_) -ManagedIdentityResourceGroup $appResourceGroup -EA Continue
-                if ($AdditionalRBACRoleRemoval) {
-                    Invoke-Command $AdditionalRBACRoleRemoval -ArgumentList $_ -EA Continue | Out-Null
-                }
-            }
-
-            if ($UninstallAksApp) {
-                $InputObject | Remove-AksAppByConvention
-            }
-
-            if ($DeleteSqlAADGroups -and $InputObject.SubProducts.Db) {
+            if ($DeleteAADGroups) {
                 $groups = @(
-                    $InputObject.SubProducts.Db.DatabaseGroupUser.Name
-                    $InputObject.SubProducts.Sql.ADAdminGroupName
+                    $InputObject.SubProducts.Values | ForEach-Object { $_['AadSecurityGroup'] } | Select-Object -ExpandProperty Name
+                    $InputObject.Ad.AadSecurityGroup.Name
                 )
                 $groups | ForEach-Object {
                     $groupName = $_
@@ -153,10 +85,16 @@ function Uninstall-AzureResourceByConvention {
                 }
             }
 
-            Uninstall-ResourceGroup $appResourceGroup
+            Write-Information "Deleting resource group '$appResourceGroup'"
+            Invoke-Exe { az group delete --name $appResourceGroup --yes } | Out-Null
 
-            if ($UninstallDataResource -and($dataResourceGroup -ne $appResourceGroup)) {
-                Uninstall-ResourceGroup $dataResourceGroup
+            $purgableKeyVault = $InputObject.SubProducts.Values |
+                Where-Object { $_.Type -eq 'KeyVault' -and -not($_.EnablePurgeProtection) } |
+                Select-Object -Exp ResourceName
+            $purgableKeyVault | ForEach-Object {
+                $name = $_
+                Write-Information "Purging Azure KeyVault '$name'"
+                Invoke-Exe { az keyvault purge -n $name --no-wait }
             }
         }
         catch {

@@ -16,17 +16,9 @@
       .PARAMETER EnvironmentName
       The name of the environment to uninstall. This value will be used to calculate conventions for that environment.
 
-      .PARAMETER DeleteSqlAADGroups
-      Delete the Azure AD groups that were created as security groups for Azure SQL?
+      .PARAMETER DeleteAADGroups
+      Delete the Azure AD groups that were created as security groups?
       Note: a missing group will be reported as an error but NOT cause the script to stop.
-
-      .PARAMETER DeleteResourceGroup
-      Delete the Azure resource group rather than just remove all the resources found in that group?
-
-      .PARAMETER UninstallDataResource
-      Remove not only the application related Azure resources but also the data related resources as well?
-      Note: you must supply this flag if both application and data Azure resources are contained in the same resource group.
-      In otherwords it is not possible for this script to remove just application resources when they are co-located with data.
 
       .PARAMETER UninstallAksApp
       Uninstall the AKS release for the application? This flag only makes sense if your application is deployed to AKS via helm
@@ -37,20 +29,13 @@
       .PARAMETER SubscriptionId
       The Azure subscription to act on when setting the desired state of Azure resources. If not supplied, then the subscription
       already set as the current context will used (see az account show)
-    
-      .EXAMPLE
-      ./provision-azure-resources.ps1 -InformationAction Continue
-    
-      Description
-      -----------
-      Creates all the Azure resources for the 'dev' environment, displaying to the console details of the task execution.
 
       .EXAMPLE
-      ./deprovision-azure-resources.ps1 -InfA Continue -UninstallDataResource  -DeleteResourceGroup -DeleteSqlAADGroups -UninstallAksApp
+      ./deprovision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -UninstallDataResource -DeleteResourceGroup -DeleteAADGroups -UninstallAksApp
    
       Description
       -----------
-      Uninstall and also DELETE every resource
+      Uninstall and also DELETE every resource and AAD security group
     
     #>
 
@@ -61,9 +46,7 @@
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName,
         
-        [switch] $DeleteSqlAADGroups,
-        [switch] $DeleteResourceGroup,
-        [switch] $UninstallDataResource,
+        [switch] $DeleteAADGroups,
         [switch] $UninstallAksApp,
         [switch] $Login,
         [string] $SubscriptionId
@@ -90,11 +73,8 @@
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
             
             $uninstallParams = @{
-                DeleteSqlAADGroups                      =   $DeleteSqlAADGroups
-                DeleteResourceGroup                     =   $DeleteResourceGroup
-                UninstallDataResource                   =   $UninstallDataResource
+                DeleteAADGroups                         =   $DeleteAADGroups
                 UninstallAksApp                         =   $UninstallAksApp
-                DeprovisionResourceGroupTemplatePath    =   "$PSScriptRoot/arm-templates/deprovision-resource-group.bicep"
             }
             $convention | Uninstall-AzureResourceByConvention @uninstallParams
             

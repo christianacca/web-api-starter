@@ -15,21 +15,15 @@ There is also dev scripts that can be used to deploy the app into the provisione
 
 In the future, there will be an example CI/CD pipeline written as a github workflow for deploying the app.
 
-**IMPORTANT** the initial helm chart in this repo makes some assumptions around ingress. It assumes that the AKS cluster has implemented
-[HTTP application routing](https://docs.microsoft.com/en-us/azure/aks/http-application-routing). If you don't have access to creating
-a test aks cluster as per instructions below, then you will not be able to hit the API over the internet.
 
-**IMPORTANT** When moving to production you will need to replace the ingress rules in the helm chart to use a production ready ingress (eg nginx).
-
-
-## Deploying (full-stack) locally from dev machine
+## Deploying (infrastructure + app) locally from dev machine
 
 ### Prerequisites
 
-* [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli), required to:
+* [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
     * enable/add pod identity
     * run dev scripts
-* powershell core
+* powershell core (tested on v7.2)
 * docker engine to run the dev script with the flag `-DockerPush`
 
 ### Permissions to run infrastructure scripts
@@ -43,13 +37,8 @@ In practice the only way to run these scripts from a dev machine is:
     2. linking your VS subscription to your office365 dev tenant: <https://laurakokkarinen.com/how-to-use-the-complimentary-azure-credits-in-a-microsoft-365-developer-tenant-step-by-step/>
     3. things to be aware of when moving your VS subscription to another AD tenant: <https://docs.microsoft.com/en-us/azure/role-based-access-control/transfer-subscription>
 
-If you don't have access to an isolated developer Azure AD tenant, then you will need to run the provisioning scripts via the github workflows in this repo.
-
-For more information on setting up these github workflows for your project see: [create-github-actions-infrastructure-pipeline](create-github-actions-infrastructure-pipeline.md)
 
 ### Steps
-
-**NOTE**: If you're not deploying the starter project itself, then you will need to change the [`ProductName` setting](../tools/infrastructure/get-product-conventions.ps1)
 
 1. (Once-only) Setup shared infrastructure:
     1. Provision AKS. See section below "Create a test AKS cluster"
@@ -68,46 +57,26 @@ For more information on setting up these github workflows for your project see: 
 
 ### Create a test AKS cluster
 
-Use the azure portal as described in this article: https://docs.microsoft.com/en-us/azure/aks/kubernetes-walkthrough-portal
-
-Use the following setting values:
-
-* Basics:
-    * Cluster details > Cluster preset configuration: Dev/Test
-    * Primary node pool > Node count: 1
-* Node pools: accept defaults
-* Networking:
-    * Network configuration: Azure CNI
-    * Http application routing: Yes
-* Integrations:
-    * container registry: create new
-
-
-## Deploying from CI/CD
-
-1. Make sure the github workflow has been setup as per the guide: [create-github-actions-infrastructure-pipeline](create-github-actions-infrastructure-pipeline.md)
-2. Make sure that the github workflow [Deploy Infrastructure](../.github/workflows/deploy-infrastructure.yml) has run successfully at least once for the environment you want to deploy the app to
-3. Run the [Add AKS pod-identity](../.github/workflows/add-aks-pod-identity.yml) github workflow **ONCE** only for environments that the infrastructure has been deployed to:
-   1. Go to the Actions tab in the github repo
-   2. Manually run the workflow 'Add AKS pod-identity', selecting the name of the environment to deploy to
-4. Make sure to comment back in the CI/CD triggers in the github workflow that deploys the app (todo: add an example workflow)
+```powershell
+./tools/dev-scripts/create-test-aks-cluster.ps1 -Name dev-aks-local -CreateAcr -AcrName mrisoftwaredevopslocal
+```
 
 
 ## Cleanup
 
 To remove all Azure resources and AKS pod identity run the deprovision-azure-resources.ps1 script from a powershell prompt (assuming you have permissions),
-or running the github workflow [Uninstall Infrastructure](../.github/workflows/uninstall-infrastructure.yml)
+or running the github workflow [Infrastructure Uninstall](../.github/workflows/infra-uninstall.yml)
 
 ### From a powershell prompt
 
 ```powershell
-./tools/infrastructure/deprovision-azure-resources.ps1 -UninstallAksApp -UninstallDataResource -DeleteResourceGroup -DeleteSqlAADGroups -Environment xxx  -InfA Continue -Login
+./tools/infrastructure/deprovision-azure-resources.ps1 -UninstallAksApp -DeleteAADGroups -Environment xxx  -InfA Continue -Login
 ```
 
 ### From the github workflow
 
 1. Go to the Actions tab in the github repo
-2. Manually run the workflow 'Uninstall Infrastructure', selecting the name of the environment to deploy to
+2. Manually run the workflow 'Infrastructure Uninstall', selecting the name of the environment to uninstall from
 
 
 ## Troubleshooting `provision-azure-resources.ps1`

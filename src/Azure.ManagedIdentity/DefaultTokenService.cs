@@ -1,11 +1,11 @@
 using Azure.Core;
 using Azure.Identity;
 
-namespace Template.Api.Shared.AzureIdentity;
+namespace Mri.Azure.ManagedIdentity;
 
 public class DefaultTokenService : ITokenService {
   private TokenRequestContext Context { get; }
-  private DefaultAzureCredential Credential { get; }
+  private TokenCredential Credential { get; }
 
   public DefaultTokenService(string audience, DefaultAzureCredentialOptions credentialsOptions) {
     Credential = new DefaultAzureCredential(credentialsOptions);

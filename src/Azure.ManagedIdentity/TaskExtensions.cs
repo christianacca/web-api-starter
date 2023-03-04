@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace Template.Api.Shared.AzureIdentity;
+namespace Mri.Azure.ManagedIdentity;
 
 /// <summary>
 /// Copied from here: https://github.com/Azure/azure-sdk-for-net/blob/4162f6fa2445b2127468b9cfd080f01c9da88eba/sdk/core/Azure.Core/src/Shared/TaskExtensions.cs
@@ -100,7 +100,7 @@ internal static class TaskExtensions {
     public Action Continuation { get; }
 
     private void ContinuationImplementation() {
-      Action? originalContinuation = Interlocked.Exchange(ref _originalContinuation, null);
+      var originalContinuation = Interlocked.Exchange(ref _originalContinuation, null);
       if (originalContinuation != null) {
         _registration.Dispose();
         originalContinuation();

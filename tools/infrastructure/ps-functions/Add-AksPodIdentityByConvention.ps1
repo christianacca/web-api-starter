@@ -15,15 +15,14 @@ function Add-AksPodIdentityByConvention {
     }
     process {
         try {
-            $managedIdentityName = $InputObject.SubProducts.GetEnumerator() |
-                Where-Object { $_.Value.Type -eq 'AksPod' -and $_.Value.ManagedIdentity } |
-                Select-Object -ExpandProperty Value |
+            $managedIdentity = $InputObject.SubProducts.Values |
+                Where-Object { $_.Type -eq 'AksPod' } |
                 Select-Object -ExpandProperty ManagedIdentity
-
+            
             $podIdentityParams = @{
                 AppResourceGroup    =   $InputObject.AppResourceGroup.ResourceName
                 Namespace           =   $InputObject.Aks.Namespace
-                ManagedIdentityName =   $managedIdentityName
+                ManagedIdentity     =   $managedIdentity
             }
 
             $clusters = @($InputObject.Aks.Primary; $InputObject.Aks.Failover) |

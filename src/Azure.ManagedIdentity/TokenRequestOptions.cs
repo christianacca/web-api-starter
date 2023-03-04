@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Azure.Identity;
 
-namespace Template.Api.Shared.AzureIdentity;
+namespace Mri.Azure.ManagedIdentity;
 
 public class TokenRequestOptions {
   /// <summary>

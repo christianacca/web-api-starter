@@ -10,17 +10,20 @@ function Install-SqlAzureResource {
 
       This following Azure resources will be provisioned by this script:
 
-      * User assigned managed identity assigned as the identity for Azure SQL Server
       * Azure SQL database (logical server and single database) configured with:
-        - SQL and Azure AD authentication
+        - Azure AD authentication
         - Azure AD Admin mapped to an Azure AD group
-        - [Contained] database users mapped to the Azure AD groups above
+        - Contained database users mapped to the Azure AD groups above
+      * User assigned managed identity assigned as the identity for Azure SQL Server    
 
       Required permission to run this script:
       * Azure 'Contributor' on:
         - resource group for which Azure resource will be created OR
         - subscription IF the resource group does not already exist
-      * Azure AD 'Privileged role administrator' (required for assigning MS Graph directory permissions to Azure SQL service)
+      * Azure AD permission: microsoft.directory/groups.security/createAsOwner (or member of 'sg.aad.role.custom.securitygroupcreator' Azure AD group)
+      * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
+        (assumed that 'sg.aad.role.custom.azuresqlauthentication' has been assigned MS Graph directory permissions
+        as described here: https://docs.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-user-assigned-managed-identity?view=azuresql#permissions)
     
       .PARAMETER ResourceGroup
       The name of the resource group to add the resources to. If the resource group is not found a new one will be
@@ -132,63 +135,30 @@ function Install-SqlAzureResource {
 
 
             #------------- Set user assigned managed identities -------------
+            $existingId = Get-AzUserAssignedIdentity -Name $ManagedIdentityName -ResourceGroupName $ResourceGroup -EA SilentlyContinue
             $managedIdArmParams = @{
                 ResourceGroup           =   $ResourceGroup
                 Name                    =   $ManagedIdentityName
                 TemplateFile            =   Join-Path $TemplateDirectory sql-managed-identity.json
             }
             $sqlManagedId = Install-ManagedIdentityAzureResource @managedIdArmParams -EA Stop
+            
+            Write-Information "SQL Service princiapl: $($sqlManagedId.ClientId)"
 
-
-            #-------------  Assign MS Graph permissions to sql managed identity -------------
-            # For more information why see: https://docs.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-user-assigned-managed-identity
-
-            $msGraphServicePrinciapl = Get-AzADServicePrincipal -DisplayName 'Microsoft Graph' -EA Stop
-            $msGraphAppRoles = $msGraphServicePrinciapl.AppRole |
-                Where-Object Value -in 'User.Read.All', 'GroupMember.Read.All', 'Application.Read.All'
-
-            # Replace '***** Update-AzADServicePrincipal WORKAROUND' with this commented out code once 
-            # `Update-AzADServicePrincipal` has implemented `AppRoleAssignment` parameter
-#            $sqlMsGraphAppRoleAssignmentParams = @{
-#                ObjectId                =   $msGraphServicePrinciapl.Id
-#                AppRoleAssignment       =   $msGraphAppRoles | ForEach-Object {
-#                    @{
-#                        ResourceId  =   $msGraphServicePrinciapl.Id
-#                        AppRoleId   =   $_.Id
-#                        PrincipalId =   $sqlManagedId.PrincipalId
-#                    }
-#                }
-#            }
-#            Write-Information "Assigning AD App role to SQL managed identity..."
-#            Update-AzADServicePrincipal @$sqlMsGraphAppRoleAssignmentParams -EA Stop
-
-            # ***** BEGIN Update-AzADServicePrincipal WORKAROUND
-            $appRoleAssignmentUrl = "https://graph.microsoft.com/v1.0/servicePrincipals/$($sqlManagedId.PrincipalId)/appRoleAssignments"
-
-            Start-Sleep -Seconds 15 # allow for managed identity created above to be replicated
-            Write-Information "Searching for MS Graph app role assignment for sql..."
-            $existingAppRoleAssignments = { Invoke-AzRestMethod -Uri $appRoleAssignmentUrl -EA Stop } |
-                Invoke-EnsureHttpSuccess |
-                ConvertFrom-Json |
-                Select-Object -ExpandProperty value
-
-            $unassignedAppRoles = $msGraphAppRoles |
-                Where-Object Id -NotIn ($existingAppRoleAssignments | Select-Object -ExpandProperty appRoleId)
-            if ($unassignedAppRoles) {
-                $unassignedAppRoles | ForEach-Object {
-                    
-                    $appRoleAssignmentJson = @{
-                        principalId =   $sqlManagedId.PrincipalId
-                        resourceId  =   $msGraphServicePrinciapl.Id
-                        appRoleId   =   $_.Id
-                    } | ConvertTo-Json -Compress
-                    
-                    Write-Information "Assigning MS Graph app roles to sql managed identity..."
-                    { Invoke-AzRestMethod -Method POST -Uri $appRoleAssignmentUrl -Payload $appRoleAssignmentJson -EA Stop } |
-                        Invoke-EnsureHttpSuccess | Out-Null
+            if (!$existingId) {
+                $wait = 15
+                Write-Information "Waitinng $wait secconds for new service principal to be propogated before assigning to group"
+                Start-Sleep -Seconds 15    
+            }
+            
+            $groups = [PsCustomObject]@{
+                Name                =   'sg.aad.role.custom.azuresqlauthentication'
+                Member              = @{
+                    ApplicationId       =   $sqlManagedId.ClientId
+                    Type                =   'ServicePrincipal'
                 }
             }
-            # ***** END Update-AzADServicePrincipal WORKAROUND
+            $groups | Set-AADGroup
             
 
             #------------- Set Azure SQL Server -------------

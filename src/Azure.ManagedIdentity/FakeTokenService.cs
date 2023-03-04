@@ -1,4 +1,4 @@
-namespace Template.Api.Shared.AzureIdentity;
+namespace Mri.Azure.ManagedIdentity;
 
 public class FakeTokenService : ITokenService {
   private const string ExampleAccessToken =

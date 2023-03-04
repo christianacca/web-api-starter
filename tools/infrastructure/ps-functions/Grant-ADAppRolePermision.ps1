@@ -11,7 +11,7 @@ function Grant-ADAppRolePermision {
       * Azure AD Application administrator
     
       .PARAMETER TargetAppDisplayName
-      The name of the AD App registration that declares the app role is to be granted
+      The name of the AD App registration that declares the app role that is to be granted
       
       .PARAMETER AppRoleId
       The id of the app role to be granted
@@ -23,7 +23,7 @@ function Grant-ADAppRolePermision {
       The resource group containing the managed identity
       
       .EXAMPLE
-      Grant-ADAppRolePermision -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx ManagedIdentityDisplayName web-api-starter-api -ManagedIdentityResourceGroupName web-api-starter
+      Grant-ADAppRolePermision -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx -ManagedIdentityDisplayName web-api-starter-api -ManagedIdentityResourceGroupName web-api-starter
 
     #>
     [CmdletBinding()]
@@ -83,7 +83,7 @@ function Grant-ADAppRolePermision {
 #            Update-AzADServicePrincipal @$targetAppRoleAssignmentParams -EA Stop
 
             # ***** BEGIN Update-AzADServicePrincipal WORKAROUND
-            $appRoleAssignmentUrl = "https://graph.microsoft.com/v1.0/servicePrincipals/$($managedId.PrincipalId)/appRoleAssignments"
+            $appRoleAssignmentUrl = "https://graph.microsoft.com/v1.0/servicePrincipals/$($targetAppServicePrincipal.Id)/appRoleAssignedTo"
 
             Write-Information "Searching for AD app role assignment for function app..."
             $existingAppRoleAssignments = { Invoke-AzRestMethod -Uri $appRoleAssignmentUrl -EA Stop } |

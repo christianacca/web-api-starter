@@ -4,7 +4,9 @@ function Install-ScriptDependency {
         [Parameter(Mandatory)]
         [Hashtable[]] $Module,
     
-        [switch] $ImportOnly
+        [switch] $ImportOnly,
+        
+        [switch] $ModuleInstallAllowClobber
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -15,7 +17,7 @@ function Install-ScriptDependency {
         try {
             Write-Information 'Install/Import dependent powershell modules...'
             $Module | ForEach-Object {
-                if (-not($ImportOnly) -or -not(Get-InstalledModule @_ -AllowPrerelease -EA SilentlyContinue)) {
+                if (-not($ImportOnly) -and -not(Get-InstalledModule @_ -AllowPrerelease -EA SilentlyContinue)) {
                     Write-Information "  Install module '$($_.Name)'"
                     Install-Module @_ -Repository PSGallery -AllowPrerelease -Force -Confirm:$false -AllowClobber:$ModuleInstallAllowClobber -EA Stop
                 }

@@ -3,40 +3,40 @@
 
 _anchors:
   image: &defaultImage
-    registry: mrisoftwaredevops.azurecr.io
-    tag: 0.0.1
-  extraVolumeMounts: &defaultVolumeMounts
-    - name: appsettings-json
+    registry: '${Docker_DockerRegistry}'
+    tag: '${Docker_ImageTag}'
+  extraVolumeMounts:
+    - &appSettingsVolumeMount
+      name: appsettings-json
       mountPath: app/appsettings.json
       subPath: appsettings.json
       readOnly: true
-  extraEnvVars: &defaultEnvVars
-    ASPNETCORE_FORWARDEDHEADERS_ENABLED: true
 
 api:
   image:
     <<: *defaultImage
-    repository: web-api-starter-api
+    repository: web-api-starter/api
   podAnnotations:
     # have helm redeploy the pods when the only a configMap value has changed
-    checksum-appsettings-json: '#{Checksum.Api}'
+    checksum-appsettings-json: '${Checksum_Api}'
   podLabels:
     aadpodidbinding: web-api-starter-api-identity
   command: ["dotnet", "Template.Api.dll"]
   extraEnvVars:
-    <<: *defaultEnvVars
+    - name: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+      value: "true"
   bindURLs: http://+:80
   containerPorts:
     http: 80
   extraVolumes:
     - name: appsettings-json
       configMap:
-        # assumes: web-api-starter == chart release name
-        name: web-api-starter-api-appsettings-json
+        name: '${Helm_ReleaseName}-api-appsettings-json'
         items:
           - key: appsettings.json
             path: appsettings.json
-  extraVolumeMounts: *defaultVolumeMounts
+  extraVolumeMounts:
+    - <<: *appSettingsVolumeMount
   nodeSelector:
     'beta.kubernetes.io/os': linux
   appFromExternalRepo:
@@ -61,8 +61,6 @@ api:
     initialDelaySeconds: 10
   readinessProbe:
     enabled: false # we're using startupProbe instead as don't want/need readinessProbe semantics
-  livenessProbe:
-    enabled: false
   customLivenessProbe:
     httpGet:
       path: /health
@@ -74,14 +72,36 @@ api:
     # Say you set request to 100m and limit to 250m. Set HPA to 200% cpu utilisation - this way the pods will scale when CPU usage hits 200m. 
     # This resulted in more efficient use of the nodes across the cluster as opposed to setting both request and limit to 250m and scaling at 75% CPU utilisation.
     # With requests at 100m, I can spin up more pods faster when HPA kicks in (because with the same infrastructure I have more free capacity) 
-    # and at the same time it allows some time for a new VM to come up and join the cluster for more capacity.
+    # and at the same time it allows some time for a new VM to come up and join the cluster for more capacity before the hard limits are hit.
     targetCPU: 200 # k8 will throttle cpu a pod receives so don't need to scale as quickly as memory
     targetMemory: 180 # scale up sooner for memory as k8 will kill a pod that exceeds it's memory limit
     minReplicas: 1
     maxReplicas: 2
   ingress:
     enabled: true
-    # assumes: web-api-starter == chart release name
-    hostname: web-api-starter-api.4470b7fe87a6424f9edf.eastus.aksapp.io
+#    ingressClassName: nginx
     annotations:
-      kubernetes.io/ingress.class: addon-http-application-routing
+      # todo: replace with `ingressClassName: nginx` above once all our aks clusters are updated to support `ingressClassName` field
+      kubernetes.io/ingress.class: nginx
+    hostname: dev-api-web-api-starter.redmz.mrisoftware.com
+    extraTls:
+      - hosts:
+          - dev-api-web-api-starter.redmz.mrisoftware.com
+        secretName: redmz.mrisoftware.com-wildcard-tls
+  healthIngress:
+    enabled: true
+#    ingressClassName: nginx
+    annotations:
+      # todo: replace with `ingressClassName: nginx` above once all our aks clusters are updated to support `ingressClassName` field
+      kubernetes.io/ingress.class: nginx
+      # note: we have TWO DIFFERENT ingress controllers in play depending on the aks cluster being deployed to. Both of
+      # these use different annotation prefixes as follows:
+      # 1. nginx.org (https://github.com/nginxinc/kubernetes-ingress/) (dev and demo cluster)
+      # 2. nginx.ingress.kubernetes.io (https://github.com/kubernetes/ingress-nginx) (all other cluster)
+      nginx.ingress.kubernetes.io/rewrite-target: /health
+      nginx.ingress.kubernetes.io/ssl-redirect: "false"
+      nginx.org/rewrites: "serviceName=${Helm_ReleaseName}-api rewrite=/health"
+      nginx.org/mergeable-ingress-type: minion
+      ingress.kubernetes.io/ssl-redirect: "false" # read by nginx.org ingress-controller
+    hostname: dev-aks-eastus.redmz.mrisoftware.com
+    path: /trafficmanager-health-app-web-api-starter-api

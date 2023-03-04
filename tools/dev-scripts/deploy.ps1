@@ -7,6 +7,8 @@
 
 [CmdletBinding()]
 param(
+    [Parameter(Mandatory)]
+    [string] $BuildNumber,
     [switch] $Login,
     [string] $SubscriptionId
 )
@@ -15,6 +17,7 @@ begin {
     $callerEA = $ErrorActionPreference
     $ErrorActionPreference = 'Stop'
 
+    . "./tools/dev-scripts/Get-DotnetUserSecrets.ps1"
     . "./tools/infrastructure/ps-functions/Invoke-Exe.ps1"
 }
 process {
@@ -34,79 +37,86 @@ process {
 
         # ----------- Gather info about deployment -----------
         $convention = & "./tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
+        $infra = & "./tools/infrastructure/get-infrastructure-info.ps1" $convention -AsHashtable
+        
+        $aks = $convention.Aks.Primary
         $api = $convention.SubProducts.Api
-        $funcApp = $convention.SubProducts.Func
+        $funcApp = $convention.SubProducts.InternalApi
+        $keyVault = $convention.SubProducts.KeyVault
+        $reportsStorage = $convention.SubProducts.PbiReportStorage
         $appResourceGroup = $convention.AppResourceGroup.ResourceName
         
-        $apiManagedIdentityClientId = Invoke-Exe {
-            az identity show -g $appResourceGroup -n $api.ManagedIdentity --query clientId -otsv
-        }
-        
-        $funcManagedIdentityClientId = Invoke-Exe {
-            az identity show -g $appResourceGroup -n $funcApp.ManagedIdentity --query clientId -otsv
-        }
-        $funcAppId = Invoke-Exe {
-            az ad app list --display-name $funcApp.ResourceName
-        } | ConvertFrom-Json | Select-Object -First 1 | Select-Object -ExpandProperty appId
-        $funcAppHostName = Invoke-Exe {
-            az functionapp show -g $appResourceGroup -n $funcApp.ResourceName --query hostNames -otsv
-        } | Select-Object -First 1
-        $funcAppPublicUrl = "https://$funcAppHostName"
-        
-        $aksResourceGroup = $convention.Aks.Primary.ResourceGroupName
-        $aksClusterName = $convention.Aks.Primary.ResourceName
-        $dnsZoneName = Invoke-Exe {
-            az aks show -g $aksResourceGroup -n $aksClusterName --query addonProfiles.httpApplicationRouting.config.HTTPApplicationRoutingZoneName -otsv
-        }
-        $apiHostName = "$appResourceGroup-api.$dnsZoneName"
         $sqlServerName = $convention.SubProducts.Sql.Primary.ResourceName
         $sqlServerInstace = "$sqlServerName.database.windows.net"
         $sqlServerDataSource = "tcp:$sqlServerInstace,1433"
         $databaseName = $convention.SubProducts.Db.ResourceName
         
-        $appInsightsInstrumentationKey = '<your_instrumentation_key>'
-
+        $apiSecretValues = Get-DotnetUserSecrets -UserSecretsId d4101dd7-fec4-4011-a0e8-65748f7ee73c
+        $apiDevAppSettings = Get-Content ./src/Template.Api/appsettings.Development.json | ConvertFrom-Json
         
         # ----------- Deploy Database migrations -----------
         ./tools/dev-scripts/deploy-db.ps1 -SqlServerName $sqlServerName -DatabaseName $databaseName -EA Stop
+
+        # ----------- Deploy API to AKS -----------         
+        $dnsZoneName = Invoke-Exe {
+            az aks show -g $aks.ResourceGroupName -n $aks.ResourceName --query addonProfiles.httpApplicationRouting.config.HTTPApplicationRoutingZoneName -otsv
+        } -EA SilentlyContinue
+        $apiHostName = $dnsZoneName ?? $api.HostName
         
-        # ----------- Deploy API to AKS -----------
         $apiParams = @{
-            ConfigureAppSettingsJson    =   { param([Hashtable] $Settings)
-                $Settings.Database.DataSource = $sqlServerDataSource
-                $Settings.Database.InitialCatalog = $databaseName
-                $Settings.Database.UserID = $apiManagedIdentityClientId
-                $Settings.Api.FunctionsAppToken.Audience = $funcAppId
-                $Settings.Api.FunctionsAppToken.ManagedIdentityClientId = $apiManagedIdentityClientId
-                $Settings.Api.ReverseProxy.Clusters.FunctionsApp.Destinations.Primary.Address = $funcAppPublicUrl
-                $Settings.Api.TokenProvider.Authority = 'https://mrisaas.oktapreview.com/oauth2/default'
+            ConfigureAppSettingsJson = { param([Hashtable] $Settings)
+                $Settings.Api.Database.DataSource = $sqlServerDataSource
+                $Settings.Api.Database.InitialCatalog = $databaseName
+                $Settings.Api.Database.UserID = $infra.Api.ManagedIdentityClientId
+                $Settings.Api.DefaultAzureCredentials.ManagedIdentityClientId = $infra.Api.ManagedIdentityClientId
+                $Settings.Api.FunctionsAppToken.Audience = $funcApp.AuthTokenAudience
+                $Settings.Api.FunctionsAppQueue.ServiceUri = "https://$($funcApp.StorageAccountName).queue.core.windows.net"
+                $Settings.Api.KeyVaultName = $keyVault.ResourceName
+                $Settings.Api.ReverseProxy.Clusters.FunctionsApp.Destinations.Primary.Address = "https://$($funcApp.HostName)"
+                $Settings.Api.TokenProvider.Authority = 'https://mrisaas.oktapreview.com/oauth2/aus1eyja66s1cBkTt0h8'
                 $Settings.ApplicationInsights.AutoCollectActionArgs = $true
-                $Settings.ApplicationInsights.ConnectionString = "InstrumentationKey=$appInsightsInstrumentationKey"
+                $Settings.ApplicationInsights.ConnectionString = $infra.AppInsights.ConnectionString
+                if ($apiSecretValues['CentralIdentity_Credentials_Password']) {
+                    $Settings.CentralIdentity.Credentials.Password = $apiSecretValues.CentralIdentity_Credentials_Password
+                }
+                $Settings.CentralIdentity.BaseUri = $apiDevAppSettings.CentralIdentity.BaseUri
             }
             Values                  =   @{
                 'api.image.registry' = "$($convention.Aks.RegistryName).azurecr.io"
-                'api.podLabels.aadpodidbinding' = $api.ManagedIdentity
+                'api.image.tag' = $BuildNumber
+                'api.podLabels.aadpodidbinding' = $api.ManagedIdentity.BindingSelector
+                'api.podLabels.releasedate' = Get-Date -Format 'yyyy-MM-ddTHH.mm.ss'
                 'api.ingress.hostname' = $apiHostName
+                'api.healthIngress.enabled' = 'false'
             }
             HelmChartName           =   $convention.Aks.HelmChartName
             AksNamespace            =   $convention.Aks.Namespace
         }
-        ./tools/dev-scripts/deploy-api.ps1 @apiParams -InformationAction Continue -EA Stop
+        
+        if ($dnsZoneName) {
+            $apiParams.Values['api.ingress.extraTls'] = 'null'
+            $apiParams.Values['api.ingress.annotations.kubernetes\.io/ingress\.class'] = 'addon-http-application-routing'
+        }
+        ./tools/dev-scripts/deploy-api.ps1 @apiParams -InfA Continue -EA Stop
 
         
         # ----------- Deploy Function app -----------
         $funcParams = @{
             AppSettings                     =   @{
-                # for list of in-built settings see: https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings
-                APPINSIGHTS_INSTRUMENTATIONKEY   =   $appInsightsInstrumentationKey
+            # for list of in-built settings see: https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings
+                APPINSIGHTS_INSTRUMENTATIONKEY = $infra.AppInsights.ConnectionString
             }
             ConfigureAppSettingsJson        =   { param([Hashtable] $Settings)
-                $Settings.Database.DataSource = $sqlServerDataSource
-                $Settings.Database.InitialCatalog = $databaseName
-                $Settings.Database.UserID = $funcManagedIdentityClientId
+                $Settings.InternalApi.Database.DataSource = $sqlServerDataSource
+                $Settings.InternalApi.Database.InitialCatalog = $databaseName
+                $Settings.InternalApi.Database.UserID = $infra.InternalApi.ManagedIdentityClientId
+                $Settings.InternalApi.DefaultAzureCredentials.ManagedIdentityClientId = $infra.InternalApi.ManagedIdentityClientId
+                $Settings.InternalApi.KeyVaultName = $keyVault.ResourceName
+                $Settings.InternalApi.ReportBlobStorage.ServiceUri = "https://$($reportsStorage.StorageAccountName).blob.core.windows.net"
             }
-            ResourceGroup               =   $appResourceGroup
-            Name                        =   $funcApp.ResourceName
+            ResourceGroup                   =   $appResourceGroup
+            Name                            =   $funcApp.ResourceName
+            Path                            =   'out/Template.Functions'
         }
         ./tools/dev-scripts/deploy-functions @funcParams -EA Stop
         
@@ -114,12 +124,12 @@ process {
         Write-Host '******************* Summary: start ******************************'
         Write-Host "Api Url: http://$apiHostName" -ForegroundColor Yellow
         Write-Host "Api Health Url: http://$apiHostName/health" -ForegroundColor Yellow
-        Write-Host "Function App Url: $funcAppPublicUrl" -ForegroundColor Yellow
+        Write-Host "Function App Url: https://$($funcApp.HostName)" -ForegroundColor Yellow
         Write-Host "Azure SQL Public Url: https://$($sqlServerInstace):1433" -ForegroundColor Yellow
         Write-Host '******************* Summary: end ********************************'
         
     }
     catch {
-        Write-Error -ErrorRecord $_ -EA $callerEA
+        Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA
     }
 }

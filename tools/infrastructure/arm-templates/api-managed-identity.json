@@ -18,6 +18,7 @@
   },
   "functions": [],
   "variables": {
+    "keyVaultSecretsUser": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
     "storageQueueDataMessageSender": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a')]"
   },
   "resources": [
@@ -26,6 +27,19 @@
       "apiVersion": "2018-11-30",
       "name": "[parameters('managedIdentityName')]",
       "location": "[parameters('location')]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName')), resourceGroup().id, variables('keyVaultSecretsUser'))]",
+      "properties": {
+        "roleDefinitionId": "[variables('keyVaultSecretsUser')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))).principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+      ]
     },
     {
       "type": "Microsoft.Authorization/roleAssignments",

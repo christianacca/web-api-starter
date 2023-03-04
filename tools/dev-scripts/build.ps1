@@ -1,7 +1,7 @@
     [CmdletBinding()]
     param(
-        [string] $BuildNumber = '0.0.1',
-        [string] $RegistryName = 'mrisoftwaredevops',
+        [Parameter(Mandatory)]
+        [string] $BuildNumber,
         [switch] $DockerPush
     )
     begin {
@@ -13,19 +13,20 @@
     }
     process {
         try {
-            Invoke-Exe { 
-                dotnet build -c Release
-                dotnet test -c Release --no-build
-                dotnet publish -c Release --no-build
-            }
+            Invoke-Exe { dotnet build -c Release }
+            Invoke-Exe { dotnet test -c Release --no-build }
+            Invoke-Exe { dotnet publish -c Release --no-build }
             ./tools/ci-cd/scripts/create-sql-migration-script.ps1
             Write-Information 'Create published artifacts directory'
             ./tools/ci-cd/scripts/create-published-artifacts-directory.ps1
 
             if ($DockerPush.IsPresent) {
-                Write-Information 'Conect to Azure Container Registry'
-                Invoke-Exe { az acr login -n $RegistryName }
-                ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 -ImageRepo "$RegistryName.azurecr.io" -BuildNumber $BuildNumber -EA Stop   
+                $convention = & "./tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
+                $registryName = $convention.Aks.RegistryName
+                $registryInstance = "$registryName.azurecr.io"
+                Write-Information "Conect to Azure Container Registry '$registryInstance'"
+                Invoke-Exe { az acr login -n $registryName }
+                ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 -ImageRepo $registryInstance -BuildNumber $BuildNumber -PushImages -EA Stop   
             }
         }
         catch {

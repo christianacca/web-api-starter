@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Options;
-using Template.Api.Shared.AzureIdentity;
+using Mri.Azure.ManagedIdentity;
 using Yarp.ReverseProxy.Transforms;
 using Yarp.ReverseProxy.Transforms.Builder;
 
@@ -19,7 +18,7 @@ public class TokenAuthenticationTransform : ITransformProvider {
   public void Apply(TransformBuilderContext context) {
     if (context.Route.ClusterId == "FunctionsApp") {
       context.AddRequestTransform(async transformContext => {
-        await AuthenticateRequest(transformContext, Options.DefaultName);
+        await AuthenticateRequest(transformContext, TokenOptionNames.FunctionApp);
       });
     }
   }

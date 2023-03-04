@@ -10,15 +10,17 @@ function Install-FunctionAppAzureResource {
       This following Azure resources will be provisioned by this script:
 
       * Azure Function app
-      * Azure AD App registration and associated AD Enterprise app. This App registration is associated with the Azure Function
-        app to authentication requests from other services that also use managed identity
       * User assigned managed identity assigned as the identity for Azure function app
+      * Additionally, where `AppRoleDisplayName` has been supplied:
+        - Azure AD App registration and associated AD Enterprise app. This App registration is associated with the 
+          Azure Function app to authentication requests from other services that also use managed identity
       
       Required permission to run this script:
-      * Azure Contributor and User Access Administrator on:
+      * Azure RBAC Role: 'Azure Contributor' and 'User Access Administrator' on
         - resource group for which Azure resource will be created OR
         - subscription IF the resource group does not already exist
-      * Azure AD Application administrator
+      * Additionally, where `AppRoleDisplayName` has been supplied:
+        - Azure AD role: 'Application developer'
     
       .PARAMETER ResourceGroup
       The name of the resource group to add the resources to. This group must already exist
@@ -31,19 +33,37 @@ function Install-FunctionAppAzureResource {
                       
       .PARAMETER AppRoleDisplayName
       The name display name of an App Role that needs to be granted to consumers (other Azure apps) before they can make
-      requests to the function app
+      requests to the function app. If this is supplied then an Azure AD App registration will be provisioned
+                      
+      .PARAMETER StorageAccountName
+      The name of the storage account that the function app will use internally
+      
+      .PARAMETER TemplateParameterObject
+      The parameter values to supplied to the ARM template that deploys the function app
       
       .PARAMETER TemplateDirectory
-      The path to the directory containing the ARM templates. The following ARM templates should exist:
-      * functions-app.json
-      * functions-managed-identity.json
+      The path to the directory containing the ARM templates
+      
+      .PARAMETER FunctionAppTemplateFile
+      The name of the ARM template that will be used to provision the function app.
+      (defaults to 'functions-app.json' where a `AppRoleDisplayName` has been supplied otherwise to 'functions-app-no-auth.json')
+      
+      .PARAMETER ManagedIdentityTemplateFile
+      The name of the ARM template that will be used to provision the managed identity used for the function app
+      
+      .EXAMPLE
+      Install-FunctionAppAzureResource -AppRoleDisplayName app_only -ResourceGroup my-app -TemplateDirectory ./tools/infrastructure/arm-templates -InfA Continue
+    
+      Description
+      ----------------
+      Creates an Azure function app and associated managed identity along with an AD app registration to authenticate incoming requests to function app
       
       .EXAMPLE
       Install-FunctionAppAzureResource -ResourceGroup my-app -TemplateDirectory ./tools/infrastructure/arm-templates -InfA Continue
     
       Description
       ----------------
-      Creates all the Azure resources in the resource group supplied, displaying to the console details of the task execution
+      Creates an Azure function app and associated managed identity without an Azure AD app registration
 
     #>
     [CmdletBinding()]
@@ -56,11 +76,19 @@ function Install-FunctionAppAzureResource {
 
         [string] $ManagedIdentityName = "$Name-id",
         
-        [Parameter(Mandatory)]
         [string] $AppRoleDisplayName,
 
+        [string] $StorageAccountName,
+
         [Parameter(Mandatory)]
-        [string] $TemplateDirectory
+        [string] $TemplateDirectory,
+        
+        [Hashtable] $TemplateParameterObject = @{},
+        
+        [string] $FunctionAppTemplateFile,
+        
+        [Parameter(Mandatory)]
+        [string] $ManagedIdentityTemplateFile
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -69,6 +97,7 @@ function Install-FunctionAppAzureResource {
         
         . "$PSScriptRoot/Invoke-EnsureHttpSuccess.ps1"
         . "$PSScriptRoot/Install-ManagedIdentityAzureResource.ps1"
+        . "$PSScriptRoot/Set-ADApplication.ps1"
 
         $summaryInfo = @{}
         function Add-Summary {
@@ -77,6 +106,13 @@ function Install-FunctionAppAzureResource {
             Write-Information "  INFO | $($Description):- $Value"
             $summaryInfo[$key] = $Value
         }
+        
+        $hasAuth = if ($AppRoleDisplayName) { $true } else { $false }
+
+        if (-not($FunctionAppTemplateFile)) {
+            $FunctionAppTemplateFile = if ($hasAuth) { 'functions-app.json' } else { 'functions-app-no-auth.json' }   
+        }
+        
     }
     process {
         try {
@@ -90,58 +126,27 @@ function Install-FunctionAppAzureResource {
             $funcManagedIdParams = @{
                 ResourceGroup           =   $ResourceGroup
                 Name                    =   $ManagedIdentityName
-                TemplateFile            =   Join-Path $TemplateDirectory functions-managed-identity.json
+                TemplateFile            =   Join-Path $TemplateDirectory $ManagedIdentityTemplateFile
             }
             $funcManagedId = Install-ManagedIdentityAzureResource @funcManagedIdParams -EA Stop
             Add-Summary 'Function App Managed Identity Client Id' ($funcManagedId.ClientId)
             
 
             #------------- Set Azure AD app registration -------------
-            Write-Information "Searching for existing Azure AD App registration for function app..."
-            $funcAdRegistration = Get-AzADApplication -DisplayName $Name -EA Stop
-            $funcAdParams = @{
-                DisplayName         =   $Name
-                AppRole             =   @{
-                    Id                  =   Get-AppRoleId $AppRoleDisplayName $Name
-                    AllowedMemberType   =   'Application'
-                    DisplayName         =   $AppRoleDisplayName
-                    Description         =   'Service-to-Service access'
-                    Value               =   'app_only_access'
-                    IsEnabled           =   $true
+            if ($hasAuth) {
+                $funcAdParams = @{
+                    IdentifierUri       =   "api://$Name"
+                    DisplayName         =   $Name
+                    AppRole             =   @{
+                        Id                  =   Get-AppRoleId $AppRoleDisplayName $Name
+                        AllowedMemberType   =   'Application'
+                        DisplayName         =   $AppRoleDisplayName
+                        Description         =   'Service-to-Service access'
+                        Value               =   'app_only_access'
+                        IsEnabled           =   $true
+                    }
                 }
-            }
-            if (-not($funcAdRegistration)) {
-                Write-Information "  Existing AD App registration not found. Creating..."
-                $funcAdRegistration = New-AzADApplication @funcAdParams -EA Stop
-            } else {
-                Write-Information "  Existing AD App registration found '$($funcAdRegistration.Id)'. Skipping create"
-            }
-
-            Write-Information "Updating Azure Function App AD Registration '$Name' with additional configuration..."
-            $appUri = "api://$($funcAdRegistration.AppId)"
-            Update-AzADApplication -ApplicationId ($funcAdRegistration.AppId) -IdentifierUri $appUri -EA Stop | Out-Null
-            Add-Summary 'Function App Application Id' ($funcAdRegistration.AppId)
-
-            Write-Information "Searching for existing Azure AD App service principal for function app..."
-            $funcAdAppServicePrincipal = Get-AzADServicePrincipal -ApplicationId ($funcAdRegistration.AppId) -EA Stop
-            if (-not($funcAdAppServicePrincipal)) {
-                Write-Information "  Existing service principal not found. Creating service principal for AD App rgistration ($($funcAdRegistration.AppId))..."
-                $funcAdAppServicePrincipal = New-AzADServicePrincipal -ApplicationId ($funcAdRegistration.AppId) -AppRoleAssignmentRequired -EA Stop
-
-                # Delete '***** New-AzADServicePrincipal WORKAROUND' once `New-AzADServicePrincipal`
-                # has implemented `AppRoleAssignmentRequired` parameter
-
-                # ***** BEGIN New-AzADServicePrincipal WORKAROUND
-                $serivePrincipalUpdateJson = @{
-                    appRoleAssignmentRequired   =   $true
-                } | ConvertTo-Json
-
-                $serivePrincipalUpdateUrl = "https://graph.microsoft.com/v1.0/servicePrincipals/$($funcAdAppServicePrincipal.Id)"
-                { Invoke-AzRestMethod -Method PATCH -Uri $serivePrincipalUpdateUrl -Payload $serivePrincipalUpdateJson -EA Stop } |
-                    Invoke-EnsureHttpSuccess | Out-Null
-                # ***** END New-AzADServicePrincipal WORKAROUND
-            } else {
-                Write-Information "  Existing AD App service principal found '$($funcAdAppServicePrincipal.Id)'. Skipping create"
+                $funcAdRegistration = Set-ADApplication -InputObject $funcAdParams
             }
 
 
@@ -154,14 +159,20 @@ function Install-FunctionAppAzureResource {
                 Register-AzResourceProvider -ProviderNamespace $resourceProviderName -EA Stop
             }
             
+            $templateParamValues = $TemplateParameterObject + @{
+                managedIdentityResourceId   =   $funcManagedId.ResourceId
+                functionAppName             =   $Name
+            }
+            if ($hasAuth) {
+                $templateParamValues.appClientId = $funcAdRegistration.AppId
+            }
+            if ($StorageAccountName) {
+                $templateParamValues.storageAccountName = $StorageAccountName
+            }
             $funcArmParams = @{
                 ResourceGroupName       =   $ResourceGroup
-                TemplateParameterObject =   @{
-                    managedIdentityResourceId   =   $funcManagedId.ResourceId
-                    functionAppName             =   $Name
-                    appClientId                 =   $funcAdRegistration.AppId
-                }
-                TemplateFile            =   Join-Path $TemplateDirectory functions-app.json
+                TemplateParameterObject =   $templateParamValues
+                TemplateFile            =   Join-Path $TemplateDirectory $FunctionAppTemplateFile
             }
             Write-Information "Setting Azure Function App '$Name'..."
             New-AzResourceGroupDeployment @funcArmParams -EA Stop | Out-Null

@@ -1,5 +1,3 @@
-using System.IO;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
@@ -36,12 +34,13 @@ public class GetUser {
     string name = req.Query["name"];
 
     string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-    dynamic data = JsonConvert.DeserializeObject(requestBody);
+
+    dynamic? data = JsonConvert.DeserializeObject(requestBody);
     name ??= data?.name ?? "";
 
     var userDto = new { Id = user.Identity?.Name, Name = name };
 
-    return string.IsNullOrWhiteSpace(name)
+    return !string.IsNullOrWhiteSpace(name)
       ? new OkObjectResult(userDto)
       : new BadRequestObjectResult("Please pass a name on the query string or in the request body");
   }

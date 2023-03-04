@@ -1,8 +1,9 @@
 using System.Net.Http.Headers;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Template.Api.Shared.AzureIdentity;
+namespace Mri.Azure.ManagedIdentity;
 
 public class AzureIdentityAuthHttpClientHandler : DelegatingHandler {
   private IHttpContextAccessor HttpContextAccessor { get; }
@@ -19,7 +20,7 @@ public class AzureIdentityAuthHttpClientHandler : DelegatingHandler {
       var tokenService = httpContext.RequestServices.GetRequiredService<TokenServiceFactory>().Get(TokenOptionsName);
       var token = await tokenService.GetTokenAsync(cancellationToken);
       request.Headers.Authorization =
-        new AuthenticationHeaderValue(JwtBearerDefaults.AuthenticationScheme, token);
+        new AuthenticationHeaderValue("Bearer", token);
     }
 
     return await base.SendAsync(request, cancellationToken);

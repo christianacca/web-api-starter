@@ -2,9 +2,22 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "corsAllowedOrigins": {
+            "type": "array",
+            "defaultValue": [],
+            "metadata": {
+                "description": "List of origins that should be allowed to make cross-origin\ncalls"
+            }
+        },
+        "corsSupportCredentials": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Specify whether CORS requests with credentials are allowed. See\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#Requests_with_credentials\nfor more details"
+            }
+        },
         "functionAppName": {
             "type": "string",
-            "defaultValue": "[concat(resourceGroup().name, '-func')]",
             "metadata": {
                 "description": "Specify the name of the function application"
             }
@@ -23,10 +36,22 @@
             }
         },
         "managedIdentityResourceId": {
-            "defaultValue": "",
-            "type": "String",
+            "type": "string",
             "metadata": {
                 "description": "The Resource ID of the user-assigned managed identity, in the form of /subscriptions/<subscriptionId>/resourceGroups/<ResourceGroupName>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<managedIdentity>."
+            }
+        },
+        "additionalManagedIdentityResourceId": {
+            "type": "string",
+            "metadata": {
+                "description": "The Resource ID of any other user-assigned managed identity to assign to the function, in the form of /subscriptions/<subscriptionId>/resourceGroups/<ResourceGroupName>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<managedIdentity>."
+            }
+        },
+        "storageAccountName": {
+            "type": "string",
+            "defaultValue": "[toLower(concat('funcsa', uniqueString(resourceGroup().id)))]",
+            "metadata": {
+                "description": "The name of the Storage Account"
             }
         },
         "tenantID": {
@@ -35,11 +60,31 @@
             "metadata": {
                 "description": "The ID of the tenant providing auth token"
             }
+        },
+        "appInsightsConnectionString": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The connection string for the application insights instance used to monitor function app"
+            }
+        },
+        "appInsightsCloudRoleName": {
+            "type": "string",
+            "defaultValue": "[parameters('functionAppName')]",
+            "metadata": {
+                "description": "The name of the function app as it appears in application insights"
+            }
+        },
+        "deployDefaultStorageQueue": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "Create a default message queue for this function app"
+            }
         }
     },
     "variables": {
         "hostingPlanName": "[parameters('functionAppName')]",
-        "storageAccountName": "[toLower(concat('funcsa', uniqueString(resourceGroup().id)))]",
         "authSettingsName": "[concat(parameters('functionAppName'), '/authsettingsV2')]"
     },
     "resources": [
@@ -51,36 +96,41 @@
             "kind": "functionapp",
             "dependsOn": [
                 "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
-                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
             ],
             "identity": {
                 "type": "UserAssigned",
                 "UserAssignedIdentities": {
-                    "[parameters('managedIdentityResourceId')]": {}
+                    "[parameters('managedIdentityResourceId')]": {},
+                    "[parameters('additionalManagedIdentityResourceId')]": {}
                 }
             },
             "properties": {
                 "siteConfig": {
                     "appSettings": [
                         {
-                            "name": "FUNCTIONS_WORKER_RUNTIME",
-                            "value": "dotnet"
-                        },
-                        {
-                            "name": "AzureWebJobsDashboard",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value)]"
+                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                            "value": "[parameters('appInsightsConnectionString')]"
                         },
                         {
                             "name": "AzureWebJobsStorage",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value)]"
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',parameters('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2019-06-01').keys[0].value)]"
                         },
                         {
                             "name": "FUNCTIONS_EXTENSION_VERSION",
                             "value": "~4"
                         },
                         {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet"
+                        },
+                        {
+                            "name": "WEBSITE_CLOUD_ROLENAME",
+                            "value": "[parameters('appInsightsCloudRoleName')]"
+                        },
+                        {
                             "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')),'2019-06-01').keys[0].value)]"
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', parameters('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')),'2019-06-01').keys[0].value)]"
                         },
                         {
                             "name": "WEBSITE_CONTENTSHARE",
@@ -91,8 +141,13 @@
                             "value": "1"
                         }
                     ],
+                    "cors": {
+                        "allowedOrigins": "[parameters('corsAllowedOrigins')]",
+                        "supportCredentials": "[parameters('corsSupportCredentials')]"
+                    },
                     "http20Enabled": true
                 },
+                "httpsOnly": true,
                 "name": "[parameters('functionAppName')]",
                 "clientAffinityEnabled": false,
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms/', variables('hostingPlanName'))]"
@@ -120,12 +175,12 @@
                             "openIdIssuer": "[concat('https://sts.windows.net/', parameters('tenantID'), '/')]",
                             "clientId": "[parameters('appClientId')]",
                             "clientSecretSettingName": "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
+                        },
+                        "validation": {
+                            "allowedAudiences": [
+                                "[concat('api://', parameters('functionAppName'))]"
+                            ]
                         }
-                    },
-                    "validation": {
-                        "allowedAudiences": [
-                            "[concat('api://', parameters('appClientId'))]"
-                        ]
                     },
                     "isAutoProvisioned": true
                 },
@@ -158,11 +213,29 @@
         {
             "apiVersion": "2019-06-01",
             "type": "Microsoft.Storage/storageAccounts",
-            "name": "[variables('storageAccountName')]",
+            "name": "[parameters('storageAccountName')]",
             "location": "[parameters('location')]",
             "sku": {
                 "name": "Standard_LRS"
             }
+        },
+        {
+            "condition": "[parameters('deployDefaultStorageQueue')]",
+            "name": "[concat(parameters('storageAccountName'), '/default/default-queue')]",
+            "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
+            "apiVersion": "2019-06-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ]
+        },
+        {
+            "condition": "[parameters('deployDefaultStorageQueue')]",
+            "name": "[concat(parameters('storageAccountName'), '/default/default-queue-poison')]",
+            "type": "Microsoft.Storage/storageAccounts/queueServices/queues",
+            "apiVersion": "2019-06-01",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+            ]
         }
     ]
 }

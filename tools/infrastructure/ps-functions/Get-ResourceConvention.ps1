@@ -3,24 +3,36 @@ function Get-ResourceConvention {
         [Parameter(Mandatory)]
         [string] $ProductName,
         
+        [string] $ProductFullName,
+        
+        [string] $ProductSubDomainName,
+        
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
 
         [string] $CompanyName = 'mri',
-        
-        [string] $GitOrganisationName = 'MRI-Software',
-        
-        [string] $GitRepositoryName,
 
-        [Hashtable] $SubProducts = @{},
+        [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
 
         [switch] $SeperateDataResourceGroup,
     
         [switch] $AsHashtable
     )
+    
+    Set-StrictMode -Off # allow reference to non-existant object properties to keep script readable
+
+    . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
+    . "$PSScriptRoot/Get-PublicHostName.ps1"
+    . "$PSScriptRoot/Get-RootDomain.ps1"
+    . "$PSScriptRoot/Get-StorageRbacAccess.ps1"
+    . "$PSScriptRoot/Get-UniqueString.ps1"
 
     $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
     $hasFailover = if ($EnvironmentName -in $failoverEnvironmnets) { $true } else { $false }
+
+    $productNameLower = $ProductName.ToLower()
+    if(-not($ProductFullName)) { $ProductFullName = $ProductName.ToUpper() }
+    if(-not($ProductSubDomainName)) { $ProductSubDomainName = '{0}{1}' -f $CompanyName.ToLower(), $productNameLower }
 
     $azureRegions = switch ($EnvironmentName) {
         'prod-emea' {
@@ -34,65 +46,47 @@ function Get-ResourceConvention {
         }
     }
 
+    $addGlobalGroupNames = @{
+        DevelopmentGroup    =   "sg.role.development.$productNameLower.$EnvironmentName".Replace('-', '')
+        Tier1SupportGroup   =   "sg.role.supporttier1.$productNameLower.$EnvironmentName".Replace('-', '')
+        Tier2SupportGroup   =   "sg.role.supporttier2.$productNameLower.$EnvironmentName".Replace('-', '')
+    }
+
     $azurePrimaryRegion = $azureRegions[0]
     $azureSecondaryRegion = $azureRegions[1]
 
-    $appResourceGroupName = '{0}-{1}'  -f $ProductName, $EnvironmentName
+    $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
+    $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
+    
+    $resourceGroupRbac = @{
+        Role    =   'Contributor'
+        Member  =   @{ 
+            Name = ($isTestEnv -or ($EnvironmentName -eq 'demo')) ? $addGlobalGroupNames.DevelopmentGroup : $addGlobalGroupNames.Tier2SupportGroup 
+            Type = 'Group'
+        }
+    }
+
+    $appInstance = '{0}-{1}' -f $productNameLower, $EnvironmentName
+    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
     $appReourceGroup = @{
         ResourceName        =   $appResourceGroupName
         ResourceLocation    =   $azurePrimaryRegion
+        UniqueString        =   Get-UniqueString $appResourceGroupName
+        # note: assumes that everyone has the 'Reader' RBAC role at the subscription level
+        RbacAssignment      =   $resourceGroupRbac
     }
     
     $dataResourceGroup = if ($SeperateDataResourceGroup) {
         @{
-            ResourceName        =   '{0}-{1}-data'  -f $ProductName, $EnvironmentName
+            RbacAssignment      =   $resourceGroupRbac
+            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
             ResourceLocation    =   $azurePrimaryRegion
         }
     } else {
         $appReourceGroup
     }
-    
-    $sqlDbName = ('{0}{1}{2}01' -f $CompanyName, $EnvironmentName, $ProductName).Replace('-', '')
-    $adSqlGroupNamePrefix = "sc.Azure.SQL.$sqlDbName"
-    $sqlFirewallRule = @(
-        @{
-            StartIpAddress  =   '38.67.200.0'
-            EndIpAddress    =   '38.67.200.126'
-            Name            =   'mriNetwork01'
-        }
-        @{
-            StartIpAddress  =   '66.181.76.192'
-            EndIpAddress    =   '66.181.76.254'
-            Name            =   'mriNetwork02'
-        }
-        @{
-            StartIpAddress  =   '38.68.81.1'
-            EndIpAddress    =   '38.68.81.6'
-            Name            =   'mriNetwork03'
-        }
-    )
-    $sqlPrimaryServer = @{
-        ResourceName        =   '{0}{1}' -f $sqlDbName, $azurePrimaryRegion
-        ResourceLocation    =   $azurePrimaryRegion
-    }
-    $sqlFailoverServer = @{
-        ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion
-        ResourceLocation    =   $azureSecondaryRegion
-    }
-    $dbGroupUser = @(
-        @{
-            Name            = "$adSqlGroupNamePrefix.Read";
-            DatabaseRole    = 'db_datareader'
-        }
-        @{
-            Name            = "$adSqlGroupNamePrefix.Crud";
-            DatabaseRole    = 'db_datareader', 'db_datawriter'
-        }
-        @{
-            Name            = "$adSqlGroupNamePrefix.Contributor";
-            DatabaseRole    = 'db_datareader', 'db_datawriter', 'db_ddladmin'
-        }
-    )
+
+    $managedIdentityNamePrefix = "id-$appInstance"
     
     $aksNamespaceSuffix = if ($EnvironmentName -in 'qa', 'rel', 'release') {
         # we use the same AKS cluser for qa and release environment; good practice is a seperate namespace for each
@@ -100,11 +94,10 @@ function Get-ResourceConvention {
     } else {
         ''
     }
-    $aksNamespace = 'app-{0}{1}' -f $ProductName, $aksNamespaceSuffix
+    $aksNamespace = 'app-{0}{1}' -f $productNameLower, $aksNamespaceSuffix
     
-    $aksClusterPrefix = switch ($EnvironmentName)
-    {
-        'prod-*' { 
+    $aksClusterPrefix = switch ($EnvironmentName) {
+        { $_ -like 'prod-*' } { 
             'prod' 
         }
         'ff' {
@@ -117,15 +110,38 @@ function Get-ResourceConvention {
             $EnvironmentName
         }
     }
-    $aksPrimaryClusterName = '{0}-aks-{1}' -f $aksClusterPrefix, $azurePrimaryRegion
+
+    $rootDomain = Get-RootDomain $EnvironmentName
+    switch ($EnvironmentName) {
+        { $_ -in 'ff', 'dev', 'demo'} {
+            $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
+            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
+            $aksRootDomain = $rootDomain
+        }
+        'staging' {
+            $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
+            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
+            $aksRootDomain = "cloud.$rootDomain"
+        }
+        Default {
+            $aksClusterNameTemplate = "$aksClusterPrefix-aks-{0}"
+            $aksResourceGroupNameTemplate = "$aksClusterPrefix-aks-{0}"
+            $aksRootDomain = $rootDomain
+        }
+    }
+
+    $aksPrimaryClusterName = $aksClusterNameTemplate -f $azurePrimaryRegion
     $aksPrimaryCluster = @{
         ResourceName        =   $aksPrimaryClusterName
-        ResourceGroupName   =   $aksPrimaryClusterName
+        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azurePrimaryRegion
+        TrafficManagerHost  =   '{0}.{1}' -f $aksPrimaryClusterName, $aksRootDomain
     }
-    $aksSecondaryClusterName = '{0}-aks-{1}' -f $aksClusterPrefix, $azureSecondaryRegion
+
+    $aksSecondaryClusterName = $aksClusterNameTemplate -f $azureSecondaryRegion
     $aksSecondaryCluster = @{
         ResourceName        =   $aksSecondaryClusterName
         ResourceGroupName   =   $aksSecondaryClusterName
+        TrafficManagerHost  =   '{0}.{1}' -f $aksSecondaryClusterName, $aksRootDomain
     }
 
     $subProductsConventions = @{}
@@ -133,41 +149,440 @@ function Get-ResourceConvention {
         $spInput = $SubProducts[$_]
         $componentName = $_
         $convention = switch ($spInput.Type) {
-            'SqlServer' {
+            'ManagedIdentity' {
                 @{
-                    Primary                 =   $sqlPrimaryServer
-                    Failover                =   if($hasFailover) { $sqlFailoverServer } else { $null }
-                    ManagedIdentity         =   "$sqlDbName-id"
-                    ADGroupNamePrefix       =   $adSqlGroupNamePrefix
-                    ADAdminGroupName        =   "$adSqlGroupNamePrefix.Admin"
-                    Firewall                =   @{
-                        Rule                    =   $sqlFirewallRule
-                        AllowAllAzureServices   =   $true
-                    }
-                    Type                    =   $spInput.Type
+                    ResourceName        =   '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
+                    Type                =   $spInput.Type
                 }
             }
-            'SqlDatabase' {
+            'StorageAccount' {
+                $storageUsage = $spInput.Usage ?? 'Blob'
+                $rbacAssignment = switch ($EnvironmentName) {
+                    { $isTestEnv } {
+                        @{
+                            Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
+                            Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                        }
+                    }
+                    'demo' {
+                        @{
+                            Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
+                            Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                        }
+                        @{
+                            Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
+                            Member          =   @(
+                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            )
+                        }
+                    }
+                    { $isEnvProdLike } {
+                        @{
+                            Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
+                            Member          =   @(
+                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            )
+                        }
+                        @{
+                            Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
+                            Member          =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                        }
+                    }
+                    Default {
+                        Write-Output @() -NoEnumerate
+                    }
+                }
                 @{
-                    ResourceName            =   $sqlDbName
-                    ResourceLocation        =   $azurePrimaryRegion
-                    DatabaseGroupUser       =   $dbGroupUser
-                    Type                    =   $spInput.Type
+                    StorageAccountName  =   '{0}{1}' -f ($spInput.AccountNamePrefix ?? 'store'), $appReourceGroup.UniqueString
+                    StorageAccountType  =   $hasFailover ? 'Standard_GZRS' : 'Standard_LRS'
+                    DefaultStorageTier  =   $spInput.DefaultStorageTier ?? 'Hot'
+                    RbacAssignment      =   $rbacAssignment
+                    Type                =   $spInput.Type
+                }
+            }
+            { $_ -in 'SqlServer', 'SqlDatabase' } {
+                $sqlDbName = ('{0}{1}{2}01' -f $CompanyName, $EnvironmentName, $productNameLower).Replace('-', '')
+                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $azurePrimaryRegion
+                $adSqlGroupNamePrefix = "sg.arm.sql.$sqlDbName"
+                $sqlAdAdminGroupName = "$adSqlGroupNamePrefix.admin"
+
+                switch ($spInput.Type) {
+                    'SqlServer' {
+                        $sqlPrimaryServer = @{
+                            ResourceName        =   $sqlPrimaryName
+                            ResourceLocation    =   $azurePrimaryRegion
+                        }
+                        $sqlFailoverServer = @{
+                            ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion
+                            ResourceLocation    =   $azureSecondaryRegion
+                        }
+                        $sqlFirewallRule = @(
+                            @{
+                                StartIpAddress  =   '38.67.200.0'
+                                EndIpAddress    =   '38.67.200.126'
+                                Name            =   'mriNetwork01'
+                            }
+                            @{
+                                StartIpAddress  =   '66.181.76.192'
+                                EndIpAddress    =   '66.181.76.254'
+                                Name            =   'mriNetwork02'
+                            }
+                            @{
+                                StartIpAddress  =   '38.68.81.1'
+                                EndIpAddress    =   '38.68.81.6'
+                                Name            =   'mriNetwork03'
+                            }
+                            @{
+                                StartIpAddress  =   '149.14.146.176'
+                                EndIpAddress    =   '149.14.146.182'
+                                Name            =   'London.VPN.04'
+                            }
+                            @{
+                                StartIpAddress  =   '123.103.222.144'
+                                EndIpAddress    =   '123.103.222.158'
+                                Name            =   'Sydney.VPN.05'
+                            }
+                        )
+                        @{
+                            Primary                 =   $sqlPrimaryServer
+                            Failover                =   if($hasFailover) { $sqlFailoverServer } else { $null }
+                            ManagedIdentity         =   "$managedIdentityNamePrefix-$sqlPrimaryName"
+                            AadAdminGroupName       =   $sqlAdAdminGroupName
+                            AadGroupNamePrefix      =   $adSqlGroupNamePrefix
+                            Firewall                =   @{
+                                Rule                    =   $sqlFirewallRule
+                                AllowAllAzureServices   =   $true
+                            }
+                            Type                    =   $spInput.Type
+                        }
+                    }
+                    'SqlDatabase' {
+                        $dbGroup = @(
+                            @{
+                                Name            = "$adSqlGroupNamePrefix.reader";
+                                DatabaseRole    = 'db_datareader'
+                                Member          = switch ($EnvironmentName) {
+                                    { $_ -like 'prod-*' -or $_ -eq 'staging' } {
+                                        @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                        @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                    }
+                                    'demo' {
+                                        @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                    }
+                                    Default {
+                                        Write-Output @() -NoEnumerate
+                                    }
+                                }
+                            }
+                            @{
+                                Name            = "$adSqlGroupNamePrefix.crud";
+                                DatabaseRole    = 'db_datareader', 'db_datawriter'
+                                Member          = switch ($EnvironmentName) {
+                                    'demo' {
+                                        @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    }
+                                    Default {
+                                        Write-Output @() -NoEnumerate
+                                    }
+                                }
+                            }
+                            @{
+                                Name            = "$adSqlGroupNamePrefix.contributor";
+                                DatabaseRole    = 'db_datareader', 'db_datawriter', 'db_ddladmin'
+                                Member          = switch ($EnvironmentName) {
+                                    { $_ -like 'prod-*' -or $_ -eq 'staging' -or $_ -eq 'demo' } {
+                                        @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                    }
+                                    Default {
+                                        Write-Output @() -NoEnumerate
+                                    }
+                                }
+                            }
+                            @{
+                                Name            =   $sqlAdAdminGroupName
+                                Member          = if ($isTestEnv) {
+                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                }
+                                else {
+                                    Write-Output @() -NoEnumerate
+                                }
+                            }
+                        )
+                        @{
+                            AadSecurityGroup        =   $dbGroup
+                            ResourceName            =   $sqlDbName
+                            ResourceLocation        =   $azurePrimaryRegion
+                            Type                    =   $spInput.Type
+                        }
+                    }
                 }
             }
             'FunctionApp' {
+                $funcResourceName = 'func-{0}-{1}-{2}' -f $CompanyName, $appInstance, $componentName.ToLower()
+                $funcHostName = $spInput.HasMriDomain ? `
+                    (Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName) : `
+                    "$funcResourceName.azurewebsites.net"
+                
+                $storageUsage = $spInput.StorageUsage
+                $rbacAssignment = if ($storageUsage) {
+                    switch ($EnvironmentName) {
+                        { $isTestEnv } {
+                            @{
+                                Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
+                                Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            }
+                        }
+                        'demo' {
+                            @{
+                                Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
+                                Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            }
+                            @{
+                                Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
+                                Member          =   @(
+                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                )
+                            }
+                        }
+                        { $isEnvProdLike } {
+                            @{
+                                Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
+                                Member          =   @(
+                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                )
+                            }
+                            @{
+                                Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
+                                Member          =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            }
+                        }
+                        Default {
+                            Write-Output @() -NoEnumerate
+                        }
+                    }
+                } else {
+                    @()
+                }
                 @{
-                    ResourceName        =   '{0}-{1}-{2}' -f $CompanyName, $appResourceGroupName, $componentName.ToLower()
-                    ManagedIdentity     =   '{0}-{1}-{2}-id' -f $CompanyName, $appResourceGroupName, $componentName.ToLower()
+                    # Note: this `AuthTokenAudience` is the only value to work (in addition to the app client id)
+                    # tried "api://$funcResourceName.azurewebsites.net" and "https://$funcResourceName.azurewebsites.net"
+                    AuthTokenAudience   =   "api://$funcResourceName"
+                    ManagedIdentity     =   '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
+                    HostName            =   $funcHostName
+                    RbacAssignment      =   $rbacAssignment
+                    ResourceName        =   $funcResourceName
+                    StorageAccountName  =   '{0}{1}' -f ($spInput.StorageAccountNamePrefix ?? 'funcsa'), $appReourceGroup.UniqueString
                     Type                =   $spInput.Type
                 }
             }
             'AksPod' {
+                $isMainUI = $spInput.IsMainUI ?? $false
+                $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductFullName
+                $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : ' API'), $EnvironmentName
+                
+                $additionalManagedId = $subProductsConventions.GetEnumerator() |
+                    Where-Object { $_.Key -in $spInput.AdditionalManagedId } |
+                    Select-Object -ExpandProperty Value |
+                    Select-Object -ExpandProperty ResourceName
+                $podIdentityName = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
+                $managedId = @{
+                    BindingSelector =   $podIdentityName
+                    Name            =   @($podIdentityName; $additionalManagedId) | ForEach-Object { $_ }
+                }
+                
                 @{
-                    ManagedIdentity     =   '{0}-{1}-{2}-id' -f $CompanyName, $appResourceGroupName, $componentName.ToLower()
+                    ManagedIdentity     =   $spInput.EnableManagedIdentity -eq $false ? $null : $managedId
+                    HostName            =   Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName -IsMainUI:$isMainUI
+                    OidcAppName         =   $oidcAppName
+                    TrafficManagerPath  =   '/trafficmanager-health-{0}-{1}' -f $aksNamespace, $componentName.ToLower()
                     Type                =   $spInput.Type
                 }
             }
+            'AppInsights' {
+                $envAbbreviation = switch ($EnvironmentName) {
+                    { $_ -like 'prod-*' } {
+                        'p{0}' -f $EnvironmentName.Replace('prod-', '')
+                    }
+                    'release' {
+                        'rel'
+                    }
+                    'staging' {
+                        'stage'
+                    }
+                    Default {
+                        $EnvironmentName
+                    }
+                }
+
+                $rbacAssignment = switch ($EnvironmentName) {
+                    { $isTestEnv } {
+                        @{
+                            Role            =   'Monitoring Contributor'
+                            Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                        }
+                    }
+                    { $isEnvProdLike -or $_ -eq 'demo' } {
+                        @{
+                            Role            =   'Monitoring Contributor'
+                            Member          =   @(
+                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            )
+
+                        }
+                        @{
+                            Role            =   'Monitoring Reader'
+                            Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                        }
+                    }
+                    Default {
+                        Write-Output @() -NoEnumerate
+                    }
+                }
+
+                @{
+                    EnvironmentAbbreviation =   $envAbbreviation
+                    IsMetricAlertsEnabled   =   $EnvironmentName -in 'dev', 'ff' ? $false : $true
+                    RbacAssignment          =   $rbacAssignment
+                    ResourceName            =   "appi-$appInstance"
+                    ResourceGroupName       =   $appResourceGroupName
+                    Type                    =   $spInput.Type
+                    WorkspaceName           =   "log-$appInstance"
+                }
+            }
+            'TrafficManager' {
+                $tmEnvQualifier = if ($EnvironmentName -in 'qa', 'rel', 'release') {
+                    # we use the same AKS cluser for qa and release environment; good practice is a seperate namespace for each
+                    "-$EnvironmentName"
+                } else {
+                    ''
+                }
+                $primaryAksTrafficManagerEndpoint = @{
+                    Name        =   '{0}-{1}-{2}' -f $aksPrimaryClusterName, $aksNamespace, $spInput.Target.ToLower()
+                    HostName    =   $aksPrimaryCluster.TrafficManagerHost
+                    Location    =   $azurePrimaryRegion
+                }
+                $secondaryAksTrafficManagerEndpoint = @{
+                    Name        =   '{0}-{1}-{2}' -f $aksSecondaryClusterName, $aksNamespace, $spInput.Target.ToLower()
+                    HostName    =   $aksSecondaryCluster.TrafficManagerHost
+                    Location    =   $azureSecondaryRegion
+                }
+                $targetSubProduct = $subProductsConventions[$spInput.Target]
+                if ($targetSubProduct.Type = 'AksPod') {
+                    @{
+                        ResourceName        =   '{0}-{1}{2}-{3}' -f $aksPrimaryClusterName, $productNameLower, $tmEnvQualifier, $spInput.Target.ToLower()
+                        TrafficManagerPath  =   $targetSubProduct.TrafficManagerPath
+                        PrimaryEndpoint     =   $primaryAksTrafficManagerEndpoint
+                        SecondaryEndpoint   =   $hasFailover ? $secondaryAksTrafficManagerEndpoint : $null
+                        Type                =   $spInput.Type
+                    }
+                } else {
+                    throw 'Traffic manager convention for non-AKS not yet defined'
+                }
+            }
+            'Pbi' {
+                $adPbiGroupNamePrefix = 'sg.365.pbi'
+                $adPbiWksGroupNamePrefix = $('{0}.workspace.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
+                $adPbiReportGroupNamePrefix = $('{0}.report.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
+                $adPbiDatasetGroupNamePrefix = $('{0}.dataset.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
+                $pbiGroup = @(switch ($EnvironmentName) {
+                    { $isTestEnv } {
+                        @{
+                            Name            = "$adPbiWksGroupNamePrefix.admin";
+                            PbiRole         = 'Admin'
+                            Member          = @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                        }
+                    }
+                    'demo' {
+                        @{
+                            Name            = "$adPbiReportGroupNamePrefix.admin";
+                            PbiRole         = 'Admin'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                        }
+                        @{
+                            Name            = "$adPbiDatasetGroupNamePrefix.admin";
+                            PbiRole         = 'Admin'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                        }
+                        @{
+                            Name            = "$adPbiReportGroupNamePrefix.contributor";
+                            PbiRole         = 'Contributor'
+                            Member          = @(
+                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            )
+                        }
+                        @{
+                            Name            = "$adPbiDatasetGroupNamePrefix.contributor";
+                            PbiRole         = 'Contributor'
+                            Member          = @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                        }
+                        @{
+                            Name            = "$adPbiDatasetGroupNamePrefix.viewer";
+                            PbiRole         = 'Viewer'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                        }
+                    }
+                    { $isEnvProdLike } {
+                        @{
+                            Name            = "$adPbiReportGroupNamePrefix.admin";
+                            PbiRole         = 'Admin'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                        }
+                        @{
+                            Name            = "$adPbiDatasetGroupNamePrefix.admin";
+                            PbiRole         = 'Admin'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                        }
+                        @{
+                            Name            = "$adPbiReportGroupNamePrefix.contributor";
+                            PbiRole         = 'Contributor'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                        }
+                        @{
+                            Name            = "$adPbiDatasetGroupNamePrefix.viewer";
+                            PbiRole         = 'Viewer'
+                            Member          = @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                        }
+                    }
+                    Default {
+                        Write-Output @() -NoEnumerate
+                    }
+                }) + @{
+                    Name            = "$adPbiWksGroupNamePrefix.app";
+                    PbiRole         = 'Admin'
+                    Member          = @()
+                }
+                
+                @{
+                    AadGroupNamePrefix  =   $adPbiGroupNamePrefix
+                    AadSecurityGroup    =   $pbiGroup
+                    Type                =   $spInput.Type
+                }
+            }
+            'KeyVault' {
+                $rbacAssignment =  @(
+                    @{
+                        Role            =   'Key Vault Secrets Officer'
+                        Member          =   if ($isTestEnv) {
+                            @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                        } else {
+                            @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                        }
+                    }
+                )
+
+                @{
+                    ResourceName            =   'kv-{0}' -f $appInstance
+                    EnablePurgeProtection   =   $isEnvProdLike
+                    RbacAssignment          =   $rbacAssignment
+                    Type                    =   $spInput.Type
+                }
+            }            
             default {
                 $null
             }
@@ -176,31 +591,34 @@ function Get-ResourceConvention {
             $subProductsConventions[$_] = $convention
         }
     }
-
-    $GitRepositoryName = if ($GitRepositoryName) { 
-        $GitRepositoryName 
-    } else {
-        "$(git rev-parse --show-toplevel)" -split [IO.Path]::DirectorySeparatorChar | Select-Object -Last 1
+    $subProductsConventions.Values | ForEach-Object {
+        if (-not($_.RbacAssignment)) {
+            $_.RbacAssignment = @()
+        }
+    }
+    
+    $ad = @{
+        AadSecurityGroup    =   $addGlobalGroupNames.Values | ForEach-Object { @{ Name = $_ } }
     }
 
     $results = @{
+        Ad                      =   $ad
         Aks                     =   @{
-            Primary             = $aksPrimaryCluster
-            Failover            = if($hasFailover) { $aksSecondaryCluster } else { $null }
+            Primary             =   $aksPrimaryCluster
+            Failover            =   if($hasFailover) { $aksSecondaryCluster } else { $null }
             Namespace           =   $aksNamespace
-            HelmChartName       =   $ProductName
+            HelmChartName       =   $productNameLower
             RegistryName        =   'mrisoftwaredevops'
             ProdRegistryName    =   'mrisoftwaredevopsprod'
         }
-        AutomationPrincipalName =   'automation-principal'
         AppResourceGroup        =   $appReourceGroup
         DataResourceGroup       =   $dataResourceGroup
         CompanyName             =   $CompanyName
-        GitOrganisationName     =   $GitOrganisationName
-        GitRepositoryName       =   $GitRepositoryName
-        GithubCredentialName    =   'github-actions-{0}-{1}' -f $ProductName, $EnvironmentName
-        ProductName             =   $ProductName
+        ProductName             =   $productNameLower
+        EnvironmentName         =   $EnvironmentName
+        IsEnvironmentProdLike   =   $isEnvProdLike
         SubProducts             =   $subProductsConventions
+        IsTestEnv               =   $isTestEnv
     }
     
     if ($AsHashtable) {

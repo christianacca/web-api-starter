@@ -37,8 +37,8 @@
         [Parameter(Mandatory)]
         [string] $AksNamespace,
     
-        [switch] $ShowOnly = $false,
-        [switch] $DryRun = $false,
+        [switch] $ShowOnly,
+        [switch] $DryRun,
         [Hashtable] $Values = @{},
         [ScriptBlock] $ConfigureAppSettingsJson
     )
@@ -59,13 +59,10 @@
                 Set-AppSettings $appSettingsFolderPath $ConfigureAppSettingsJson
             }
             
-            $defaultName = 'web-api-starter'
-            if ($HelmChartName -ne $defaultName) {
-                $valuesFilePath = "$helmFolderPath/values.yaml"
-                $valuesContent = Get-Content $valuesFilePath -Raw
-                $valuesContent = $valuesContent.Replace("$defaultName-api-appsettings-json", "$HelmChartName-api-appsettings-json")
-                Set-Content $valuesFilePath -Value $valuesContent
-            }
+            $valuesFilePath = "$helmFolderPath/values.yaml"
+            $valuesContent = Get-Content $valuesFilePath -Raw
+            $valuesContent = $valuesContent.Replace('${Helm_ReleaseName}', $HelmChartName)
+            Set-Content $valuesFilePath -Value $valuesContent
             
             Invoke-ExeExpression 'helm repo add bitnami https://charts.bitnami.com/bitnami'
             Invoke-ExeExpression "helm dependency build '$helmFolderPath'"
@@ -77,12 +74,15 @@
                 ForEach-Object { ('{0}={1}' -f  $_, $Values[$_].Replace(',', '\,').Replace('=', '\=')) } | 
                 Join-String -Separator ','
             $setParamString = if ($valuesString) { '--set ' + $valuesString } else { '' }
+
+            # bitnami aspnet-core chart seems to now need the default namespace set to the target namespace
+            Invoke-ExeExpression "kubectl config set-context --current --namespace=$AksNamespace"
             
             $helmDeploy = if (-not($ShowOnly)) {
                 $dryRunParam = if ($DryRun) { '--dry-run' } else { '' }
                 "helm upgrade --install --atomic --cleanup-on-fail --create-namespace $HelmChartName '$helmFolderPath' -n $AksNamespace $dryRunParam $setParamString"
             } else {
-                "helm template $HelmChartName '$helmFolderPath' $setParamString"
+                "helm template $HelmChartName '$helmFolderPath' $setParamString --debug"
             }
             Invoke-ExeExpression $helmDeploy
         }

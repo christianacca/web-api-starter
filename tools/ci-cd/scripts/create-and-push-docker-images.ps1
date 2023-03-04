@@ -2,7 +2,8 @@
 param(
     [string] $ImageRepo = 'mrisoftwaredevops.azurecr.io',
     [Parameter(Mandatory)] 
-    [string] $BuildNumber
+    [string] $BuildNumber,
+    [switch] $PushImages
 )
 begin {
     Set-StrictMode -Version 'Latest'
@@ -48,8 +49,8 @@ process {
                     DockerFile  =   "./publish/$_/Dockerfile"
                     Context     =   "./publish/$_"
                     Tags        =   @(
-                        ('{0}/{1}-{2}:{3}' -f $ImageRepo, $imagePrefix, $service, $BuildNumber)
-                        ('{0}/{1}-{2}:{3}' -f $ImageRepo, $imagePrefix, $service, 'latest')
+                        ('{0}/{1}/{2}:{3}' -f $ImageRepo, $imagePrefix, $service, $BuildNumber)
+                        ('{0}/{1}/{2}:{3}' -f $ImageRepo, $imagePrefix, $service, 'latest')
                     )
                 }
             } | 
@@ -59,7 +60,9 @@ process {
             } |
             Invoke-Exe
         
-        $dockerBuilds | Select-Object -ExpandProperty Tags | ForEach-Object { "docker push $_" } | Invoke-Exe
+        if ($PushImages) {
+            $dockerBuilds | Select-Object -ExpandProperty Tags | ForEach-Object { "docker push $_" } | Invoke-Exe    
+        }
     }
     catch {
         Write-Error -ErrorRecord $_ -EA $callerEA

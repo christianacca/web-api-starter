@@ -1,57 +1,49 @@
 function Grant-RbacRole {
     <#
       .SYNOPSIS
-      Assign Azure RBAC role(s) to a principal
+      Grants Azure RBAC role to a specific scope, skipping any assignments already made
       
-      .DESCRIPTION
-      Assign Azure RBAC role(s) to a principal.
-      This function is idempotent - any roles already assigned to the prinicpal will be skipped.
+      Required permission to run this script: 
+      * Azure RBAC Role: 'User Access Administrator'
     
-      .PARAMETER PrincipalId
-      The ID of the prinicpal that is to be assigned the role(s)
+      .PARAMETER Scope
+      The Scope of the role assignment. In the format of relative URI. For e.g. "/subscriptions/9004a9fd-d58e-48dc-aeb2-4a4aec58606f/resourceGroups/TestRG". 
+      If not specified, will create the role assignment at subscription level. If specified, it should start with "/subscriptions/{id}
+          
+      .PARAMETER RoleDefinitionName
+      Role that is assigned to the principal i.e. Reader, Contributor, Virtual Network Administrator, etc.
       
-      .PARAMETER PrincipalType
-      The type of the principal
-      
-      .PARAMETER RoleName
-      One or more roles to assign
-
-      .EXAMPLE
-      'Contributor', 'User Access Administrator' | Grant-RbacRole -PrincipalId ($servicePrincipal.objectId)
-    
-      Description
-      -----------
-      Assign two Azure RBAC roles to a service principal
+      .PARAMETER ObjectId
+      The Azure AD ObjectId of the User, Group or Service Principal. Filters all assignments that are made to the specified principal.
 
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [string] $PrincipalId,
+        [string] $Scope,
 
-        [ValidateSet('ForeignGroup', 'Group', 'ServicePrincipal', 'User')]
-        [string] $PrincipalType = 'ServicePrincipal',
-
-        [Parameter(Mandatory, ValueFromPipeline)]
-        [string[]] $RoleName
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [string] $RoleDefinitionName,
+        
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [string] $ObjectId
     )
     begin {
         Set-StrictMode -Version 'Latest'
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
-        
-        . "$PSScriptRoot/Invoke-Exe.ps1"
     }
     process {
         try {
-            $RoleName | ForEach-Object {
-                $name = $_
-                Write-Information "  Assigning RBAC role '$name' to service principal '$PrincipalId'..."
-                Invoke-Exe {
-                    az role assignment create --role $name --assignee-object-id  $PrincipalId --assignee-principal-type $PrincipalType
-                } | Out-Null
+
+            if (Get-AzRoleAssignment -ObjectId $ObjectId -RoleDefinitionName $RoleDefinitionName -Scope $Scope) {
+                return
             }
-        } catch {
+
+            Write-Information "Assigning RBAC role '$RoleDefinitionName' to Identity '$ObjectId'"
+            New-AzRoleAssignment -ObjectId $ObjectId -RoleDefinitionName $RoleDefinitionName -Scope $Scope | Out-Null
+        }
+        catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
         }
     }

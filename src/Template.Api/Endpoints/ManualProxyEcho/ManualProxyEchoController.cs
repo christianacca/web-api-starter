@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Template.Api.Shared.Proxy;
 
-namespace Template.Api.Endpoints.NonProxyEcho;
+namespace Template.Api.Endpoints.ManualProxyEcho;
 
 [Route("api/[controller]")]
 [ApiController]

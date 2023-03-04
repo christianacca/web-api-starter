@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Azure.Core;
 using Azure.Identity;
 using Hellang.Middleware.ProblemDetails;
 using Hellang.Middleware.ProblemDetails.Mvc;
@@ -6,22 +7,24 @@ using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Mri.AppInsights.AspNetCore.Configuration;
+using Mri.Azure.ManagedIdentity;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 using Template.Api.Shared;
-using Template.Api.Shared.AzureIdentity;
 using Template.Api.Shared.Mvc;
 using Template.Api.Shared.Proxy;
+using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 
 // ReSharper disable UnusedParameter.Local
 
-Log.Logger = new LoggerConfiguration()
-  .WriteTo.Console(new CompactJsonFormatter())
-  .CreateBootstrapLogger();
+var consoleOnlyLogger = new LoggerConfiguration().WriteTo.Console(new CompactJsonFormatter()).CreateLogger();
+Log.Logger = new LoggerConfiguration().WriteTo.Console(new CompactJsonFormatter()).CreateBootstrapLogger();
 
 Log.Information("Starting web host");
 
@@ -29,7 +32,7 @@ try {
   var builder = WebApplication.CreateBuilder(args);
 
   builder.WebHost.UseKestrel(o => o.AddServerHeader = false);
-  // ConfigureConfiguration(builder.Configuration);
+  ConfigureConfiguration(builder.Configuration, builder.Environment);
   ConfigureLogging(builder.Host);
   ConfigureServices(builder.Services, builder.Configuration, builder.Environment);
 
@@ -37,7 +40,6 @@ try {
 
   await using (var scope = app.Services.CreateAsyncScope()) {
     ConfigureMiddleware(app, scope.ServiceProvider, app.Environment);
-    ConfigureEndpoints(app, scope.ServiceProvider);
     await MigrateDbAsync(scope.ServiceProvider, app.Environment);
   }
 
@@ -54,6 +56,9 @@ finally {
   Log.CloseAndFlush();
 }
 
+void ConfigureConfiguration(ConfigurationManager configuration, IHostEnvironment environment) {
+  configuration.AddAzureKeyVault(configuration.GetSection("Api"));
+}
 
 void ConfigureLogging(IHostBuilder host) {
   // IMPORTANT: the configs here and in appsettings.json for Serilog is specifically designed so that we're NOT logging
@@ -62,21 +67,30 @@ void ConfigureLogging(IHostBuilder host) {
   // Therefore be VERY careful in changing this logging configuration, otherwise cost of logging in Azure will likely
   // be high at no benefit
   host.UseSerilog((context, services, loggerConfiguration) => {
+    var appInsights = context.Configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
+    if (context.HostingEnvironment.IsDevelopment()) {
+      loggerConfiguration.WriteTo.Console();
+    } else {
+      // at minimum we HAVE to log to the *console* to capture exceptions that occur during startup as other sinks (eg App Insights)
+      // might not have been configured at the point when the exception occurred
+      var logLevel = appInsights.IsDisabled ? LogEventLevel.Information : LogEventLevel.Fatal;
+      if (appInsights.IsDisabled) {
+        consoleOnlyLogger.Information("Application Insights is disabled, falling back to sending '{LogLevel}' level logs to stdout", logLevel);
+      } else {
+        consoleOnlyLogger.Information("Application Insights is enabled, only sending '{LogLevel}' level logs to stdout", logLevel);
+      }
+      loggerConfiguration.WriteTo.Console(new CompactJsonFormatter(), logLevel);
+    }
+
     loggerConfiguration
       .MinimumLevel.Override("Template.Api", LogEventLevel.Information)
+      .MinimumLevel.Override(typeof(TokenServiceFactory).Namespace, LogEventLevel.Information)
       .MinimumLevel.Override(typeof(ProblemDetailsMiddleware).Namespace, LogEventLevel.Warning)
       .MinimumLevel.Override(typeof(DeveloperExceptionPageMiddleware).Namespace, LogEventLevel.Warning)
       .ReadFrom.Configuration(context.Configuration)
       .Enrich.FromLogContext()
       .ReadFrom.Services(services)
       .WriteTo.ApplicationInsights(services.GetRequiredService<TelemetryClient>(), TelemetryConverter.Traces);
-    if (context.HostingEnvironment.IsDevelopment()) {
-      loggerConfiguration.WriteTo.Console();
-    } else {
-      // we HAVE to log to the console to capture exceptions that occur during startup as other sinks (eg App Insights)
-      // might not have been configured at the point when the exception occurred
-      loggerConfiguration.WriteTo.Console(new CompactJsonFormatter(), LogEventLevel.Fatal);
-    }
   });
 }
 
@@ -84,7 +98,12 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services.AddHttpContextAccessor();
 
   services.AddDbContext<AppDatabase>(options => {
-    options.UseSqlServer(configuration.GetDefaultConnectionString());
+    options.UseSqlServer(configuration.GetSection("Api").GetDefaultConnectionString(), sqlOptions =>
+      sqlOptions.EnableRetryOnFailure(
+        maxRetryCount: 3,
+        maxRetryDelay: TimeSpan.FromSeconds(10),
+        errorNumbersToAdd: null)
+    );
     if (environment.IsDevelopment()) {
       options.EnableSensitiveDataLogging();
     }
@@ -97,7 +116,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services.AddControllers(o => {
     // tweaks to built-in non-success http responses
     o.Conventions.Add(new NotFoundResultApiConvention());
-  }).AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);;
+  }).AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
   services.AddCors(ServiceConfiguration.ConfigureCors);
 
@@ -110,34 +129,49 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options => {
+      options.TokenValidationParameters.NameClaimType = JwtRegisteredClaimNames.Sub;
       options.MapInboundClaims = false;
       configuration.GetSection("Api:TokenProvider").Bind(options);
     });
 
+  ConfigureAzureClients();
   ConfigureAzureIdentityServices();
   ConfigureProxyServices();
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
-  aiSettings.CloudRoleName = "DSG API";
+  aiSettings.CloudRoleName = "AIG API";
+  aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
   services.AddAppInsights(aiSettings);
 
+  void ConfigureAzureClients() {
+
+    services.AddAzureClientsCore(enableLogForwarding: true);
+    services.AddAzureClients(cfg => {
+      // see: https://github.com/Azure/azure-sdk-for-net/blob/Microsoft.Extensions.Azure_1.4.0/sdk/extensions/Microsoft.Extensions.Azure/README.md
+
+      cfg.ConfigureDefaults(opts => { opts.Retry.Mode = RetryMode.Exponential; });
+
+      cfg.UseCredential(sp => new DefaultAzureCredential(
+        sp.GetRequiredService<IOptionsMonitor<DefaultAzureCredentialOptions>>().CurrentValue
+      ));
+
+      cfg.AddQueueServiceClient(configuration.GetSection("Api:FunctionsAppQueue"))
+        .WithName("FunctionsDefaultQueueClient");
+    });
+  }
 
   void ConfigureAzureIdentityServices() {
-    services.AddSingleton<TokenServiceFactory>();
-    services.AddSingleton<TokenServiceSelector>(provider => (optionsName, audience, credentialOptions) => {
-      if (environment.IsDevelopment()) {
-        return new FakeTokenService();
-      } else {
-        return new CachedTokenService(audience, credentialOptions);
-      }
-    });
-
-    services.AddOptions<DefaultAzureCredentialOptions>().BindConfiguration("Api:DefaultAzureCredentials");
-
     services
-      .AddOptions<TokenRequestOptions>(Options.DefaultName)
-      .BindConfiguration("Api:FunctionsAppToken")
-      .ValidateDataAnnotations();
+      .AddAzureManagedIdentityToken(options => {
+        options.TokenServiceSelector = (optionsName, audience, credentialOptions, _) => {
+          return optionsName switch {
+            TokenOptionNames.FunctionApp when environment.IsDevelopment() => new FakeTokenService(),
+            _ => new DefaultTokenService(audience, credentialOptions)
+          };
+        };
+        options.DefaultAzureCredentialsConfigurationSectionName = "Api:DefaultAzureCredentials";
+      })
+      .AddAzureManagedIdentityTokenOption(TokenOptionNames.FunctionApp, "Api:FunctionsAppToken");
   }
 
   void ConfigureProxyServices() {
@@ -167,12 +201,12 @@ void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHo
   app.UseProblemDetails();
 
   if (environment.IsDevelopment()) {
-    // note: the proxy is currently causing the requests for swagger ui to require authentication
-    // workaround: comment out `app.MapReverseProxy();` below
     app.UseSwagger();
     app.UseSwaggerUI();
   }
 
+  app.UseRouting();
+  
   app.UseCors(); // critical: this MUST be before UseAuthentication and UseAuthorization
 
   app.UseAuthentication();
@@ -180,16 +214,16 @@ void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHo
 
   app.UseAppInsightsSampling();
 
-  app.UseWhen(ctx => !ctx.IsProxiedRequest(), app2 => {
+  app.UseWhen(ctx => !IsProxiedRequest(ctx), _ => {
     // middleware that only runs for http requests that are NOT being proxied
     // app2.UseXxx();
   });
-}
-
-void ConfigureEndpoints(IEndpointRouteBuilder app, IServiceProvider services) {
-  app.MapControllers().RequireAuthorization();
-  app.MapHealthChecks("/health");
-  app.MapReverseProxy();
+  
+  app.UseEndpoints(endpoints => {
+    endpoints.MapControllers().RequireAuthorization();
+    endpoints.MapHealthChecks("/health");
+    endpoints.MapReverseProxy();
+  });
 }
 
 async Task MigrateDbAsync(IServiceProvider services, IHostEnvironment environment) {
@@ -205,3 +239,6 @@ async Task MigrateDbAsync(IServiceProvider services, IHostEnvironment environmen
     throw;
   }
 }
+
+
+bool IsProxiedRequest(HttpContext context) => context.IsProxiedRequest();

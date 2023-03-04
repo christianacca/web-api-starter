@@ -19,7 +19,6 @@ begin {
     $callerEA = $ErrorActionPreference
     $ErrorActionPreference = 'Stop'
     
-    . "./tools/infrastructure/ps-functions/Invoke-Exe.ps1"
     . "./tools/infrastructure/ps-functions/Install-ScriptDependency.ps1"
     
 }
@@ -32,14 +31,16 @@ process {
             }
         )
 
-        Write-Information "Running database migrations against '$SqlServerName/$DatabaseName'..."
+        $migrationSqlPath = Join-Path $Path migrate-db.sql
+
+        Write-Information "Running database script against '$SqlServerName/$DatabaseName'..."
 
         Write-Information "  Acquiring access token using current az account context..."
         $accessToken = Invoke-Exe {
             az account get-access-token --resource https://database.windows.net
         } | ConvertFrom-Json | Select-Object -ExpandProperty accessToken
-        
-        $sql = Get-Content (Join-Path $Path migrate-db.sql) -Raw -EA Stop
+
+        $sql = Get-Content $migrationSqlPath -Raw -EA Stop
         $sqlParams = @{
             AccessToken         =   $accessToken
             ServerInstance      =   "$SqlServerName.database.windows.net"
@@ -49,7 +50,20 @@ process {
             QueryTimeout        =   120
         }
         Write-Information "  Executing SQL..."
-        Invoke-SqlCmd @sqlParams -EA Stop | Out-Null
+        Write-Verbose "  SQL: $sqlParams"
+        try {
+            Invoke-SqlCmd @sqlParams -EA Stop | Out-Null
+        }
+        catch {
+            $wait = 60
+            Write-Warning "  SQL Script failed... retrying token acquistion after a delay of $wait seconds"
+            Start-Sleep -Seconds $wait
+            $accessToken = Invoke-Exe {
+                az account get-access-token --resource https://database.windows.net
+            } | ConvertFrom-Json | Select-Object -ExpandProperty accessToken
+            Write-Warning "  Re-executing SQL..."
+            Invoke-SqlCmd @sqlParams -AccessToken $accessToken -EA Stop | Out-Null
+        }
     }
     catch {
         Write-Error -ErrorRecord $_ -EA $callerEA
