@@ -23,6 +23,7 @@ In the future, there will be an example CI/CD pipeline written as a github workf
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
     * enable/add pod identity
     * run dev scripts
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually)
 * powershell core (tested on v7.2)
 * docker engine to run the dev script with the flag `-DockerPush`
 
@@ -40,44 +41,56 @@ In practice the only way to run these scripts from a dev machine is:
 
 ### Steps
 
-1. (Once-only) Setup shared infrastructure:
-    1. Provision AKS. See section below "Create a test AKS cluster"
-    2. Enable Pod identity (aka managed identity for pods): `./tools/infrastructure/enable-aks-pod-identity.ps1 -InfA Continue -Login`
-2. (When changed) Provision Azure resources: `./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -Login`
+1. (Once-only) Modify product conventions to avoid conflicts for those azure resource whose names are globally unique:
+   1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
+   2. set `ProductName` (line 20) to make it globally unique (adding your initials eg `-cc` as a prefix should be sufficient)
+   3. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
+   4. comment-in the block of code that starts `# If you need to override conventions, ...`
+   5. set the `RegistryName` to make it globally unique (adding your initials eg `cc` as a prefix should be sufficient)
+2. (Once-only) Setup shared infrastructure:
+   1. Provision AKS. See "Permissions to run infrastructure scripts" above for reason this is necessary
+      ```pwsh
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      ./tools/infrastructure/add-aks-cluster.ps1 -InfA Continue -EnvironmentName dev -CreateAzureContainerRegistry -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ````
+   2. Enable Pod identity (aka managed identity for pods):
+      ```pwsh
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      ./tools/infrastructure/enable-aks-pod-identity.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ````
+3. (When changed) Provision Azure resources:
+   ```pwsh
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ````
     * NOTE: if this script fails try running it again (script is idempotent)
     * **IMPORTANT**: If a secondary (failover) Azure SQL server is provisioned - see troubleshooting section below
-3. (Once-only) Add Pod identity for API app: `./tools/infrastructure/add-aks-pod-identity.ps1 -InfA Continue`
-4. Build App: `./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue`
+4. (Once-only) Add Pod identity for API app:
+   ```pwsh
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      ./tools/infrastructure/add-aks-pod-identity.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ````
+5. Build App: `./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue`
     * **IMPORTANT**: You will need to have docker engine installed and running on your machine in order to build and push the images
-5. Deploy App: `./tools/dev-scripts/deploy.ps1 -InfA Continue`
-6. Test that it worked:
+6. Deploy App: 
+   ```pwsh
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ````
+7. Test that it worked:
     * browse to the "Api health Url" printed to the console
     * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-local.postman_environment.json),
       change the baseUrl postman variable to the "Api Url" printed to the console. Run the requests in the collection
 
-### Create a test AKS cluster
-
-```powershell
-./tools/dev-scripts/create-test-aks-cluster.ps1 -Name dev-aks-local -CreateAcr -AcrName mrisoftwaredevopslocal
-```
-
 
 ## Cleanup
 
-To remove all Azure resources and AKS pod identity run the deprovision-azure-resources.ps1 script from a powershell prompt (assuming you have permissions),
-or running the github workflow [Infrastructure Uninstall](../.github/workflows/infra-uninstall.yml)
+To remove all Azure resources and AKS pod identity run the deprovision-azure-resources.ps1 script from a powershell prompt (assuming you have permissions)
 
-### From a powershell prompt
-
-```powershell
-./tools/infrastructure/deprovision-azure-resources.ps1 -UninstallAksApp -DeleteAADGroups -Environment xxx  -InfA Continue -Login
+```pwsh
+# 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+./tools/infrastructure/deprovision-azure-resources.ps1 -InfA Continue -Environment xxx -UninstallAksApp -DeleteAADGroups -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
 ```
-
-### From the github workflow
-
-1. Go to the Actions tab in the github repo
-2. Manually run the workflow 'Infrastructure Uninstall', selecting the name of the environment to uninstall from
-
 
 ## Troubleshooting `provision-azure-resources.ps1`
 

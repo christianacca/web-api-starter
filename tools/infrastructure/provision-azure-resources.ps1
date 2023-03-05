@@ -258,7 +258,7 @@
                     keyVaultName            =   $keyVault.ResourceName
                     enablePurgeProtection   =   $keyVault.EnablePurgeProtection
                 }
-                TemplateFile            =   Join-Path $templatePath key-vault.json
+                TemplateFile            =   Join-Path $templatePath key-vault.bicep
             }
             New-AzResourceGroupDeployment @keyvaultParams -EA Stop | Out-Null
 
@@ -278,7 +278,7 @@
                     environmentAbbreviation =   $appInsights.EnvironmentAbbreviation
                     workspaceName           =   $appInsights.WorkspaceName
                 }
-                TemplateFile            =   Join-Path $templatePath azure-monitor.json
+                TemplateFile            =   Join-Path $templatePath azure-monitor.bicep
             }
             $monitoringOutput = New-AzResourceGroupDeployment @monitorArmParams -EA Stop | ForEach-Object { $_.Outputs }
             
@@ -287,7 +287,7 @@
             $apiManagedIdArmParams = @{
                 ResourceGroup           =   $appResourceGroup.ResourceName
                 Name                    =   $api.ManagedIdentity.BindingSelector
-                TemplateFile            =   Join-Path $templatePath api-managed-identity.json
+                TemplateFile            =   Join-Path $templatePath api-managed-identity.bicep
             }
             $apiManagedId = Install-ManagedIdentityAzureResource @apiManagedIdArmParams -EA Stop
             Add-Summary 'Api Managed Identity Client Id' ($apiManagedId.ClientId)
@@ -302,7 +302,7 @@
                     storageAccountType      =   $reportStorage.StorageAccountType
                     defaultStorageTier      =   $reportStorage.DefaultStorageTier
                 }
-                TemplateFile            =   Join-Path $templatePath storage-account.json
+                TemplateFile            =   Join-Path $templatePath storage-account.bicep
             }
             New-AzResourceGroupDeployment @storageAccountArmParams -EA Stop | Out-Null
             
@@ -332,7 +332,7 @@
                 ResourceGroup               =   $appResourceGroup.ResourceName
                 Name                        =   $funcApp.ResourceName
                 ManagedIdentityName         =   $funcApp.ManagedIdentity
-                ManagedIdentityTemplateFile =   'internalapi-managed-identity.json'
+                ManagedIdentityTemplateFile =   'internalapi-managed-identity.bicep'
                 AppRoleDisplayName          =   $appOnlyAppRoleName
                 TemplateDirectory           =   $templatePath
                 TemplateParameterObject     =   @{

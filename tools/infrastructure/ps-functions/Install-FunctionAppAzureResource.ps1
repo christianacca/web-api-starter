@@ -30,6 +30,10 @@ function Install-FunctionAppAzureResource {
                 
       .PARAMETER ManagedIdentityName
       The name of the user assigned managed identity to use for function app
+                                      
+      .PARAMETER AdditionalManagedIdentityResourceId
+      Optional additional user-assigned managed identity(s) to assign to the function app. The value of each 
+      in the form of /subscriptions/<subscriptionId>/resourceGroups/<ResourceGroupName>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<managedIdentity>
                       
       .PARAMETER AppRoleDisplayName
       The name display name of an App Role that needs to be granted to consumers (other Azure apps) before they can make
@@ -46,7 +50,7 @@ function Install-FunctionAppAzureResource {
       
       .PARAMETER FunctionAppTemplateFile
       The name of the ARM template that will be used to provision the function app.
-      (defaults to 'functions-app.json' where a `AppRoleDisplayName` has been supplied otherwise to 'functions-app-no-auth.json')
+      (defaults to 'functions-app.bicep' where a `AppRoleDisplayName` has been supplied otherwise to 'functions-app-no-auth.bicep')
       
       .PARAMETER ManagedIdentityTemplateFile
       The name of the ARM template that will be used to provision the managed identity used for the function app
@@ -75,6 +79,8 @@ function Install-FunctionAppAzureResource {
         [string] $Name,
 
         [string] $ManagedIdentityName = "$Name-id",
+
+        [string[]] $AdditionalManagedIdentityResourceId = @(),
         
         [string] $AppRoleDisplayName,
 
@@ -110,7 +116,7 @@ function Install-FunctionAppAzureResource {
         $hasAuth = if ($AppRoleDisplayName) { $true } else { $false }
 
         if (-not($FunctionAppTemplateFile)) {
-            $FunctionAppTemplateFile = if ($hasAuth) { 'functions-app.json' } else { 'functions-app-no-auth.json' }   
+            $FunctionAppTemplateFile = if ($hasAuth) { 'functions-app.bicep' } else { 'functions-app-no-auth.bicep' }   
         }
         
     }
@@ -160,7 +166,7 @@ function Install-FunctionAppAzureResource {
             }
             
             $templateParamValues = $TemplateParameterObject + @{
-                managedIdentityResourceId   =   $funcManagedId.ResourceId
+                managedIdentityResourceIds  =   @($funcManagedId.ResourceId; $AdditionalManagedIdentityResourceId)
                 functionAppName             =   $Name
             }
             if ($hasAuth) {

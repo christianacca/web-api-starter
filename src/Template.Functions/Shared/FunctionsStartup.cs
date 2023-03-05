@@ -31,9 +31,10 @@ public class Startup : FunctionsStartup {
       return configurationBuilder;
     }
 
-    var initialConfigs = AddJsonFiles(new ConfigurationBuilder()).Build();
+    var initialConfigs = AddJsonFiles(new ConfigurationBuilder()).AddUserSecrets<Startup>().Build();
     AddJsonFiles(builder.ConfigurationBuilder)
       .AddAzureKeyVault(initialConfigs.GetSection("InternalApi"))
+      .AddUserSecrets<Startup>()
       .AddEnvironmentVariables();
   }
 

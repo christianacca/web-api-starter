@@ -31,10 +31,10 @@ function Install-SqlAzureResource {
       
       .PARAMETER TemplateDirectory
       The path to the directory containing the ARM templates. The following ARM templates should exist:
-      * sql-managed-identity.json
-      * azure-sql-server.json
-      * azure-sql-failover.json
-      * azure-sql-db.json       
+      * sql-managed-identity.bicep
+      * azure-sql-server.bicep
+      * azure-sql-failover.bicep
+      * azure-sql-db.bicep       
       
       .PARAMETER ResourceLocation
       The region to create the Azure resources within
@@ -139,7 +139,7 @@ function Install-SqlAzureResource {
             $managedIdArmParams = @{
                 ResourceGroup           =   $ResourceGroup
                 Name                    =   $ManagedIdentityName
-                TemplateFile            =   Join-Path $TemplateDirectory sql-managed-identity.json
+                TemplateFile            =   Join-Path $TemplateDirectory sql-managed-identity.bicep
             }
             $sqlManagedId = Install-ManagedIdentityAzureResource @managedIdArmParams -EA Stop
             
@@ -194,7 +194,7 @@ function Install-SqlAzureResource {
                     firewallRules                   =   $FirewallRule
                     location                        =   $ResourceLocation
                 }
-                TemplateFile            =   Join-Path $TemplateDirectory azure-sql-server.json
+                TemplateFile            =   Join-Path $TemplateDirectory azure-sql-server.bicep
             }
             Write-Information "Setting Azure SQL '$SqlServerName'..."
             # Retry logic added because it's not uncommon to receive the following failure when creating:
@@ -220,7 +220,7 @@ function Install-SqlAzureResource {
                     databaseName    =   $DatabaseName
                     location        =   $ResourceLocation
                 }
-                TemplateFile            =   Join-Path $TemplateDirectory azure-sql-db.json
+                TemplateFile            =   Join-Path $TemplateDirectory azure-sql-db.bicep
             }
             Write-Information "Setting Azure SQL DB '$DatabaseName'..."
             New-AzResourceGroupDeployment @sqlDbArmParams -EA Continue | Out-Null
@@ -242,7 +242,7 @@ function Install-SqlAzureResource {
                         managedIdentityResourceId       =   $sqlManagedId.ResourceId
                         firewallRules                   =   $FirewallRule
                     }
-                    TemplateFile            =   Join-Path $TemplateDirectory azure-sql-failover.json
+                    TemplateFile            =   Join-Path $TemplateDirectory azure-sql-failover.bicep
                 }
                 Write-Information "Setting Azure SQL '$SecondarySqlServerName'..."
                 New-AzResourceGroupDeployment @sql2ArmParams -EA Stop | Out-Null

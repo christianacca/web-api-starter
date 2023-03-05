@@ -73,7 +73,7 @@ process {
                 $Settings.Api.FunctionsAppQueue.ServiceUri = "https://$($funcApp.StorageAccountName).queue.core.windows.net"
                 $Settings.Api.KeyVaultName = $keyVault.ResourceName
                 $Settings.Api.ReverseProxy.Clusters.FunctionsApp.Destinations.Primary.Address = "https://$($funcApp.HostName)"
-                $Settings.Api.TokenProvider.Authority = 'https://mrisaas.oktapreview.com/oauth2/aus1eyja66s1cBkTt0h8'
+                $Settings.Api.TokenProvider.Authority = $apiDevAppSettings.Api.TokenProvider.Authority
                 $Settings.ApplicationInsights.AutoCollectActionArgs = $true
                 $Settings.ApplicationInsights.ConnectionString = $infra.AppInsights.ConnectionString
                 if ($apiSecretValues['CentralIdentity_Credentials_Password']) {

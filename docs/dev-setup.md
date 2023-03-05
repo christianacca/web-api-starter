@@ -131,7 +131,3 @@ The following values will work for the [dev](https://github.com/MRI-Software/dat
     * `dotnet user-secrets set Api:FunctionsAppQueue:ServiceUri 'https://funcsacb6228b3ec74c.queue.core.windows.net/' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 * Function App -> Blob storage:
     * `dotnet user-secrets set InternalApi:ReportBlobStorage:ServiceUri 'https://pbireportcb6228b3ec74c.blob.core.windows.net/' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
-
-**IMPORTANT**:
-currently there is a problem connecting the API running on a dev machine to Azure functions deployed to Azure.
-A support ticket with Microsoft has been opened to resolve this

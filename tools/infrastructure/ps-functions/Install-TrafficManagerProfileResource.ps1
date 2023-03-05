@@ -11,8 +11,8 @@ function Install-TrafficManagerProfileResource {
       
       .PARAMETER TemplateDirectory
       The path to the directory containing the ARM templates. The following ARM templates should exist:
-      * traffic-manager.json
-      * traffic-manager-with-secondary.json
+      * traffic-manager.bicep
+      * traffic-manager-with-secondary.bicep
       
     #>
     [CmdletBinding()]
@@ -52,7 +52,7 @@ function Install-TrafficManagerProfileResource {
                     secondaryEndPointLocation   =   $InputObject.SecondaryEndpoint.Location
                 }
             }
-            $tmTemplateFile = $InputObject.SecondaryEndpoint ? 'traffic-manager-with-secondary.json' : 'traffic-manager.json'
+            $tmTemplateFile = $InputObject.SecondaryEndpoint ? 'traffic-manager-with-secondary.bicep' : 'traffic-manager.bicep'
             $webTmParams = @{
                 ResourceGroupName       =   $ResourceGroup
                 TemplateParameterObject =   $tmParamObject

@@ -43,15 +43,11 @@
             Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
             
             # If you need to override conventions, follow the example below...
-            
+
 #            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
-            
-#            $convention.AppInsights.ResourceName = 'aig-app-insights'
-#            $convention.AppInsights.ResourceGroupName = 'rg-aig-app-insights'
-#            $convention.Aks.RegistryName = 'mrisoftwaredevopscc'
-#            $convention.SubProducts.ApiTrafficManager.ResourceName = $convention.SubProducts.ApiTrafficManager.ResourceName + '-2'
-#            $convention.SubProducts.WebTrafficManager.ResourceName = $convention.SubProducts.WebTrafficManager.ResourceName + '-2'
-            
+#            
+#            $convention.Aks.RegistryName = 'mrisoftwaredevopslocal'
+#            
 #            if ($AsHashtable) {
 #                $convention
 #            } else {

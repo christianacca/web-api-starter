@@ -3,6 +3,8 @@
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
 
+        [switch] $CreateAzureContainerRegistry,
+
         [switch] $Login,
         [string] $SubscriptionId
     )
@@ -17,19 +19,26 @@
         function Add-AksCluser {
             param(
                 [Hashtable] $Cluster,
-                [string] $AksRegistryName
+                [string] $AksRegistryName,
+                [switch] $CreateAcr
             )
 
             $rgName = $Cluster.ResourceGroupName
+            $akaName = $Cluster.ResourceName
             $rg = Invoke-Exe { az group list --query "[?name=='$rgName']" | ConvertFrom-Json -Depth 10 }
             if (-not($rg)) {
-                Write-Information "Creating Resource Group '$rg'"
-                Invoke-Exe { az group create --location eastus -n $convention.Aks.Primary.ResourceGroupName } | Out-Null
+                Write-Information "Creating Resource Group '$rgName'"
+                Invoke-Exe { az group create --location eastus -n $rgName } | Out-Null
+            }
+
+            if ($CreateAcr) {
+                Write-Information "Creating Azure Container Registry '$AksRegistryName'"
+                Invoke-Exe { az acr create -n $AksRegistryName -g $rgName --sku basic }
             }
             
-            Write-Information "Creating AKS Cluster '$($Cluster.ResourceName)' in resource group '$rgName'"
+            Write-Information "Creating AKS Cluster '$akaName' in resource group '$rgName'"
             Invoke-Exe {
-                az aks create -g $rgName -n $Cluster.ResourceName --network-plugin azure --enable-addons http_application_routing --node-count 1 --node-vm-size Standard_B2s --enable-managed-identity --attach-acr $AksRegistryName --generate-ssh-keys
+                az aks create -g $rgName -n $akaName --network-plugin azure --enable-addons http_application_routing --node-count 1 --node-vm-size Standard_B2s --enable-managed-identity --attach-acr $AksRegistryName --generate-ssh-keys
             } | Out-Null
         }
     }
@@ -45,10 +54,11 @@
             }
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            Add-AksCluser -Cluster ($convention.Aks.Primary) -AksRegistryName ($convention.Aks.RegistryName)
-            if ($convention.Aks.Failover) {
-                Add-AksCluser -Cluster ($convention.Aks.Failover) -AksRegistryName ($convention.Aks.RegistryName)
-            }            
+            $aks = $convention.Aks;
+            Add-AksCluser -Cluster $aks.Primary -AksRegistryName $aks.RegistryName -CreateAcr:$CreateAzureContainerRegistry
+            if ($aks.Failover) {
+                Add-AksCluser -Cluster $aks.Failover -AksRegistryName $aks.RegistryName
+            }
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA
