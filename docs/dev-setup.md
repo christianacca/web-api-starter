@@ -93,21 +93,6 @@ If you find you are getting an error restoring nuget packages, then likely your 
 2. Re-enter your credentials / sign-in again
 
 
-## Grant access to Azure dev environment
-
-To be able to connect to Azure services for AIG you will need to be granted access. You will want access to the dev environment in Azure for AIG in
-order to integrate with Azure keyvault. This will allow you to develop locally without having to add user-secrets for things like central identity password and pbi
-authentication credentials.
-
-1. open the github workflow [Infrastructure Grant Azure Environment Access](https://github.com/MRI-Software/data-services-gateway/actions/workflows/infra-grant-azure-env-access.yml)
-2. select the "Run workflow" button
-3. select the environment to grant access to and the level:
-    * Environment: dev
-    * Access level: development
-4. in the 'User to grant' add your email address
-5. select the "Run workflow" button
-
-
 ## Connecting to Azure from local machine
 
 Typically you will want to be running local emulators for any Azure service (see above instructions). Only follow these next steps for those occasions you require 
