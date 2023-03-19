@@ -1,4 +1,4 @@
-name: Create Github environments
+name: Github Create Environments
 
 on:
   workflow_dispatch:
@@ -15,6 +15,12 @@ jobs:
     environment: qa
     steps:
       - run: echo "Created 'qa' envrionment"
+
+  prod-artifacts:
+    runs-on: ubuntu-latest
+    environment: prod-artifacts
+    steps:
+      - run: echo "Created 'prod-artifacts' envrionment"
 
   demo:
     runs-on: ubuntu-latest

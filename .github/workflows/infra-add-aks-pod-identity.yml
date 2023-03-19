@@ -1,4 +1,4 @@
-name: Add AKS pod-identity
+name: Infrastructure Add AKS Pod-identity
 
 on:
   workflow_dispatch:
