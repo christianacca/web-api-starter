@@ -1,0 +1,39 @@
+name: Infrastructure Enable AKS Pod-identity
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment-name:
+        description: 'Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - demo
+          - staging
+          - prod-na
+          - prod-emea
+          - prod-apac
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment-name }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          github-environment: ${{ github.event.inputs.environment-name }}
+
+      - name: 'Add pod-identity'
+        shell: pwsh
+        run: ./tools/infrastructure/enable-aks-pod-identity.ps1 -InfA Continue -EnvironmentName ${{ github.event.inputs.environment-name }}

@@ -1,0 +1,72 @@
+name: Infrastructure Deploy Production Release
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  
+  globalvars:
+    if:  ${{ startsWith(github.event.release.tag_name, 'infra-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 # need to checkout so that custom action is available!
+      - uses: ./.github/actions/set-global-build-vars
+        id: vars
+    outputs:
+      buildType: ${{ steps.vars.outputs.buildType }}
+  
+  demo:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: demo
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  staging:
+    needs: globalvars
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: staging
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-na:
+    needs: [globalvars, staging]
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: prod-na
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-emea:
+    needs: [globalvars, staging]
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: prod-emea
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-apac:
+    needs: [globalvars, staging]
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: prod-apac
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
