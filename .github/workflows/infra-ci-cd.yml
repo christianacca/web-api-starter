@@ -2,17 +2,17 @@ name: Infrastructure CI/CD
 
 on:
   # trigger when branch is created
-  create:
+#  create:
 
   # Triggers the workflow on push events but only for the master or release branch
-  push:
-    paths:
-      - tools/infrastructure/**
-      - .github/workflows/__infra-deploy.yml
-      - .github/workflows/infra-ci-cd.yml
-    branches:
-      - master
-      - release/**
+#  push:
+#    paths:
+#      - tools/infrastructure/**
+#      - .github/workflows/__infra-deploy.yml
+#      - .github/workflows/infra-ci-cd.yml
+#    branches:
+#      - master
+#      - release/**
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
