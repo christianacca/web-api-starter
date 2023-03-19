@@ -1,0 +1,45 @@
+name: 'Set Global Build Variables'
+description: 'Set build variables that need to be available by multiple jobs'
+
+inputs:
+  git-tag-suffix:
+    description: |
+      The suffix used when creating a git tag/release name (defaults to 'app')
+    required: false
+
+outputs:
+  buildNumber:
+    description: Build number
+    value: ${{ steps.vars.outputs.buildNumber }}
+  buildTag:
+    description: Build tag; typically applied to a docker image
+    value: ${{ steps.vars.outputs.buildTag }}
+  buildType:
+    description: Returns 'release' or 'ci', where 'release' indicates a candidate release to be deployed to production
+    value: ${{ steps.vars.outputs.buildType }}
+  buildVersion:
+    description: Build version to assign to the application
+    value: ${{ steps.vars.outputs.buildVersion }}
+  createRelease:
+    description: Returns 'true' when workflow has been triggered by a push, manually or on release branch creation
+    value: ${{ steps.vars.outputs.createRelease }}
+  gitTag:
+    description: Git tag used to label the commit SHA that is built. This will also be used as the name of an associated github release
+    value: ${{ steps.vars.outputs.gitTag }}
+  runBuild:
+    description: Returns 'true' when build should be run; note - this is a workaround for lack of branch filters for the 'create' event
+    value: ${{ steps.vars.outputs.runBuild }}
+  acrEnvironment:
+    description: The github environment that should be used to acquire an azure federated token so as to push container images
+    value: ${{ steps.vars.outputs.acrEnvironment }}
+  acrName:
+    description: The name of the Azure container register to push/pull docker images
+    value: ${{ steps.vars.outputs.acrName }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set variables
+      id: vars
+      shell: pwsh
+      run: ${{ github.action_path }}/set-output-variables.ps1 -GitTagSuffix '${{ inputs.git-tag-suffix }}'
