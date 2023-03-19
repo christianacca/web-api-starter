@@ -1,4 +1,4 @@
-name: __Run provision-azure-resources.ps1 script
+name: __Infrastructure Deployment
 
 on:
   workflow_call:
@@ -12,7 +12,7 @@ on:
     
 jobs:
   run:
-    concurrency: deploy_${{ inputs.environment-name }}
+    concurrency: infra_deploy_${{ inputs.environment-name }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment-name }}
     steps:
@@ -41,4 +41,4 @@ jobs:
           
       - name: 'Provision infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/provision-azure-resources.ps1 -EnvironmentName ${{ inputs.environment-name }} -SkipInstallModules -InfA Continue -Verbose
+        run: ./tools/infrastructure/provision-azure-resources.ps1 -EnvironmentName ${{ inputs.environment-name }} -SkipInstallModules -SkipIncludeCurrentIPAddressInSQLFirewall -InfA Continue

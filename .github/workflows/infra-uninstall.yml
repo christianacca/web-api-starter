@@ -1,4 +1,4 @@
-name: Uninstall Infrastructure
+name: Infrastructure Uninstall
 
 on:
   workflow_dispatch:
@@ -20,6 +20,11 @@ on:
         description: 'Subscription ID (leave blank to use the default subscription for the Environment)'
         required: false
         type: string
+      delete-sql-aad-groups:
+        description: 'Delete AD Groups for SQL Server?'
+        default: false
+        required: false
+        type: boolean
       uninstall-aks-app:
         description: 'Uninstall app in AKS?'
         default: false
@@ -36,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment-name }}
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v3
 
       - name: Azure login
         uses: ./.github/actions/azure-login
@@ -46,4 +51,4 @@ jobs:
 
       - name: 'Uninstall infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -UninstallAksApp:$${{ github.event.inputs.uninstall-aks-app }} -UninstallDataResource -DeleteResourceGroup -DeleteSqlAADGroups  -InfA Continue
+        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -UninstallAksApp:$${{ github.event.inputs.uninstall-aks-app }} -DeleteSqlAADGroups:$${{ github.event.inputs.delete-sql-aad-groups }}  -InfA Continue

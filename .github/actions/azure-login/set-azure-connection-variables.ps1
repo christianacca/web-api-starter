@@ -8,30 +8,30 @@ process {
     $vars = switch ($EnvironmentName) {
         ({$PSItem -in 'dev', 'qa', 'rel', 'release', 'demo'}) {
             @{
-                clientId        =   '312a0659-e472-4dda-9812-ea560c53512a'
+                clientId        =   'e18be585-830e-408d-bafa-fe4d41a5e52e'
                 tenantId        =   '77806292-ec65-4665-8395-93cb7c9dbd36'
-                subscriptionId  =   'b57ad61a-cc38-4b33-93d2-ed6920edea32'
+                subscriptionId  =   '402f88b4-9dd2-49e3-9989-96c788e93372'
             }
         }
         ({$PSItem -in 'staging', 'prod-na'}) {
             @{
-                clientId        =   '312a0659-e472-4dda-9812-ea560c53512a'
+                clientId        =   '6a3a29da-76bf-4ee2-b2fc-a65ccf22f33e'
                 tenantId        =   '77806292-ec65-4665-8395-93cb7c9dbd36'
-                subscriptionId  =   'b57ad61a-cc38-4b33-93d2-ed6920edea32'
+                subscriptionId  =   '402f88b4-9dd2-49e3-9989-96c788e93372'
             }
         }
         'prod-emea' {
             @{
-                clientId        =   '312a0659-e472-4dda-9812-ea560c53512a'
+                clientId        =   '3d7a904f-568d-4dbf-abbd-2b8edd4f2ce6'
                 tenantId        =   '77806292-ec65-4665-8395-93cb7c9dbd36'
-                subscriptionId  =   'b57ad61a-cc38-4b33-93d2-ed6920edea32'
+                subscriptionId  =   '402f88b4-9dd2-49e3-9989-96c788e93372'
             }
         }
         'prod-apac' {
             @{
-                clientId        =   '312a0659-e472-4dda-9812-ea560c53512a'
+                clientId        =   'beec650e-3408-4191-8e63-7098190a2e7b'
                 tenantId        =   '77806292-ec65-4665-8395-93cb7c9dbd36'
-                subscriptionId  =   'b57ad61a-cc38-4b33-93d2-ed6920edea32'
+                subscriptionId  =   '402f88b4-9dd2-49e3-9989-96c788e93372'
             }
         }
     }

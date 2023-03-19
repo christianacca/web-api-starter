@@ -1,0 +1,75 @@
+name: Infrastructure CI/CD
+
+on:
+  # trigger when branch is created
+  create:
+
+  # Triggers the workflow on push events but only for the master or release branch
+  push:
+    paths:
+      - tools/infrastructure/**
+      - .github/workflows/__infra-deploy.yml
+      - .github/workflows/infra-ci-cd.yml
+    branches:
+      - master
+      - release/**
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+    
+jobs:
+  
+  globalvars:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 # need to checkout so that custom action is available!
+      - uses: ./.github/actions/set-global-build-vars
+        id: vars
+        with:
+          git-tag-suffix: infra
+    outputs:
+      gitTag: ${{ steps.vars.outputs.gitTag }}
+      createRelease: ${{ steps.vars.outputs.createRelease }}
+      runBuild: ${{ steps.vars.outputs.runBuild }}
+      
+  build:
+    needs: globalvars
+    if: needs.globalvars.outputs.runBuild == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    
+    steps:
+      - name: Create github release
+        if: needs.globalvars.outputs.createRelease == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.globalvars.outputs.gitTag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+      
+  deploy-dev:
+    needs: [globalvars, build]
+    if: needs.globalvars.outputs.createRelease == 'true'
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: dev
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      
+  deploy-qa:
+    needs: [globalvars, deploy-dev]
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: qa
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
