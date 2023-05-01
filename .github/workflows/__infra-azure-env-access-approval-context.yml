@@ -1,0 +1,16 @@
+name: __Infrastructure Azure Environment Access Approval Context
+
+on:
+  workflow_call:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 # need to checkout so that our custom action is available
+      - name: Access level description
+        run: |
+          '## Access levels' >> $Env:GITHUB_STEP_SUMMARY
+          'For a description of the access levels see [Deploying the app > Granting access to Azure resources > Azure environment Access levels](https://github.com/MRI-Software/data-services-gateway/blob/master/docs/deploy-app.md#azure-environment-access-levels)' >> $Env:GITHUB_STEP_SUMMARY
+        shell: pwsh
+      - uses: ./.github/actions/gh-context
