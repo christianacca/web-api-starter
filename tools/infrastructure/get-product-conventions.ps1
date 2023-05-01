@@ -40,19 +40,19 @@
                 }
             }
             
-            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
+#            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
             
             # If you need to override conventions, follow the example below...
 
-#            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
-#            
-#            $convention.Aks.RegistryName = 'mrisoftwaredevopslocal'
-#            
-#            if ($AsHashtable) {
-#                $convention
-#            } else {
-#                $convention | ConvertTo-Json -Depth 100
-#            }
+            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
+
+            $convention.Aks.RegistryName = 'mrisoftwaredevopslocal'
+
+            if ($AsHashtable) {
+                $convention
+            } else {
+                $convention | ConvertTo-Json -Depth 100
+            }
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA

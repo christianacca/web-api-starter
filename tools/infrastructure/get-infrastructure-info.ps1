@@ -58,11 +58,17 @@ process {
         $appInsightsCnnString = Invoke-Exe {
             az monitor app-insights component show -a $appInsights.ResourceName -g $appInsights.ResourceGroupName  -o tsv --query 'connectionString'
         } -EA SilentlyContinue
+
+        $aks = $convention.Aks.Primary
+        $dnsZoneName = Invoke-Exe {
+            az aks show -g $aks.ResourceGroupName -n $aks.ResourceName --query addonProfiles.httpApplicationRouting.config.HTTPApplicationRoutingZoneName -otsv
+        } -EA SilentlyContinue
         
         $results = @{
             Api             =   @{
                 ManagedIdentityClientId     =   $apiManagedIdentity.clientId
                 ManagedIdentityObjectId     =   $apiManagedIdentity.principalId
+                HostName                    =   $dnsZoneName
             }
             AppInsights     =   @{
                 ConnectionString            =   $appInsightsCnnString ?? ''

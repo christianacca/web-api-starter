@@ -1,0 +1,24 @@
+name: 'Azure SQL Deploy'
+description: 'Deploy a SQL script to Azure SQL database'
+inputs:
+  database-name:
+    description: 'Name of the Azure SQL database'
+    required: true
+  server-name:
+    description: 'Name of the Azure SQL Server, like MyCompanyServer'
+    required: true
+  sql-file:
+    description: 'Path to SQL script file to deploy'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependent powershell modules
+      uses: potatoqualitee/psmodulecache@03c44cade706c982e0632f52a2712668b03c8f24 # <- v5.3
+      with:
+        modules-to-cache-prerelease: SqlServer:22.0.59
+    - name: Execute SQL
+      shell: pwsh
+      run: |
+        ${{ github.action_path }}/deploy-db.ps1 -Path '${{ inputs.sql-file }}' -SqlServerName '${{ inputs.server-name }}' -DatabaseName '${{ inputs.database-name }}' -InfA Continue

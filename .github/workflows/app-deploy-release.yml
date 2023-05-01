@@ -1,0 +1,94 @@
+name: Application Deploy Production Release
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  
+  globalvars:
+    if:  ${{ startsWith(github.event.release.tag_name, 'app-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 # need to checkout so that custom action is available!
+      - uses: ./.github/actions/set-global-build-vars
+        id: vars
+    outputs:
+      buildTag: ${{ steps.vars.outputs.buildTag }}
+      buildType: ${{ steps.vars.outputs.buildType }}
+      acrName: ${{ steps.vars.outputs.acrName }}
+  
+  demo:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: demo
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  staging:
+    needs: globalvars
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: staging
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-na:
+    needs: [globalvars, staging]
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: prod-na
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-emea:
+    needs: [globalvars, staging]
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: prod-emea
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  prod-apac:
+    needs: [globalvars, staging]
+    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: prod-apac
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
