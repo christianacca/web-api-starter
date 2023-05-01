@@ -1,15 +1,16 @@
     <#
       .SYNOPSIS
-      Revoke permissions to a user to access azure resources for product
+      Revoke azure access permissions from a user for a product
       
       .PARAMETER EnvironmentName
       The name of the environment containing the azure resources to revoke access to
 
       .PARAMETER UserPrincipalName
-      The name of the user principal in azure to revoke permissions to
+      A comma delimited list of user principal names in azure to revoke permissions from.
 
       .PARAMETER AccessLevel
-      The access level to revoke (development, support-tier-1, support-tier-2)
+      The access level to revoke (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
+      and 'App Admin / support-tier-2' is an alias of 'support-tier-2'
     #>
 
     
@@ -23,7 +24,7 @@
         [string] $UserPrincipalName,
 
         [Parameter(Mandatory, ParameterSetName = 'Main')]
-        [ValidateSet('development', 'support-tier-1', 'support-tier-2')]
+        [ValidateSet('development', 'support-tier-1', 'support-tier-2', 'GPS / support-tier-1', 'App Admin / support-tier-2')]
         [string] $AccessLevel,
 
         [switch] $Login,
@@ -58,7 +59,8 @@
             Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            $convention | Revoke-AzureEnvironmentAccess -UserPrincipalName $UserPrincipalName -AccessLevel $AccessLevel
+            $userNameList = $UserPrincipalName -split ','
+            $convention | Revoke-AzureEnvironmentAccess -UserPrincipalName $userNameList -AccessLevel $AccessLevel
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA

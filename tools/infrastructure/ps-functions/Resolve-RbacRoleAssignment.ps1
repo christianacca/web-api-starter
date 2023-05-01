@@ -8,7 +8,9 @@ function Resolve-RbacRoleAssignment {
         [string] $MemberName,
 
         [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
-        [string] $MemberType
+        [string] $MemberType,
+    
+        [switch] $ExpandGroupMembership
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -34,7 +36,7 @@ function Resolve-RbacRoleAssignment {
         try {
             $roleAssignmants | ForEach-Object {
                 $role = $_.Role
-                if ($_.MemberType -eq 'Group') {
+                if ($_.MemberType -eq 'Group' -and $ExpandGroupMembership) {
                     
                     if (-not($membershipByGroupName.ContainsKey($_.MemberName))) {
                         $membershipByGroupName[$_.MemberName] = Get-AzADGroup -DisplayName $_.MemberName -EA Stop | Get-AzADGroupMember -EA Stop
@@ -47,9 +49,14 @@ function Resolve-RbacRoleAssignment {
                             RoleDefinitionName  =   $role
                         }
                     }
+                } elseif ($_.MemberType -eq 'Group' -and -not($ExpandGroupMembership)) {
+                    [PsCustomObject]@{
+                        ObjectId                =   (Get-AzADGroup -DisplayName $_.MemberName -EA Stop).Id
+                        RoleDefinitionName      =   $role
+                    }
                 } elseif ($_.MemberType -eq 'User') {
                     [PsCustomObject]@{
-                        ObjectId                = (Get-AzADUser -UserPrincipalName $_.MemberName -EA Stop).Id
+                        ObjectId                =   (Get-AzADUser -UserPrincipalName $_.MemberName -EA Stop).Id
                         RoleDefinitionName      =   $role
                     }
                 } elseif ($_.MemberType -eq 'ServicePrincipal') {

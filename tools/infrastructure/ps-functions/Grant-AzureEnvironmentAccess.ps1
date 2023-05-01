@@ -7,11 +7,14 @@ function Grant-AzureEnvironmentAccess {
       The conventions describing the resource in a specific environment
 
       .PARAMETER UserPrincipalName
-      The name of the user principal in azure to grant permissions to. If not supplied, then apply RBAC permissions
-      to all existing users
+      The name(s) of the user principal in azure to grant permissions to (via group membership).
 
       .PARAMETER AccessLevel
-      The access level to grant (development, support-tier-1, support-tier-2)
+      The access level to grant (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
+      and 'App Admin / support-tier-2' is an alias of 'support-tier-2'
+
+      .PARAMETER ApplyCurrentPermissions
+      Apply the current desired permissions to existing Azure resources
     #>
     [CmdletBinding()]
     param(
@@ -20,11 +23,13 @@ function Grant-AzureEnvironmentAccess {
         [Alias('Convention')]
         [Hashtable] $InputObject,
         
-        [string] $UserPrincipalName,
+        [string[]] $UserPrincipalName,
 
         [Parameter(Mandatory)]
-        [ValidateSet('development', 'support-tier-1', 'support-tier-2')]
-        [string] $AccessLevel
+        [ValidateSet('development', 'support-tier-1', 'support-tier-2', 'GPS / support-tier-1', 'App Admin / support-tier-2')]
+        [string] $AccessLevel,
+    
+        [switch] $ApplyCurrentPermissions
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -40,20 +45,19 @@ function Grant-AzureEnvironmentAccess {
     }
     process {
         try {
-            
-            $user = if ($UserPrincipalName) { Get-AzAdUser -UserPrincipalName $UserPrincipalName }
-            $rbacUserFilter = if($user) {
-                { $_.ObjectId -eq $user.Id }
-            } else {
-                { $true }
+
+            $userNames = $UserPrincipalName | Where-Object { $_ }
+            $users = $userNames | ForEach-Object { Get-AzAdUser -UserPrincipalName $_.Replace("'", "''") }
+            $notFound =  $userNames | Where-Object { $_ -notin $users.UserPrincipalName }
+            if ($notFound) {
+                throw "Cannot grant permissions, the following user principal names supplied were not found in Azure AD tenant: $notFound"    
             }
-            $groupMembers = if ($user) {
+            
+            $groupMembers = $users | ForEach-Object {
                 @{
-                    UserPrincipalName   =   $UserPrincipalName
+                    UserPrincipalName   =   $userNames
                     Type                =   'User'
                 }
-            } else {
-                @()
             }
 
             $groupName = $InputObject | Resolve-TeamGroupName -AccessLevel $AccessLevel
@@ -67,26 +71,28 @@ function Grant-AzureEnvironmentAccess {
             $rg = Get-AzResourceGroup $resourceGroupName
             $roleAssignments = Get-RbacRoleAssignment $InputObject | Where-Object MemberName -eq $groupName
 
-            if ($user) {
-                $wait = 15
-                Write-Information "Waitinng $wait secconds for group member assignment to be propogated before setting RBAC permissions"
-                Start-Sleep -Seconds $wait
+            if ($ApplyCurrentPermissions) {
+                $roleAssignments |
+                    Resolve-RbacRoleAssignment |
+                    Grant-RbacRole -Scope $rg.ResourceId    
             }
-            $roleAssignments |
-                Resolve-RbacRoleAssignment |
-                Where-Object $rbacUserFilter |
-                Grant-RbacRole -Scope $rg.ResourceId
-            
 
             #------------- Summarize work -------------
-            $usersAffected = $user ? "'$UserPrincipalName'" : 'existing users'
-            Write-Output "Permissions granted to $usersAffected (see tables below)"
+            if ($ApplyCurrentPermissions) {
+                Write-Output 'RBAC permissions have been reapplied to current Azure resources (see table below)'
+            } else {
+                Write-Output "Permissions granted to '$userNames' (see tables below)"
+            }
+            
             Write-Output 'RBAC Permissions'
             Write-Output '----------------'
             $roleAssignments | Select-Object MemberName, Role, @{ N='Scope'; E={ $resourceGroupName } } | Format-Table
-            Write-Output 'Security Group Membership'
-            Write-Output '-------------------------'
-            $group | Select-Object Name
+            
+            if ($users) {
+                Write-Output 'Security Group Membership'
+                Write-Output '-------------------------'
+                $group | Select-Object Name    
+            }
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA

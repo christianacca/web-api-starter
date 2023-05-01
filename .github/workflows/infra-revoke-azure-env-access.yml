@@ -1,0 +1,132 @@
+name: Infrastructure Revoke Azure Environment Access
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment-name:
+        description: Environment
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - demo
+          - staging
+          - prod-na
+          - prod-emea
+          - prod-apac
+          - 'prod + staging'
+          - all
+      access-level:
+        description: Access Level
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - 'GPS / support-tier-1'
+          - 'App Admin / support-tier-2'
+      user-principal-name:
+        description: A comma delimited list of User principal names to revoke
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  approval-context:
+    uses: ./.github/workflows/__infra-azure-env-access-approval-context.yml
+        
+  dev:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["dev", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: dev
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  qa:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["qa", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: qa
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  demo:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["demo", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: demo
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  staging:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["staging", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: staging
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  prod-na:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["prod-na", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: prod-na
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  prod-emea:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["prod-emea", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: prod-emea
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  prod-apac:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["prod-apac", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-revoke-azure-env-access.yml
+    with:
+      environment-name: prod-apac
+      access-level: ${{ github.event.inputs.access-level }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write

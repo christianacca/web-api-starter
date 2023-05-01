@@ -1,16 +1,17 @@
     <#
       .SYNOPSIS
-      Grant permissions to a user to access azure resources for product
+      Grant permissions to a user (via group membership) to access azure resources for a product
       
       .PARAMETER EnvironmentName
       The name of the environment containing the azure resources to grant access to
 
       .PARAMETER UserPrincipalName
-      The name of the user principal in azure to grant permissions to. If not supplied, then apply RBAC permissions
-      to all existing users
+      A comma delimited list of user principal names in azure to grant permissions to (via group membership).
+      If not supplied, then apply the current permissions to existing Azure resources
 
       .PARAMETER AccessLevel
-      The access level to grant (development, support-tier-1, support-tier-2)
+      The access level to grant (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
+      and 'App Admin / support-tier-2' is an alias of 'support-tier-2'
 
       .PARAMETER Login
       Perform an interactive login to azure
@@ -31,7 +32,7 @@
         [string] $UserPrincipalName,
 
         [Parameter(Mandatory, ParameterSetName = 'Main')]
-        [ValidateSet('development', 'support-tier-1', 'support-tier-2')]
+        [ValidateSet('development', 'support-tier-1', 'support-tier-2', 'GPS / support-tier-1', 'App Admin / support-tier-2')]
         [string] $AccessLevel,
 
         [switch] $Login,
@@ -66,7 +67,9 @@
             Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
             
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            $convention | Grant-AzureEnvironmentAccess -UserPrincipalName $UserPrincipalName -AccessLevel $AccessLevel
+            $userNameList = $UserPrincipalName -split ','
+            $applyPermissions = -not($UserPrincipalName)
+            $convention | Grant-AzureEnvironmentAccess -UserPrincipalName $userNameList -AccessLevel $AccessLevel -ApplyCurrentPermissions:$applyPermissions
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA

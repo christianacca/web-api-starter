@@ -1,0 +1,46 @@
+name: __Infrastructure Revoke Azure Environment Access
+
+on:
+  workflow_call:
+    inputs:
+      environment-name:
+        required: true
+        type: string
+      access-level:
+        required: true
+        type: string
+      user-principal-name:
+        required: true
+        type: string
+
+jobs:  
+  run:
+    concurrency: __infra-revoke-azure-env-access_${{ inputs.environment-name }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment-name }}
+    steps:
+      - uses: actions/checkout@v3
+        
+      - name: Set powershell module list
+        shell: pwsh
+        run: |
+          $list = ./tools/infrastructure/revoke-azure-environment-access.ps1 -ListModuleRequirementsOnly
+          "PS_MODULE_LIST=$list" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
+
+      # note: separating the install of the pwsh modules from the main provisioning step:
+      # 1. to increase the chance that the azure access token will not expire during provisioning work
+      # 2. to reduce script time by caching installation
+      - name: 'Install dependent powershell modules'
+        uses: potatoqualitee/psmodulecache@v4.5
+        with:
+          modules-to-cache: ${{ env.PS_MODULE_LIST }}
+
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          enable-AzPSSession: true
+          github-environment: ${{ inputs.environment-name }}
+
+      - name: Revoke access
+        shell: pwsh
+        run: ./tools/infrastructure/revoke-azure-environment-access.ps1 -InfA Continue -EnvironmentName ${{ inputs.environment-name }} -AccessLevel '${{ inputs.access-level }}' -UserPrincipalName "${{ inputs.user-principal-name }}" -SkipInstallModules

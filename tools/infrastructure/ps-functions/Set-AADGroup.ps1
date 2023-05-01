@@ -219,7 +219,8 @@ function Set-AADGroup {
                 $missingUsers = $requiredUsers | Where-Object { $_ -notin $existingUsers }
                 if ($missingUsers) {
                     Write-Information "  Adding additional group members..."
-                    Add-AzADGroupMember -TargetGroupObjectId ($group.Id) -MemberUserPrincipalName $missingUsers -EA Stop | Out-Null
+                    $escapedUserNames = $missingUsers | ForEach-Object { $_.Replace("'", "''") }
+                    Add-AzADGroupMember -TargetGroupObjectId ($group.Id) -MemberUserPrincipalName $escapedUserNames -EA Stop | Out-Null
                 }
             }   
             
