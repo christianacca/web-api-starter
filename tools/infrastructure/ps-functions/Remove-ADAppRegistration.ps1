@@ -21,14 +21,8 @@ function Remove-ADAppRegistration {
             
             if ($adRegistration) {
                 Write-Information "  AD app registration found, deleting now..."
-                $servicePrincipalId = Invoke-Exe {
-                    az ad sp show --id ($adRegistration.appId) --query objectId -otsv
-                } -EA SilentlyContinue
-
-                if ($servicePrincipalId) {
-                    # removing the service principal also removes the app registration
-                    Invoke-Exe { az ad sp delete --id $servicePrincipalId }
-                }
+                # removing the app registration also removes the underlying service principal
+                Invoke-Exe { az ad app delete --id ($adRegistration.appId) }
             } else {
                 Write-Information "  No AD app registration found"
             }
