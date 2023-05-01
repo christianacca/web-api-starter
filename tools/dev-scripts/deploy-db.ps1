@@ -27,7 +27,7 @@ process {
         Install-ScriptDependency -Module @(
             @{
                 Name            = 'SqlServer'
-                MinimumVersion  = '21.1.18257-preview'
+                MinimumVersion  = '22.0.59'
             }
         )
 
