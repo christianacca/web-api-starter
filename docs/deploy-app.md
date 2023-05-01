@@ -74,6 +74,7 @@ In practice the only way to run these scripts from a dev machine is:
     * **IMPORTANT**: You will need to have docker engine installed and running on your machine in order to build and push the images
 6. Deploy App: 
    ```pwsh
+      # IMPORTANT: You will likely need to connected to the office VPN in order to satisfy the firewall rules configured in the Azure SQL db
       # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
       ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
       ````

@@ -1,0 +1,191 @@
+name: __Application Deployment
+
+on:
+  workflow_call:
+    inputs:
+      docker-image-tag:
+        required: true
+        type: string
+      docker-registry:
+        required: true
+        type: string
+      environment-name:
+        required: true
+        type: string
+      git-tag:
+        required: true
+        type: string
+
+jobs:
+
+  run:
+    runs-on: ubuntu-latest
+    concurrency: deploy_${{ inputs.environment-name }}
+    environment: ${{ inputs.environment-name }}
+
+    steps:
+      - uses: actions/checkout@v3 # need to checkout (again) so that our custom action and deployment script is available
+
+      - name: Download release artifacts
+        uses: dsaltares/fetch-gh-release-asset@d9376dacd30fd38f49238586cd2e9295a8307f4c # <- current master (2022-07-12)
+        with:
+          version: 'tags/${{ inputs.git-tag }}'
+          file: release.tar.gz
+          target: obj/release.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract release artifacts
+        run: mkdir ./out && tar -xvf ./obj/release.tar.gz -C $_
+
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          github-environment: ${{ inputs.environment-name }}
+
+      - name: Collect variables as json
+        id: infravars
+        shell: pwsh
+        run: |
+          ./tools/infrastructure/get-infrastructure-info.ps1 -EnvironmentName ${{ inputs.environment-name }} >> ./obj/infra.json
+          ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName ${{ inputs.environment-name }} >> ./obj/conventions.json
+
+      - name: Convert conventions json to vars
+        uses: antifree/json-to-variables@cc8c6394031e145c90f7f9ec909d83df92431fb8 # <- v1.0.1
+        with:
+          filename: ./obj/conventions.json
+          prefix: Convention
+
+      - name: Convert infrastructure json to vars
+        uses: antifree/json-to-variables@v1.0.1
+        with:
+          filename: ./obj/infra.json
+          prefix: Infra
+
+      - uses: kanga333/variable-mapper@bc402faa459bac3069f595be0dd9d635373f5e6c # <- current master (2022-07-12)
+        with:
+          mode: fill
+          key: "${{ inputs.environment-name }}"
+          map: |
+            {
+              "dev": {
+                "api_autoscaling_minReplicas": "1",
+                "api_autoscaling_maxReplicas": "2",
+                "api_ingress_annotations_kubernetes\.io/ingress\.class": "addon-http-application-routing",
+                "api_ingress_hostname": "${{ env.Infra_Api_HostName }}",
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
+              },
+              "qa": {
+                "api_ingress_extraTls_0_secretName": "redmz.mrisoftware.com-wildcard-tls",
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
+              },
+              "demo": {
+                "api_ingress_extraTls_0_secretName": "redmz.mrisoftware.com-wildcard-tls",
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://welcomeci-demo.saas.mrisoftware.com"
+              },
+              "staging": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://welcome-ci.preprod.saas.mrisoftware.com/"
+              },
+              "prod-na": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://welcome-ci.saas.mrisoftware.com"
+              },
+              "prod-emea": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://welcomeemea-ci.saas.mrisoftware.com"
+              },
+              "prod-apac": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "CentralIdentity_BaseUri": "https://apacwelcome-ci.saas.mrisoftware.com"
+              },
+              ".*": {
+                "api_autoscaling_minReplicas": "2",
+                "api_autoscaling_maxReplicas": "6",
+                "api_podLabels_aadpodidbinding": "${{ env.Convention_SubProducts_Api_ManagedIdentity_BindingSelector }}",
+                "api_healthIngress_hostname": "${{ env.Convention_Aks_Primary_TrafficManagerHost }}",
+                "api_healthIngress_path": "${{ env.Convention_SubProducts_Api_TrafficManagerPath }}",
+                "api_ingress_hostname": "${{ env.Convention_SubProducts_Api_HostName }}",
+                "api_ingress_extraTls_0_hosts_0": "${{ env.Convention_SubProducts_Api_HostName }}",
+                "api_ingress_extraTls_0_secretName": "mrisoftware.com-wildcard-tls",
+                "Api_Database_InitialCatalog": "${{ env.Convention_SubProducts_Db_ResourceName }}",
+                "Api_Database_DataSource": "tcp:${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}.database.windows.net,1433",
+                "Api_Database_UserID": "${{ env.Infra_Api_ManagedIdentityClientId }}",
+                "Api_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_Api_ManagedIdentityClientId }}",
+                "Api_FunctionsAppQueue_ServiceUri": "https://${{ env.Convention_SubProducts_InternalApi_StorageAccountName }}.queue.core.windows.net",
+                "Api_FunctionsAppToken_Audience": "${{ env.Convention_SubProducts_InternalApi_AuthTokenAudience }}",
+                "Api_KeyVaultName": "${{ env.Convention_SubProducts_KeyVault_ResourceName }}",
+                "Api_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net",
+                "Api_ReverseProxy_Clusters_FunctionsApp_Destinations_Primary_Address": "https://${{ env.Convention_SubProducts_InternalApi_HostName }}",
+                "ApplicationInsights_AutoCollectActionArgs": "${{ env.Convention_IsTestEnv }}",
+                "ApplicationInsights_ConnectionString": "${{ env.Infra_AppInsights_ConnectionString }}",
+                "Docker_DockerRegistry": "${{ inputs.docker-registry }}",
+                "Docker_ImageTag": "${{ inputs.docker-image-tag }}",
+                "Helm_ReleaseName": "${{ env.Convention_Aks_HelmChartName }}",
+                "InternalApi_Database_DataSource": "tcp:${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}.database.windows.net,1433",
+                "InternalApi_Database_InitialCatalog": "${{ env.Convention_SubProducts_Db_ResourceName }}",
+                "InternalApi_Database_UserID": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",
+                "InternalApi_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",
+                "InternalApi_KeyVaultName": "${{ env.Convention_SubProducts_KeyVault_ResourceName }}",
+                "InternalApi_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net"
+              }
+            }
+
+      - name: Azure Function App (internalapi) - File substitution in appsettings
+        uses: joshlrogers/variable-substitution@602057bea9ec150e2142bbae25ed9a64da175569 # <- v1.1.5
+        with:
+          files: ./out/DataServicesGateway.Functions/appsettings.json
+          splitChar: '_'
+
+      - name: Deploy SQL database migration
+        uses: ./.github/actions/sql-action # <- replace with: MRI-Software/sql-action@v1
+        with:
+          database-name: ${{ env.Convention_SubProducts_Db_ResourceName }}
+          server-name: ${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}
+          sql-file: ./out/migrate-db.sql
+
+      - name: Set AKS context (primary region)
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.Convention_Aks_Primary_ResourceGroupName }}
+          cluster-name: ${{ env.Convention_Aks_Primary_ResourceName }}
+
+      - name: Helm Umbrella Chart Deploy (primary region)
+        uses: ./.github/actions/helm-umbrella-chart-deploy@v1 # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
+        with:
+          release: ${{ env.Convention_Aks_HelmChartName }}
+          namespace: ${{ env.Convention_Aks_Namespace }}
+          chart: ./out/helm-chart
+          app-version: ${{ inputs.docker-image-tag }}
+          add-bitnami-repo: true
+          config-maps: |
+            api=DataServicesGateway.Api/appsettings.json
+
+      - name: Set AKS context (failover region)
+        if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.Convention_Aks_Failover_ResourceGroupName }}
+          cluster-name: ${{ env.Convention_Aks_Failover_ResourceName }}
+
+      - name: Helm Umbrella Chart Deploy (failover region)
+        if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
+        uses: ./.github/actions/helm-umbrella-chart-deploy@v1 # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
+        with:
+          release: ${{ env.Convention_Aks_HelmChartName }}
+          namespace: ${{ env.Convention_Aks_Namespace }}
+          chart: ./out/helm-chart
+          app-version: ${{ inputs.docker-image-tag }}
+          add-bitnami-repo: true
+          values: |
+            api.healthIngress.hostname=${{ env.Convention_Aks_Failover_TrafficManagerHost }}
+          config-maps: |
+            api=DataServicesGateway.Api/appsettings.json
+
+      - name: Azure Function App (internalapi) - Deploy
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.Convention_SubProducts_InternalApi_ResourceName }}
+          package: ./out/DataServicesGateway.Functions

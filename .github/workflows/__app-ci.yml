@@ -1,0 +1,81 @@
+name: __Application CI
+
+on:
+  workflow_call:
+    inputs:
+      azure-container-registry:
+        required: true
+        type: string
+      build-tag:
+        required: true
+        type: string
+      build-version:
+        required: true
+        type: string
+      environment-name:
+        required: true
+        type: string
+      git-tag:
+        required: true
+        type: string
+      create-release:
+        required: true
+        type: boolean
+
+jobs:
+     
+  run:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment-name }}
+    env:
+      BUILD_CONFIGURATION: Release
+    
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: 6.0.x
+      - name: Set nuget package credentials
+        run: dotnet nuget update source mrisoftware --username az --password "${{ secrets.PACKAGE_FEED_TOKEN }}" --store-password-in-clear-text
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build -c ${{ env.BUILD_CONFIGURATION }} --no-restore -p:Version=${{ inputs.build-version }}
+      - name: Test
+        run: dotnet test -c ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
+      - name: Publish
+        run: dotnet publish -c ${{ env.BUILD_CONFIGURATION }} --no-build
+      - name: Dotnet tool restore
+        run: dotnet tool restore
+      - name: Create sql migration
+        shell: pwsh
+        run: ./tools/ci-cd/scripts/create-sql-migration-script.ps1
+      - name: Create release artifacts directory
+        shell: pwsh
+        run: ./tools/ci-cd/scripts/create-published-artifacts-directory.ps1
+        
+      - name: Zip artifacts
+        run: tar -zcvf ./publish/release.tar.gz -C ./out .
+
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          github-environment: ${{ inputs.environment-name }}
+      - name: ACR login
+        run: az acr login -n ${{ inputs.azure-container-registry }}
+      - name: Build and push docker images
+        shell: pwsh
+        run: |
+          ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 -ImageRepo ${{ inputs.azure-container-registry }} -BuildNumber '${{ inputs.build-tag }}' -PushImages:$${{inputs.create-release}}
+
+      - name: Create github release
+        if: inputs.create-release == true
+        uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5 # <- 0.1.14
+        with:
+          tag_name: ${{ inputs.git-tag }}
+          files: ./publish/release.tar.gz
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          fail_on_unmatched_files: true
+ 
