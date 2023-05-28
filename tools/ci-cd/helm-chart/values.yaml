@@ -79,10 +79,7 @@ api:
     maxReplicas: 2
   ingress:
     enabled: true
-#    ingressClassName: nginx
-    annotations:
-      # todo: replace with `ingressClassName: nginx` above once all our aks clusters are updated to support `ingressClassName` field
-      kubernetes.io/ingress.class: nginx
+    ingressClassName: nginx
     hostname: dev-api-web-api-starter.redmz.mrisoftware.com
     extraTls:
       - hosts:
@@ -90,10 +87,8 @@ api:
         secretName: redmz.mrisoftware.com-wildcard-tls
   healthIngress:
     enabled: true
-#    ingressClassName: nginx
+    ingressClassName: nginx
     annotations:
-      # todo: replace with `ingressClassName: nginx` above once all our aks clusters are updated to support `ingressClassName` field
-      kubernetes.io/ingress.class: nginx
       # note: we have TWO DIFFERENT ingress controllers in play depending on the aks cluster being deployed to. Both of
       # these use different annotation prefixes as follows:
       # 1. nginx.org (https://github.com/nginxinc/kubernetes-ingress/) (dev and demo cluster)
