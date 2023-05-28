@@ -70,7 +70,7 @@ jobs:
               "dev": {
                 "api_autoscaling_minReplicas": "1",
                 "api_autoscaling_maxReplicas": "2",
-                "api_ingress_annotations_kubernetes\.io/ingress\.class": "addon-http-application-routing",
+                "api_ingress_ingressClassName: "addon-http-application-routing",
                 "api_ingress_hostname": "${{ env.Infra_Api_HostName }}",
                 "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
                 "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
