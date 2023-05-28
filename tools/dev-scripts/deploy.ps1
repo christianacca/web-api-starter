@@ -92,7 +92,7 @@ process {
         
         if ($infra.Api.HostName) {
 #            $apiParams.Values['api.ingress.extraTls'] = 'null'
-            $apiParams.Values['api.ingress.annotations.kubernetes\.io/ingress\.class'] = 'addon-http-application-routing'
+            $apiParams.Values['api.ingress.ingressClassName'] = 'addon-http-application-routing'
         }
         ./tools/dev-scripts/deploy-api.ps1 @apiParams -InfA Continue -EA Stop
 
