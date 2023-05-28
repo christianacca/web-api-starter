@@ -136,7 +136,7 @@ jobs:
       - name: Azure Function App (internalapi) - File substitution in appsettings
         uses: joshlrogers/variable-substitution@602057bea9ec150e2142bbae25ed9a64da175569 # <- v1.1.5
         with:
-          files: ./out/DataServicesGateway.Functions/appsettings.json
+          files: ./out/Template.Functions/appsettings.json
           splitChar: '_'
 
       - name: Deploy SQL database migration
@@ -161,7 +161,7 @@ jobs:
           app-version: ${{ inputs.docker-image-tag }}
           add-bitnami-repo: true
           config-maps: |
-            api=DataServicesGateway.Api/appsettings.json
+            api=Template.Api/appsettings.json
 
       - name: Set AKS context (failover region)
         if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
@@ -182,10 +182,10 @@ jobs:
           values: |
             api.healthIngress.hostname=${{ env.Convention_Aks_Failover_TrafficManagerHost }}
           config-maps: |
-            api=DataServicesGateway.Api/appsettings.json
+            api=Template.Api/appsettings.json
 
       - name: Azure Function App (internalapi) - Deploy
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.Convention_SubProducts_InternalApi_ResourceName }}
-          package: ./out/DataServicesGateway.Functions
+          package: ./out/Template.Functions
