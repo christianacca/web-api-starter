@@ -17,7 +17,7 @@ runs:
     - name: Install dependent powershell modules
       uses: potatoqualitee/psmodulecache@03c44cade706c982e0632f52a2712668b03c8f24 # <- v5.3
       with:
-        modules-to-cache-prerelease: SqlServer:22.0.59
+        modules-to-cache: SqlServer:22.0.59
     - name: Execute SQL
       shell: pwsh
       run: |
