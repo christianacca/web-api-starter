@@ -153,7 +153,7 @@ jobs:
           cluster-name: ${{ env.Convention_Aks_Primary_ResourceName }}
 
       - name: Helm Umbrella Chart Deploy (primary region)
-        uses: ./.github/actions/helm-umbrella-chart-deploy@v1 # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
+        uses: ./.github/actions/helm-umbrella-chart-deploy # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
         with:
           release: ${{ env.Convention_Aks_HelmChartName }}
           namespace: ${{ env.Convention_Aks_Namespace }}
@@ -172,7 +172,7 @@ jobs:
 
       - name: Helm Umbrella Chart Deploy (failover region)
         if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
-        uses: ./.github/actions/helm-umbrella-chart-deploy@v1 # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
+        uses: ./.github/actions/helm-umbrella-chart-deploy # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
         with:
           release: ${{ env.Convention_Aks_HelmChartName }}
           namespace: ${{ env.Convention_Aks_Namespace }}
