@@ -57,11 +57,8 @@ process {
         # ----------- Deploy Database migrations -----------
         ./tools/dev-scripts/deploy-db.ps1 -SqlServerName $sqlServerName -DatabaseName $databaseName -EA Stop
 
-        # ----------- Deploy API to AKS -----------         
-        $dnsZoneName = Invoke-Exe {
-            az aks show -g $aks.ResourceGroupName -n $aks.ResourceName --query addonProfiles.httpApplicationRouting.config.HTTPApplicationRoutingZoneName -otsv
-        } -EA SilentlyContinue
-        $apiHostName = $dnsZoneName ?? $api.HostName
+        # ----------- Deploy API to AKS -----------
+        $apiHostName = $infra.Api.HostName ?? $api.HostName
         
         $apiParams = @{
             ConfigureAppSettingsJson = { param([Hashtable] $Settings)
@@ -87,14 +84,14 @@ process {
                 'api.podLabels.aadpodidbinding' = $api.ManagedIdentity.BindingSelector
                 'api.podLabels.releasedate' = Get-Date -Format 'yyyy-MM-ddTHH.mm.ss'
                 'api.ingress.hostname' = $apiHostName
-                'api.healthIngress.enabled' = 'false'
+#                'api.healthIngress.enabled' = 'false'
             }
             HelmChartName           =   $convention.Aks.HelmChartName
             AksNamespace            =   $convention.Aks.Namespace
         }
         
-        if ($dnsZoneName) {
-            $apiParams.Values['api.ingress.extraTls'] = 'null'
+        if ($infra.Api.HostName) {
+#            $apiParams.Values['api.ingress.extraTls'] = 'null'
             $apiParams.Values['api.ingress.annotations.kubernetes\.io/ingress\.class'] = 'addon-http-application-routing'
         }
         ./tools/dev-scripts/deploy-api.ps1 @apiParams -InfA Continue -EA Stop

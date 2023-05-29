@@ -1,0 +1,119 @@
+name: Application CI/CD
+
+on:
+  # trigger when branch is created
+  create:
+
+  # Triggers the workflow on push or pull request events but only for the master or release branch
+  push:
+    paths-ignore:
+      - docs/**
+      - .idea/**
+      - .run/**
+      - .vscode/**
+      - .github/workflows/__infra-*
+      - .github/workflows/infra-*
+      - .github/workflows/__github-*
+      - .github/workflows/github-*
+      - .github/workflows/__okta-*
+      - .github/workflows/okta-*
+      - tools/db-scripts/**
+      - tools/dev-scripts/**
+      - tools/infrastructure/**
+      - tools/okta/**
+    branches:
+      - master
+      - release/**
+  pull_request:
+    paths-ignore:
+      - docs/**
+      - .idea/**
+      - .run/**
+      - .vscode/**
+      - .github/workflows/__infra-*
+      - .github/workflows/infra-*
+      - .github/workflows/__github-*
+      - .github/workflows/github-*
+      - .github/workflows/__okta-*
+      - .github/workflows/okta-*
+      - tools/db-scripts/**
+      - tools/dev-scripts/**
+      - tools/infrastructure/**
+      - tools/okta/**
+    branches:
+      - master
+      - release/**
+    
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+    
+permissions:
+  actions: read
+  contents: read
+  
+jobs:
+  
+  globalvars:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 # need to checkout so that custom action is available!
+      - uses: ./.github/actions/set-global-build-vars
+        id: vars
+        with:
+          git-tag-suffix: app
+    outputs:
+      buildNumber: ${{ steps.vars.outputs.buildNumber }}
+      buildTag: ${{ steps.vars.outputs.buildTag }}
+      buildVersion: ${{ steps.vars.outputs.buildVersion }}
+      createRelease: ${{ steps.vars.outputs.createRelease }}
+      gitTag: ${{ steps.vars.outputs.gitTag }}
+      runBuild: ${{ steps.vars.outputs.runBuild }}
+      acrEnvironment: ${{ steps.vars.outputs.acrEnvironment }}
+      acrName: ${{ steps.vars.outputs.acrName }}
+  
+  build:
+    needs: globalvars
+    if: needs.globalvars.outputs.runBuild == 'true'
+    uses: ./.github/workflows/__app-ci.yml
+    with:
+      build-tag: ${{ needs.globalvars.outputs.buildTag }}
+      build-version: ${{ needs.globalvars.outputs.buildVersion }}
+      environment-name: ${{ needs.globalvars.outputs.acrEnvironment }}
+      azure-container-registry: ${{ needs.globalvars.outputs.acrName }}
+      git-tag: ${{ needs.globalvars.outputs.gitTag }}
+      create-release: ${{ fromJSON(needs.globalvars.outputs.createRelease) }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+
+  deploy-dev:
+    needs: [globalvars, build]
+    if: needs.globalvars.outputs.createRelease == 'true'
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: dev
+      git-tag: ${{ needs.globalvars.outputs.gitTag }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  deploy-qa:
+    needs: [globalvars, deploy-dev]
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: qa
+      git-tag: ${{ needs.globalvars.outputs.gitTag }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
