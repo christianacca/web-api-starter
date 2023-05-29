@@ -15,10 +15,11 @@
 * Azure AD authentication for Azure SQL database
 * Entity Framework Core 6 (providing examples of a typical setup and configuration)
 * Automation scripts for implementing Infrastructure as Code (IaC)
-* Convenient dev scripts for deploying the app to Azure from your dev machine (in-lieu of a CI pipeline)
+* Convenient dev scripts for deploying the app to Azure from your dev machine
 
 ## Project structure
 
+* Azure.ManagedIdentity: utility library for acquiring managed identity access tokens
 * Template.Api: API endpoints
 * Template.Functions:
   * API endpoints that are more convenient to write as functions (for example to use input/output bindings to other azure services)
