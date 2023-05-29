@@ -2,7 +2,8 @@
 	"info": {
 		"_postman_id": "43b2a5dc-06a8-4d7c-8b6b-5c769bba3a66",
 		"name": "MRI Web API Starter Template",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "463636"
 	},
 	"item": [
 		{
@@ -97,7 +98,7 @@
 						"type": "text/javascript",
 						"exec": [
 							"const echoPostRequest = {",
-							"  url: pm.environment.get('tokenUrl'),",
+							"  url: pm.environment.get('tokenIssuerUrl'),",
 							"  method: 'POST',",
 							"  header: 'Content-Type:application/x-www-form-urlencoded',",
 							"  body: {",
@@ -561,7 +562,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"const echoPostRequest = {",
-									"  url: pm.environment.get('tokenUrl'),",
+									"  url: pm.environment.get('tokenIssuerUrl'),",
 									"  method: 'POST',",
 									"  header: 'Content-Type:application/x-www-form-urlencoded',",
 									"  body: {",
@@ -656,37 +657,6 @@
 					]
 				}
 			]
-		},
-		{
-			"name": "https://scratch-function-2.azurewebsites.net/api/echo",
-			"request": {
-				"auth": {
-					"type": "bearer",
-					"bearer": [
-						{
-							"key": "token",
-							"value": "eyJraWQiOiJfM0k4UFlUSnFsSHFwRWQ3MU8wUEh1OTdvLUpJbkVFbmpxWXNobmE2dzFFIiwiYWxnIjoiUlMyNTYifQ.eyJ2ZXIiOjEsImp0aSI6IkFULkJnbDljZEV2T2h6VDZGRjRaRVJxM0txcE9qS0dPdmdSZWVsU0pWZ3djTXciLCJpc3MiOiJodHRwczovL21yaXNhYXMub2t0YXByZXZpZXcuY29tL29hdXRoMi9kZWZhdWx0IiwiYXVkIjoiYXBpOi8vZGVmYXVsdCIsImlhdCI6MTY0MzIyMTc5OCwiZXhwIjoxNjQzMjI1Mzk4LCJjaWQiOiIwb2F2dTJxZjljNElPVWFZZjBoNyIsInNjcCI6WyJhcGk6Ly9kZWZhdWx0Il0sInN1YiI6IjBvYXZ1MnFmOWM0SU9VYVlmMGg3In0.qFlAoIoK56LVXxxD5g1kOODll-6Jf4FB_ej1pLd1YlYw5vyQEoz4tF8MzJ7k75hlcChRdA2hESz6EN09OX81k3etPGWHRyyyFXpyfcM1F9gmLsvPX5UGgS4ZTVztUmAlY7sJISoXAPsV6jq-cqJyRTe2xBVP336KJlK_PTPlXdog9pcONxxE9nLpZh_oX5oTgRVfzTbfCSC2XtEcpeDs1rfGR_6wCTbAuc-jEwyP7yPQgfnTRJgLKk2GwVVYgntlyv6jox1JtecfJuEHaz3jz3BzjgEg6Oc6F_uP5pa-ivowODNrXnBukCNRGcw00GjjN9nXArI26c0jFOqWAaBefw",
-							"type": "string"
-						}
-					]
-				},
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "https://scratch-function-2.azurewebsites.net/api/echo",
-					"protocol": "https",
-					"host": [
-						"scratch-function-2",
-						"azurewebsites",
-						"net"
-					],
-					"path": [
-						"api",
-						"echo"
-					]
-				}
-			},
-			"response": []
 		}
 	]
 }
