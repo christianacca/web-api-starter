@@ -93,6 +93,21 @@ If you find you are getting an error restoring nuget packages, then likely your 
 2. Re-enter your credentials / sign-in again
 
 
+## Grant access to Azure dev environment
+
+To be able to connect to Azure services for this project you will need to be granted access. You will want access to the dev environment in Azure in
+order to integrate with Azure keyvault. This will allow you to develop locally without having to add user-secrets for things like central identity password and pbi
+authentication credentials.
+
+1. open the github workflow [Infrastructure Grant Azure Environment Access](../.github/workflows/infra-grant-azure-env-access.yml)
+2. select the "Run workflow" button
+3. select the environment to grant access to and the level:
+    * Environment: dev
+    * Access level: development
+4. in the 'User to grant' add your email address
+5. select the "Run workflow" button
+
+
 ## Connecting to Azure from local machine
 
 Typically you will want to be running local emulators for any Azure service (see above instructions). Only follow these next steps for those occasions you require 
@@ -112,7 +127,7 @@ The following values will work for the [dev](https://github.com/MRI-Software/dat
     * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=mridevaig01eastus.database.windows.net; Database=mridevaig01; Authentication=Active Directory Default;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
 * API -> Azure function app:
     * `dotnet user-secrets set Api:FunctionsAppToken:Audience 'api://func-mri-aig-dev-internalapi' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address 'https://func-mri-aig-dev-internalapi.azurewebsites.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set Api:FunctionsAppQueue:ServiceUri 'https://funcsacb6228b3ec74c.queue.core.windows.net/' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address 'https://func-mri-web-api-starter-dev-internalapi.azurewebsites.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set Api:FunctionsAppQueue:ServiceUri 'https://funcsadb57f465c2333.queue.core.windows.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 * Function App -> Blob storage:
-    * `dotnet user-secrets set InternalApi:ReportBlobStorage:ServiceUri 'https://pbireportcb6228b3ec74c.blob.core.windows.net/' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+    * `dotnet user-secrets set InternalApi:ReportBlobStorage:ServiceUri 'https://pbireportdb57f465c2333.blob.core.windows.net/' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`

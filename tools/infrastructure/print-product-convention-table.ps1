@@ -152,9 +152,6 @@
       Write-Host '## Azure AAD groups (Db)' -ForegroundColor Blue; `
       ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Db.AadSecurityGroup } -AsArray | select * -pv grp | select -Exp Member -pv memb |
         select @{ n='Env'; e={ $grp.Env }}, @{ n='GroupName'; e={ $grp.Name }}, @{ n='Member'; e={ $memb.Name }} | ft; `
-      Write-Host '## Azure AAD groups (Pbi)' -ForegroundColor Blue; `
-      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Pbi.AadSecurityGroup } -AsArray | select * -pv grp | select -Exp Member -pv memb |
-        select @{ n='Env'; e={ $grp.Env }}, @{ n='GroupName'; e={ $grp.Name }}, @{ n='Member'; e={ $memb.Name }} | ft
     
       Description
       -----------
