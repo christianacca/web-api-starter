@@ -34,9 +34,6 @@ inputs:
     description: Perform file transformation on the configMap files and helm chart values.yaml file (default true)?
     required: false
     default: 'true'
-  add-bitnami-repo:
-    description: Register the 'https://charts.bitnami.com/bitnami' repo?
-    required: false
   enable-show-k8-errors:
     description: Output the logs of kubernetes error events where the helm chart install/upgrade fails?
     required: false
@@ -85,12 +82,7 @@ runs:
       with:
         files: '${{ steps.vars.outputs.helmValuesPath }}'
         splitChar: '_'
-        
-    - name: Add bitnami helm repo
-      if: ${{ inputs.add-bitnami-repo == 'true' }}
-      shell: bash
-      run: helm repo add bitnami https://charts.bitnami.com/bitnami
-      
+          
     - name: Build helm chart dependencies
       shell: bash
       run: helm dependency --namespace ${{ inputs.namespace }} build '${{ inputs.chart }}'
