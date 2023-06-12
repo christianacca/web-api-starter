@@ -64,7 +64,6 @@
             $valuesContent = $valuesContent.Replace('${Helm_ReleaseName}', $HelmChartName)
             Set-Content $valuesFilePath -Value $valuesContent
             
-            Invoke-ExeExpression 'helm repo add bitnami https://charts.bitnami.com/bitnami'
             Invoke-ExeExpression "helm dependency build '$helmFolderPath'"
             
             $appSettingsCheckSum = (Get-FileHash (Join-Path $appSettingsFolderPath appsettings.json)).Hash
