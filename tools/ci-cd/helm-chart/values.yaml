@@ -20,7 +20,8 @@ api:
     # have helm redeploy the pods when the only a configMap value has changed
     checksum-appsettings-json: '${Checksum_Api}'
   podLabels:
-    aadpodidbinding: web-api-starter-api-identity
+    aadpodidbinding: web-api-starter-api-identity # todo: remove once switched to workload-id
+    azure.workload.identity/use: "true"
   command: ["dotnet", "Template.Api.dll"]
   extraEnvVars:
     - name: ASPNETCORE_FORWARDEDHEADERS_ENABLED
@@ -42,8 +43,8 @@ api:
   appFromExternalRepo:
     enabled: false
   serviceAccount:
-    create: false
-    automountServiceAccountToken: false
+    create: true
+    name: "${Helm_ReleaseName}-api"
   resources:
     # IMPORTANT: How to set limits and requests...
     # Set resource requests to the amount utilized by a "normal" workload with 2 pods running
