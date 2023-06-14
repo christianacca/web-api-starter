@@ -398,6 +398,7 @@ function Get-ResourceConvention {
                     ManagedIdentity     =   $spInput.EnableManagedIdentity -eq $false ? $null : $managedId
                     HostName            =   Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName -IsMainUI:$isMainUI
                     OidcAppName         =   $oidcAppName
+                    ServiceAccountName  =   '{0}-{1}' -f $productNameLower, $componentName.ToLower()
                     TrafficManagerPath  =   '/trafficmanager-health-{0}-{1}' -f $aksNamespace, $componentName.ToLower()
                     Type                =   $spInput.Type
                 }
