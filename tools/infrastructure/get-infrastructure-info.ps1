@@ -48,7 +48,7 @@ process {
         $appResourceGroup = $InputObject.AppResourceGroup.ResourceName
         
         $apiManagedIdentity = Invoke-Exe {
-            az identity show -g $appResourceGroup -n $api.ManagedIdentity.BindingSelector
+            az identity show -g $appResourceGroup -n $api.ManagedIdentity
         } | ConvertFrom-Json
 
         $funcManagedIdentity = Invoke-Exe {

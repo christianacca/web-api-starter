@@ -20,7 +20,6 @@ api:
     # have helm redeploy the pods when the only a configMap value has changed
     checksum-appsettings-json: '${Checksum_Api}'
   podLabels:
-    aadpodidbinding: web-api-starter-api-identity # todo: remove once switched to workload-id
     azure.workload.identity/use: "true"
   command: ["dotnet", "Template.Api.dll"]
   extraEnvVars:

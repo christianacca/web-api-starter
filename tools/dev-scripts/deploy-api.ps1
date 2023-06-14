@@ -6,7 +6,6 @@
     az aks show --resource-group dev-aks-eastus --name dev-aks-eastus --query addonProfiles.httpApplicationRouting.config.HTTPApplicationRoutingZoneName -otsv
     $values = @{ 
         'api.image.registry' = '<YourAzureRegistry>.azurecr.io'
-        'api.podLabels.aadpodidbinding' = 'web-api-starter-api-identity'
         'api.ingress.hostname' = 'web-api-starter-api.<DNS_ENTRY_NOTED_ABOVE>'
     }
     ./tools/dev-scripts/deploy-api.ps1 -HelmReleaseName my-app -AksNamespace app-my-app -Values $values -ConfigureAppSettingsJson { param([Hashtable] $Settings) 

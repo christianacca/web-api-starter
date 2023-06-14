@@ -104,7 +104,6 @@ jobs:
               ".*": {
                 "api_autoscaling_minReplicas": "2",
                 "api_autoscaling_maxReplicas": "6",
-                "api_podLabels_aadpodidbinding": "${{ env.Convention_SubProducts_Api_ManagedIdentity_BindingSelector }}",
                 "api_healthIngress_hostname": "${{ env.Convention_Aks_Primary_TrafficManagerHost }}",
                 "api_healthIngress_path": "${{ env.Convention_SubProducts_Api_TrafficManagerPath }}",
                 "api_ingress_hostname": "${{ env.Convention_SubProducts_Api_HostName }}",
