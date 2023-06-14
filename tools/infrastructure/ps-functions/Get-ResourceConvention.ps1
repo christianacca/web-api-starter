@@ -113,23 +113,9 @@ function Get-ResourceConvention {
     }
 
     $rootDomain = Get-RootDomain $EnvironmentName
-    switch ($EnvironmentName) {
-        { $_ -in 'ff', 'dev', 'demo'} {
-            $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
-            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-            $aksRootDomain = $rootDomain
-        }
-        'staging' {
-            $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
-            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-            $aksRootDomain = "cloud.$rootDomain"
-        }
-        Default {
-            $aksClusterNameTemplate = "$aksClusterPrefix-aks-{0}"
-            $aksResourceGroupNameTemplate = "$aksClusterPrefix-aks-{0}"
-            $aksRootDomain = $rootDomain
-        }
-    }
+    $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
+    $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
+    $aksRootDomain = $rootDomain
 
     $aksPrimaryClusterName = $aksClusterNameTemplate -f $azurePrimaryRegion
     $aksPrimaryCluster = @{
@@ -141,7 +127,7 @@ function Get-ResourceConvention {
     $aksSecondaryClusterName = $aksClusterNameTemplate -f $azureSecondaryRegion
     $aksSecondaryCluster = @{
         ResourceName        =   $aksSecondaryClusterName
-        ResourceGroupName   =   $aksSecondaryClusterName
+        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azureSecondaryRegion
         TrafficManagerHost  =   '{0}.{1}' -f $aksSecondaryClusterName, $aksRootDomain
     }
 
