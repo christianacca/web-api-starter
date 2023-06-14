@@ -86,7 +86,7 @@ process {
                 'api.ingress.hostname' = $apiHostName
 #                'api.healthIngress.enabled' = 'false'
             }
-            HelmChartName           =   $convention.Aks.HelmChartName
+            HelmReleaseName         =   $convention.Aks.HelmReleaseName
             AksNamespace            =   $convention.Aks.Namespace
         }
         

@@ -9,7 +9,7 @@
         'api.podLabels.aadpodidbinding' = 'web-api-starter-api-identity'
         'api.ingress.hostname' = 'web-api-starter-api.<DNS_ENTRY_NOTED_ABOVE>'
     }
-    ./tools/dev-scripts/deploy-api.ps1 -HelmChartName my-app -AksNamespace app-my-app -Values $values -ConfigureAppSettingsJson { param([Hashtable] $Settings) 
+    ./tools/dev-scripts/deploy-api.ps1 -HelmReleaseName my-app -AksNamespace app-my-app -Values $values -ConfigureAppSettingsJson { param([Hashtable] $Settings) 
         $Settings.Database.DataSource = 'tcp:web-api-starter-sql.database.windows.net,1433'
         $Settings.Database.InitialCatalog = 'web-api-starter-sql-db'
         $Settings.Database.UserID = '<ApiManagedIdentityClientId>'
@@ -32,7 +32,7 @@
         [string] $Path = 'out',
     
         [Parameter(Mandatory)]
-        [string] $HelmChartName,
+        [string] $HelmReleaseName,
     
         [Parameter(Mandatory)]
         [string] $AksNamespace,
@@ -61,7 +61,7 @@
             
             $valuesFilePath = "$helmFolderPath/values.yaml"
             $valuesContent = Get-Content $valuesFilePath -Raw
-            $valuesContent = $valuesContent.Replace('${Helm_ReleaseName}', $HelmChartName)
+            $valuesContent = $valuesContent.Replace('${Helm_ReleaseName}', $HelmReleaseName)
             Set-Content $valuesFilePath -Value $valuesContent
             
             Invoke-ExeExpression "helm dependency build '$helmFolderPath'"
@@ -79,9 +79,9 @@
             
             $helmDeploy = if (-not($ShowOnly)) {
                 $dryRunParam = if ($DryRun) { '--dry-run' } else { '' }
-                "helm upgrade --install --atomic --cleanup-on-fail --create-namespace $HelmChartName '$helmFolderPath' -n $AksNamespace $dryRunParam $setParamString"
+                "helm upgrade --install --atomic --cleanup-on-fail --create-namespace $HelmReleaseName '$helmFolderPath' -n $AksNamespace $dryRunParam $setParamString"
             } else {
-                "helm template $HelmChartName '$helmFolderPath' $setParamString --debug"
+                "helm template $HelmReleaseName '$helmFolderPath' $setParamString --debug"
             }
             Invoke-ExeExpression $helmDeploy
         }
