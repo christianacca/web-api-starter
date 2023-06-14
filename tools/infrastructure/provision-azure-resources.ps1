@@ -289,7 +289,6 @@
                 aksFailoverCluster              =   $convention.Aks.Failover.ResourceName
                 aksFailoverClusterResourceGroup =   $convention.Aks.Failover.ResourceGroupName
             } : @{}
-            $aksPrimaryInfo = $convention.Aks.Primary
             $apiManagedIdArmParams = @{
                 ResourceGroup           =   $appResourceGroup.ResourceName
                 Name                    =   $api.ManagedIdentity.BindingSelector
