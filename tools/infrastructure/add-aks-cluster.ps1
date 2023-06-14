@@ -38,7 +38,7 @@
             
             Write-Information "Creating AKS Cluster '$akaName' in resource group '$rgName'"
             Invoke-Exe {
-                az aks create -g $rgName -n $akaName --network-plugin azure --enable-addons http_application_routing --node-count 1 --node-vm-size Standard_B2s --enable-managed-identity --attach-acr $AksRegistryName --generate-ssh-keys
+                az aks create -g $rgName -n $akaName --network-plugin azure --enable-addons http_application_routing --node-count 1 --node-vm-size Standard_B2s --enable-managed-identity --attach-acr $AksRegistryName --generate-ssh-keys --enable-oidc-issuer --enable-workload-identity
             } | Out-Null
         }
     }

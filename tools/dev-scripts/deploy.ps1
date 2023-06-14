@@ -81,12 +81,12 @@ process {
             Values                  =   @{
                 'api.image.registry' = "$($convention.Aks.RegistryName).azurecr.io"
                 'api.image.tag' = $BuildNumber
-                'api.podLabels.aadpodidbinding' = $api.ManagedIdentity.BindingSelector
+                'api.podLabels.aadpodidbinding' = $api.ManagedIdentity.BindingSelector # todo: remove once switched to workload-id
                 'api.podLabels.releasedate' = Get-Date -Format 'yyyy-MM-ddTHH.mm.ss'
                 'api.ingress.hostname' = $apiHostName
 #                'api.healthIngress.enabled' = 'false'
             }
-            HelmChartName           =   $convention.Aks.HelmChartName
+            HelmReleaseName         =   $convention.Aks.HelmReleaseName
             AksNamespace            =   $convention.Aks.Namespace
         }
         

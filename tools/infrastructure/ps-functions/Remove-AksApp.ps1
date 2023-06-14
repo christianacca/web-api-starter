@@ -12,7 +12,7 @@ function Remove-AksApp {
         [string] $AksResourceGroup = $ClusterName,
 
         [Parameter(Mandatory)]
-        [string] $HelmChartName,
+        [string] $HelmReleaseName,
 
         [Parameter(Mandatory)]
         [string] $AppResourceGroup,
@@ -53,8 +53,8 @@ function Remove-AksApp {
             } | Out-Null
 
             if (-not($PodIdentityOnly)) {
-                Write-Information "Uninstalling helm chart release '$HelmChartName' in namespace '$Namespace'..."
-                Invoke-Exe { helm uninstall $HelmChartName --namespace $Namespace }  -EA Continue    
+                Write-Information "Uninstalling helm chart release '$HelmReleaseName' in namespace '$Namespace'..."
+                Invoke-Exe { helm uninstall $HelmReleaseName --namespace $Namespace }  -EA Continue    
             }
 
             $managedIdentityName | Where-Object { $_ } | ForEach-Object {

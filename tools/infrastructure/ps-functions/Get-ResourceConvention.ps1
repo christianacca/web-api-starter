@@ -95,6 +95,7 @@ function Get-ResourceConvention {
         ''
     }
     $aksNamespace = 'app-{0}{1}' -f $productNameLower, $aksNamespaceSuffix
+    $helmReleaseName = $productNameLower
     
     $aksClusterPrefix = switch ($EnvironmentName) {
         { $_ -like 'prod-*' } { 
@@ -398,6 +399,7 @@ function Get-ResourceConvention {
                     ManagedIdentity     =   $spInput.EnableManagedIdentity -eq $false ? $null : $managedId
                     HostName            =   Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName -IsMainUI:$isMainUI
                     OidcAppName         =   $oidcAppName
+                    ServiceAccountName  =   '{0}-{1}' -f $helmReleaseName, $componentName.ToLower()
                     TrafficManagerPath  =   '/trafficmanager-health-{0}-{1}' -f $aksNamespace, $componentName.ToLower()
                     Type                =   $spInput.Type
                 }
@@ -607,7 +609,7 @@ function Get-ResourceConvention {
             Primary             =   $aksPrimaryCluster
             Failover            =   if($hasFailover) { $aksSecondaryCluster } else { $null }
             Namespace           =   $aksNamespace
-            HelmChartName       =   $productNameLower
+            HelmReleaseName     =   $helmReleaseName
             RegistryName        =   'mrisoftwaredevops'
             ProdRegistryName    =   'mrisoftwaredevopsprod'
         }

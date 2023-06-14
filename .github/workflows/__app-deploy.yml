@@ -115,7 +115,7 @@ jobs:
                 "Api_Database_UserID": "${{ env.Infra_Api_ManagedIdentityClientId }}",
                 "Api_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_Api_ManagedIdentityClientId }}",
                 "Api_FunctionsAppQueue_ServiceUri": "https://${{ env.Convention_SubProducts_InternalApi_StorageAccountName }}.queue.core.windows.net",
-                "Api_FunctionsAppToken_Audience": "${{ env.Convention_SubProducts_InternalApi_AuthTokenAudience }}",
+                "Api_FunctionsAppToken_Audience": "${{ env.Convention_SubProducts_InternalApi_AuthTokenAudience }}/.default",
                 "Api_KeyVaultName": "${{ env.Convention_SubProducts_KeyVault_ResourceName }}",
                 "Api_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net",
                 "Api_ReverseProxy_Clusters_FunctionsApp_Destinations_Primary_Address": "https://${{ env.Convention_SubProducts_InternalApi_HostName }}",
@@ -123,7 +123,7 @@ jobs:
                 "ApplicationInsights_ConnectionString": "${{ env.Infra_AppInsights_ConnectionString }}",
                 "Docker_DockerRegistry": "${{ inputs.docker-registry }}",
                 "Docker_ImageTag": "${{ inputs.docker-image-tag }}",
-                "Helm_ReleaseName": "${{ env.Convention_Aks_HelmChartName }}",
+                "Helm_ReleaseName": "${{ env.Convention_Aks_HelmReleaseName }}",
                 "InternalApi_Database_DataSource": "tcp:${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}.database.windows.net,1433",
                 "InternalApi_Database_InitialCatalog": "${{ env.Convention_SubProducts_Db_ResourceName }}",
                 "InternalApi_Database_UserID": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",
@@ -155,7 +155,7 @@ jobs:
       - name: Helm Umbrella Chart Deploy (primary region)
         uses: ./.github/actions/helm-umbrella-chart-deploy # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
         with:
-          release: ${{ env.Convention_Aks_HelmChartName }}
+          release: ${{ env.Convention_Aks_HelmReleaseName }}
           namespace: ${{ env.Convention_Aks_Namespace }}
           chart: ./out/helm-chart
           app-version: ${{ inputs.docker-image-tag }}
@@ -173,7 +173,7 @@ jobs:
         if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
         uses: ./.github/actions/helm-umbrella-chart-deploy # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
         with:
-          release: ${{ env.Convention_Aks_HelmChartName }}
+          release: ${{ env.Convention_Aks_HelmReleaseName }}
           namespace: ${{ env.Convention_Aks_Namespace }}
           chart: ./out/helm-chart
           app-version: ${{ inputs.docker-image-tag }}

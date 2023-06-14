@@ -7,6 +7,9 @@ param location string = resourceGroup().location
 @description('List of RBAC role ids to grant to the managed identity scoped to the resource group of the managed identity.')
 param rbacRoleIds array = []
 
+@description('Optional. List of federatedCredentials to be configured with Managed Identity, default set to []')
+param federatedCredentials array = []
+
 var rbacRoleResourceIds = map(rbacRoleIds, (id) => subscriptionResourceId('Microsoft.Authorization/roleDefinitions', id))
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
@@ -21,6 +24,17 @@ resource rbacAssignments 'Microsoft.Authorization/roleAssignments@2020-04-01-pre
     roleDefinitionId: resourceId
     principalId: managedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
+  }
+}]
+
+@batchSize(1)
+resource federatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = [for federatedCredential in federatedCredentials: {
+  name: federatedCredential.name
+  parent: managedIdentity
+  properties: {
+    audiences: federatedCredential.audiences
+    issuer: federatedCredential.issuer
+    subject: federatedCredential.subject
   }
 }]
 

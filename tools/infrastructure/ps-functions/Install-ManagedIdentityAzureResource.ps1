@@ -13,7 +13,9 @@ function Install-ManagedIdentityAzureResource {
         [string] $Name,
 
         [Parameter(Mandatory)]
-        [string] $TemplateFile
+        [string] $TemplateFile,
+
+        [Hashtable] $TemplateParameterObject = @{}
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -27,11 +29,12 @@ function Install-ManagedIdentityAzureResource {
             }
             
             Write-Information "Setting User Assigned Managed Identity '$Name'..."
+            $templateParamValues = $TemplateParameterObject + @{
+                managedIdentityName     =   $Name
+            }
             $managedIdArmParams = @{
                 ResourceGroupName       =   $ResourceGroup
-                TemplateParameterObject =   @{
-                    managedIdentityName     =   $Name
-                }
+                TemplateParameterObject =   $templateParamValues
                 TemplateFile            =   $TemplateFile
             }
             $deploymentResult = New-AzResourceGroupDeployment @managedIdArmParams -EA Stop

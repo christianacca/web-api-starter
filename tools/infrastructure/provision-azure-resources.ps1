@@ -284,10 +284,22 @@
             
             #------------- Set user assigned managed identity for api -------------
             $api = $convention.SubProducts.Api
+            $aksPrimary = $convention.Aks.Primary
+            $aksFailoverInfo = $convention.Aks.Failover ? @{
+                aksFailoverCluster              =   $convention.Aks.Failover.ResourceName
+                aksFailoverClusterResourceGroup =   $convention.Aks.Failover.ResourceGroupName
+            } : @{}
+            $aksPrimaryInfo = $convention.Aks.Primary
             $apiManagedIdArmParams = @{
                 ResourceGroup           =   $appResourceGroup.ResourceName
                 Name                    =   $api.ManagedIdentity.BindingSelector
                 TemplateFile            =   Join-Path $templatePath api-managed-identity.bicep
+                TemplateParameterObject =   @{
+                    aksCluster                      =   $aksPrimary.ResourceName
+                    aksClusterResourceGroup         =   $aksPrimary.ResourceGroupName
+                    aksServiceAccountName           =   $api.ServiceAccountName
+                    aksServiceAccountNamespace      =   $convention.Aks.Namespace
+                } + $aksFailoverInfo
             }
             $apiManagedId = Install-ManagedIdentityAzureResource @apiManagedIdArmParams -EA Stop
             Add-Summary 'Api Managed Identity Client Id' ($apiManagedId.ClientId)

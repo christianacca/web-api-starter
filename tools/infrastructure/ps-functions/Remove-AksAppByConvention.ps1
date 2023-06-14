@@ -23,7 +23,7 @@ function Remove-AksAppByConvention {
                 Select-Object -ExpandProperty Name
 
             $aksAppParams = @{
-                HelmChartName       =   $InputObject.Aks.HelmChartName
+                HelmReleaseName     =   $InputObject.Aks.HelmReleaseName
                 AppResourceGroup    =   $InputObject.AppResourceGroup.ResourceName
                 Namespace           =   $InputObject.Aks.Namespace
                 ManagedIdentityName =   $managedIdentityName
