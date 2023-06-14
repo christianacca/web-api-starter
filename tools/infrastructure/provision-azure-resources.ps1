@@ -291,7 +291,7 @@
             } : @{}
             $apiManagedIdArmParams = @{
                 ResourceGroup           =   $appResourceGroup.ResourceName
-                Name                    =   $api.ManagedIdentity.BindingSelector
+                Name                    =   $api.ManagedIdentity
                 TemplateFile            =   Join-Path $templatePath api-managed-identity.bicep
                 TemplateParameterObject =   @{
                     aksCluster                      =   $aksPrimary.ResourceName
@@ -360,7 +360,7 @@
             $appRoleGrants = [PSCustomObject]@{
                 TargetAppDisplayName                =   $funcApp.ResourceName
                 AppRoleId                           =   Get-AppRoleId $appOnlyAppRoleName ($funcApp.ResourceName)
-                ManagedIdentityDisplayName          =   $api.ManagedIdentity.BindingSelector
+                ManagedIdentityDisplayName          =   $api.ManagedIdentity
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
             }
             $appRoleGrants | Grant-ADAppRolePermision

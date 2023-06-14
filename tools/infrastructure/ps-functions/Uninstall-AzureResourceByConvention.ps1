@@ -69,9 +69,10 @@ function Uninstall-AzureResourceByConvention {
                 Select-Object -Exp ResourceName
 
             $functionAppName | Remove-ADAppRegistration
-
-            $removePodIdentityOnly = !$UninstallAksApp
-            $InputObject | Remove-AksAppByConvention -PodIdentityOnly:$removePodIdentityOnly
+            
+            if ($UninstallAksApp) {
+                $InputObject | Remove-AksAppByConvention   
+            }
 
             if ($DeleteAADGroups) {
                 $groups = @(

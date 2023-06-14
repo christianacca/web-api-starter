@@ -4,9 +4,7 @@ function Remove-AksAppByConvention {
         [Parameter(Mandatory, ValueFromPipeline)]
         [ValidateNotNull()]
         [Alias('Convention')]
-        [Hashtable] $InputObject,
-
-        [switch] $PodIdentityOnly
+        [Hashtable] $InputObject
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -17,23 +15,17 @@ function Remove-AksAppByConvention {
     }
     process {
         try {
-            $managedIdentityName = $InputObject.SubProducts.Values |
-                Where-Object { $_.Type -eq 'AksPod' } |
-                Select-Object -ExpandProperty ManagedIdentity |
-                Select-Object -ExpandProperty Name
-
             $aksAppParams = @{
                 HelmReleaseName     =   $InputObject.Aks.HelmReleaseName
                 AppResourceGroup    =   $InputObject.AppResourceGroup.ResourceName
                 Namespace           =   $InputObject.Aks.Namespace
-                ManagedIdentityName =   $managedIdentityName
             }
 
             $clusters = @($InputObject.Aks.Primary; $InputObject.Aks.Failover) |
                 Where-Object { $_ } |
                 ForEach-Object { [PsCustomObject]$_ }
 
-            $clusters | Remove-AksApp @aksAppParams -PodIdentityOnly:$PodIdentityOnly
+            $clusters | Remove-AksApp @aksAppParams
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA

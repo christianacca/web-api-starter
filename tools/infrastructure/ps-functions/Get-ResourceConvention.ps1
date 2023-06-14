@@ -382,18 +382,9 @@ function Get-ResourceConvention {
             }
             'AksPod' {
                 $isMainUI = $spInput.IsMainUI ?? $false
+                $managedId = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
                 $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductFullName
                 $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : ' API'), $EnvironmentName
-                
-                $additionalManagedId = $subProductsConventions.GetEnumerator() |
-                    Where-Object { $_.Key -in $spInput.AdditionalManagedId } |
-                    Select-Object -ExpandProperty Value |
-                    Select-Object -ExpandProperty ResourceName
-                $podIdentityName = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
-                $managedId = @{
-                    BindingSelector =   $podIdentityName
-                    Name            =   @($podIdentityName; $additionalManagedId) | ForEach-Object { $_ }
-                }
                 
                 @{
                     ManagedIdentity     =   $spInput.EnableManagedIdentity -eq $false ? $null : $managedId

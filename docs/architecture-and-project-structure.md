@@ -11,11 +11,12 @@
     * API endpoints that you prefer to implement using serverless model
     * Asynchronous work you want to offload from the ASP.NET API above
 * Azure managed identity to avoid API keys, OAuth client secrets and database passwords
-* Azure [AKS Pod identity](https://docs.microsoft.com/en-us/azure/aks/use-azure-ad-pod-identity)
+* Azure [AKS Workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview)
 * Azure AD authentication for Azure SQL database
 * Entity Framework Core 6 (providing examples of a typical setup and configuration)
 * Automation scripts for implementing Infrastructure as Code (IaC)
 * Convenient dev scripts for deploying the app to Azure from your dev machine
+* CI/CD pipelines for both infrastructure and app deployment
 
 ## Project structure
 

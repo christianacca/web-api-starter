@@ -26,10 +26,9 @@
 
 At a high level deployment consists of:
 
-1. Setting up the AKS cluster to support pod-identity (see section ["Deploying infra for the FIRST TIME"](#deploying-infra-for-the-first-time))
-2. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-3. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
-4. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+1. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
+2. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+3. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
 
 This repo contains various powershell scripts (see [tools directory](../tools)) that can be run from the command-line to automate the deployment tasks above 
 and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
@@ -51,17 +50,13 @@ For more information on how these github workflows for the project were set up: 
 
 ### Deploying infra for the FIRST TIME
 
-1. Every environment: Enable Pod identity (aka managed identity for pods)
-   1. Manually run the workflow [Infrastructure Enable AKS Pod-identity](../.github/workflows/infra-enable-aks-pod-identity.yml), selecting the name of the environment to deploy to (for example dev)
-      ![run workflow](./assets/infra-enable-aks-pod-id-run-workflow.png)
-   2. For all environments except dev you will need to [approve deployment](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
-2. Deploy to dev and qa environment:
+1. Deploy to dev and qa environment:
    1. Touch any file in tools/infrastructure on the `master` (via a PR), *or* manually run [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow
    2. Deploy to dev: [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow will trigger *automatically* to deploy infrastructure to dev (ie you don't need to do anything)
    3. Deploy to qa: once deployed to the dev environment, the [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow will queue up a deployment for the infrastructure to the qa environment.
       ![queued deployment](./assets/infra-ci-queued.png)
       This deployment will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
-3. Deploy to demo, staging, prod-xxx environments:
+2. Deploy to demo, staging, prod-xxx environments:
    1. Go to the [Releases list](https://github.com/MRI-Software/web-api-starter/releases) in the github repo
    2. Find the pre-release that you want to deploy, it will start with 'infra-master-' or 'infra-release-'
       ![infra release](./assets/infra-release.png)
@@ -76,9 +71,6 @@ For more information on how these github workflows for the project were set up: 
       2. [Approve](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments) the environment(s) listed in the UI to allow the deployment to continue for each of those respective environments
          ![queued deployment](./assets/infra-release-queued.png)
          **IMPORTNT**: the option to deploy to staging and prod environments will be enabled only when the branch that triggered the initial workflow is a release branch (eg release/2022.01)
-4. Every environment: Add pod identity
-   1. Manually run the workflow [Infrastructure Add AKS Pod-identity](../.github/workflows/infra-add-aks-pod-identity.yml), selecting the name of the environment to deploy to (for example demo)
-   2. For all environments except dev you will need to [approve deployment](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
 
 ### Deploying infra from CI/CD
 
@@ -207,7 +199,6 @@ specifically, the example with the description "Returns tables describing all Az
 ### Prerequisites
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
-    * enable/add pod identity
     * run dev scripts
 * [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually)
 * powershell core (tested on v7.2)
@@ -239,11 +230,6 @@ In practice the only way to run these scripts from a dev machine is:
       # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
       ./tools/infrastructure/add-aks-cluster.ps1 -InfA Continue -EnvironmentName dev -CreateAzureContainerRegistry -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
       ````
-   2. Enable Pod identity (aka managed identity for pods):
-      ```pwsh
-      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-      ./tools/infrastructure/enable-aks-pod-identity.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
-      ````
 3. (When changed) Provision Azure resources:
    ```pwsh
       # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
@@ -251,20 +237,15 @@ In practice the only way to run these scripts from a dev machine is:
       ````
     * NOTE: if this script fails try running it again (script is idempotent)
     * **IMPORTANT**: If a secondary (failover) Azure SQL server is provisioned - see troubleshooting section below
-4. (Once-only) Add Pod identity for API app:
-   ```pwsh
-      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-      ./tools/infrastructure/add-aks-pod-identity.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
-      ````
-5. Build App: `./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue`
+4. Build App: `./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue`
     * **IMPORTANT**: You will need to have docker engine installed and running on your machine in order to build and push the images
-6. Deploy App: 
+5. Deploy App: 
    ```pwsh
       # IMPORTANT: You will likely need to connected to the office VPN in order to satisfy the firewall rules configured in the Azure SQL db
       # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
       ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
       ````
-7. Test that it worked:
+6. Test that it worked:
     * browse to the "Api health Url" printed to the console
     * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-local.postman_environment.json),
       change the baseUrl postman variable to the "Api Url" printed to the console. Run the requests in the collection
@@ -272,7 +253,7 @@ In practice the only way to run these scripts from a dev machine is:
 
 ## Cleanup
 
-To remove all Azure resources and AKS pod identity run the deprovision-azure-resources.ps1 script from a powershell prompt (assuming you have permissions),
+To remove all Azure resources run the deprovision-azure-resources.ps1 script from a powershell prompt (assuming you have permissions),
 or running the github workflow [Infrastructure Uninstall](../.github/workflows/infra-uninstall.yml)
 
 ### From a powershell prompt
