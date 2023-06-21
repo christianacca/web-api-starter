@@ -32,10 +32,11 @@ public class ExampleTimer {
     log.LogInformation("C# Timer trigger function executed at: {UtcNow}", DateTime.UtcNow);
 
     var currentState = MyState.GetOrCreate(state);
+    var previousRun = currentState.LastSuccessfulRun;
     currentState.LastSuccessfulRun = DateTimeOffset.UtcNow;
 
     // the body of the timer logic goes here
-    log.LogInformation("Simulating work done by trigger");
+    log.LogInformation("Simulating work done by trigger using date of last run: {LastSuccessfulRun}", previousRun);
 
     // ... if we got here then we know that trigger code was successful, therefore record the timestamp so
     // that next time timer runs we can use this value for example to find records that have changed since the
