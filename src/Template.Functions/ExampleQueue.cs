@@ -27,12 +27,10 @@ public class ExampleQueue {
   public async Task RunAsync(
     [QueueTrigger(QueueName)] QueueMessage queueMessage,
     [Table(StorageTable)] TableClient tableClient,
-    ILogger log,
     CancellationToken ct) {
-
     var messageBody = GetMessageBody(queueMessage);
-    
-    log.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
+
+    Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
 
     try {
       switch (messageBody.Metadata.MessageType) {
@@ -40,7 +38,7 @@ public class ExampleQueue {
           await ProcessExampleMessageAsync(messageBody, ct);
           break;
         case "SimpleMessage":
-          ProcessSimpleMessage(messageBody);
+          ProcessSimpleMessage(messageBody, queueMessage.DequeueCount == QueueConstants.MaxDequeueCount);
           break;
         default:
           throw new InvalidOperationException(
@@ -70,16 +68,16 @@ public class ExampleQueue {
   public async Task RunExceptionHandler(
     [QueueTrigger($"{QueueName}-poison")] QueueMessage queueMessage,
     [Table(StorageTable)] TableClient tableClient,
-    CancellationToken ct) {
-    
+    CancellationToken ct
+  ) {
     var messageBody = GetMessageBody(queueMessage);
-    
+
     Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
 
     var msgException = await tableClient
       .QueryAsync<MessageExceptionTableEntity>(
-        ent => ent.PartitionKey == MessageExceptionTableEntity.DefaultStoragePartitionKey && 
-               ent.RowKey == messageBody.Id.ToString(), 
+        ent => ent.PartitionKey == MessageExceptionTableEntity.DefaultStoragePartitionKey &&
+               ent.RowKey == messageBody.Id.ToString(),
         cancellationToken: ct
       )
       .SingleOrDefaultAsync(ct);
@@ -90,12 +88,9 @@ public class ExampleQueue {
         case nameof(ExampleMessageData):
           HandleExampleMessageException(messageBody, msgException);
           break;
-        case "SimpleMessage":
-          HandleSimpleMessageException(messageBody, msgException);
-          break;
         default:
           throw new InvalidOperationException(
-            $"No handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{QueueName}'");
+            $"No Exception handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{QueueName}-poison'");
       }
     }
     catch (Exception) {
@@ -110,38 +105,55 @@ public class ExampleQueue {
     }
   }
 
-  private void HandleSimpleMessageException(MessageBody messageBody, MessageExceptionTableEntity? msgException) {
-    Logger.LogInformation(
-      "Simulating handling '{ExceptionMessage}' for: {MessageType}-{MessageId}",
-      msgException?.ExceptionMessage, messageBody.Metadata.MessageType, messageBody.Id
-    );
-  }
-
   private void HandleExampleMessageException(MessageBody messageBody, MessageExceptionTableEntity? msgException) {
-    Logger.LogInformation(
-      "Simulating handling '{ExceptionMessage}' for: {MessageType}-{MessageId}",
-      msgException?.ExceptionMessage, messageBody.Metadata.MessageType, messageBody.Id
-    );
+    var detail = msgException?.GetExceptionDetailObject<SanitizedProblem>();
+    if (detail == null) {
+      Logger.LogInformation("Simulating handling for '{MessageType}-{MessageId}",
+        messageBody.Metadata.MessageType, messageBody.Id
+      );
+    } else {
+      Logger.LogInformation("Simulating handling for '{MessageType}-{MessageId}'; Details: {@Detail}",
+        messageBody.Metadata.MessageType, messageBody.Id, detail
+      );
+    }
   }
 
   // ReSharper disable once UnusedParameter.Local
   private async Task ProcessExampleMessageAsync(MessageBody message, CancellationToken ct) {
     Logger.LogInformation(
       "Simulating work done by trigger for: {MessageType}-{MessageId}", message.Metadata.MessageType, message.Id);
-    
+
     var data = GetMessageData<ExampleMessageData>(message);
     if (data.SomeStringProp == "throw") {
-      throw new Exception("BANG"); // simulate a poison message scenario
+      // simulate a poison message scenario
+
+      var detail = new SanitizedProblem {
+        IsRecoverable = false,
+        Message = "You might want to consider doing something different",
+        Source = "Process ExampleMessage",
+        TraceId = System.Diagnostics.Activity.Current?.Id
+      };
+      throw new Exception("BANG") {
+        // an object containing more details that will be serialized into MessageExceptionTableEntity object that
+        // will be persisted to table storage so that it will be available to the poison message queue handler
+        Data = { { MessageExceptionTableEntity.DetailKey, detail } }
+      };
     }
-    
+
     await Task.CompletedTask;
   }
 
-  private void ProcessSimpleMessage(MessageBody message) {
-    Logger.LogInformation(
-      "Simulating work done by trigger for: {MessageType}-{MessageId}", message.Metadata.MessageType, message.Id);
-    if (message.Data == "throw") {
-      throw new Exception("BANG"); // simulate a poison message scenario
+  private void ProcessSimpleMessage(MessageBody message, bool lastAttempt) {
+    try {
+      Logger.LogInformation(
+        "Simulating work done by trigger for: {MessageType}-{MessageId}", message.Metadata.MessageType, message.Id);
+
+      if (message.Data == "throw") {
+        throw new Exception("BANG"); // simulate a poison message scenario
+      }
+    }
+    catch (Exception e) when (lastAttempt) {
+      Logger.LogError(e, "Simulate handling exception 'inline' ie to NOT use the poison message queue");
     }
   }
 
