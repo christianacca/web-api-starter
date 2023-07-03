@@ -516,17 +516,24 @@ function Get-ResourceConvention {
                             Member          = @(
                                 @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
                                 @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                @{ Name = "$adPbiReportGroupNamePrefix.admin"; Type = 'Group' }
                             )
                         }
                         @{
                             Name            = "$adPbiDatasetGroupNamePrefix.contributor";
                             PbiRole         = 'Contributor'
-                            Member          = @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            Member          = @(
+                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = "$adPbiDatasetGroupNamePrefix.admin"; Type = 'Group' }
+                            )
                         }
                         @{
                             Name            = "$adPbiDatasetGroupNamePrefix.viewer";
                             PbiRole         = 'Viewer'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          = @(
+                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                @{ Name = "$adPbiDatasetGroupNamePrefix.contributor"; Type = 'Group' }
+                            )
                         }
                     }
                     { $isEnvProdLike } {
@@ -543,12 +550,18 @@ function Get-ResourceConvention {
                         @{
                             Name            = "$adPbiReportGroupNamePrefix.contributor";
                             PbiRole         = 'Contributor'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          = @(
+                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                @{ Name = "$adPbiReportGroupNamePrefix.admin"; Type = 'Group' }
+                            )
                         }
                         @{
                             Name            = "$adPbiDatasetGroupNamePrefix.viewer";
                             PbiRole         = 'Viewer'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          = @(
+                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                @{ Name = "$adPbiDatasetGroupNamePrefix.admin"; Type = 'Group' }
+                            )
                         }
                     }
                     Default {
@@ -559,7 +572,7 @@ function Get-ResourceConvention {
                     PbiRole         = 'Admin'
                     Member          = @()
                 }
-                
+
                 @{
                     AadGroupNamePrefix  =   $adPbiGroupNamePrefix
                     AadSecurityGroup    =   $pbiGroup
