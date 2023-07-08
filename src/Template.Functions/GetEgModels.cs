@@ -1,11 +1,8 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
 using Template.Shared.Data;
-using Template.Shared.Model;
 
 namespace Template.Functions;
 
@@ -16,10 +13,11 @@ public class GetEgModels {
     Db = db;
   }
 
-  [FunctionName("EgModels")]
-  public async Task<List<ExampleModel>> Run(
+  [Function("EgModels")]
+  public async Task<IActionResult> Run(
     [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)]
     HttpRequest req) {
-    return await Db.Examples.ToListAsync();
+    var result = await Db.Examples.ToListAsync();
+    return new OkObjectResult(result);
   }
 }

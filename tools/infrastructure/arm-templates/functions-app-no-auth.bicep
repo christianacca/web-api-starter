@@ -33,6 +33,7 @@ resource functionApp 'Microsoft.Web/sites@2019-08-01' = {
   }
   properties: {
     siteConfig: {
+      netFrameworkVersion: 'v7.0'  
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials
@@ -57,7 +58,8 @@ module appSettings 'appsettings.bicep' = {
     currentAppSettings: list(resourceId('Microsoft.Web/sites/config', functionApp.name, 'appsettings'), '2020-12-01').properties
     appSettings: {
       FUNCTIONS_EXTENSION_VERSION: '~4'
-      FUNCTIONS_WORKER_RUNTIME: 'dotnet'
+      FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
+      AzureWebJobsFeatureFlags: 'EnableHttpProxying'
       AzureWebJobsStorage: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storageAccount.id, '2019-06-01').keys[0].value}'
       AzureWebJobsDashboard: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storageAccount.id, '2019-06-01').keys[0].value}'
       WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storageAccount.id, '2019-06-01').keys[0].value}'

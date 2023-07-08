@@ -12,7 +12,7 @@
         $Settings.Database.DataSource = 'tcp:web-api-starter-sql.database.windows.net,1433'
         $Settings.Database.InitialCatalog = 'web-api-starter-sql-db'
         $Settings.Database.UserID = '<ApiManagedIdentityClientId>'
-        $Settings.Api.FunctionsAppToken.Audience = '<FunctionAppApplicationId>'
+        $Settings.Api.FunctionsAppToken.Audience = '<FunctionAppApplicationId>/.default'
         $Settings.Api.FunctionsAppToken.ManagedIdentityClientId = '<ApiManagedIdentityClientId>'
         $Settings.Api.ReverseProxy.Clusters.FunctionsApp.Destinations.Primary.Address = 'https://web-api-stater-func.azurewebsites.net'
         $Settings.Api.TokenProvider.Authority = 'https://mrisaas.oktapreview.com/oauth2/default'

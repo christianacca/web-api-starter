@@ -54,6 +54,10 @@ resource functionApp 'Microsoft.Web/sites@2019-08-01' = {
           value: appInsightsConnectionString
         }
         {
+          name: 'AzureWebJobsFeatureFlags'
+          value: 'EnableHttpProxying'
+        }
+        {
           name: 'AzureWebJobsStorage'
           value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storageAccount.id, '2019-06-01').keys[0].value}'
         }
@@ -63,7 +67,7 @@ resource functionApp 'Microsoft.Web/sites@2019-08-01' = {
         }
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'dotnet'
+          value: 'dotnet-isolated'
         }
         {
           name: 'WEBSITE_CLOUD_ROLENAME'
@@ -82,6 +86,7 @@ resource functionApp 'Microsoft.Web/sites@2019-08-01' = {
           value: '1'
         }
       ]
+      netFrameworkVersion: 'v7.0'
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials
