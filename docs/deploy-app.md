@@ -196,6 +196,11 @@ specifically, the example with the description "Returns tables describing all Az
 
 ## Deploying (infrastructure + app) locally from dev machine
 
+> **CRITICAL**: creating the infrastructure from your local dev machine using the provision script below (./tools/infrastructure/provision-azure-resources.ps1)
+> will likely cause the Infrastructure CI/CD pipeline to fail for the environment that you deployed to locally. 
+> This is because the AAD groups will be created with your identity as the owner, and NOT the service principal that the
+> pipeline uses. This will cause the pipeline to fail when it tries to add a group member
+
 ### Prerequisites
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:

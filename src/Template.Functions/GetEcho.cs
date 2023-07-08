@@ -1,22 +1,25 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
 namespace Template.Functions;
 
-public static class GetEcho {
-  [FunctionName("Echo")]
-  public static IActionResult RunAsync(
-    [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)]
-    HttpRequest req, ILogger log, ClaimsPrincipal user) {
-    log.LogInformation("{FuncClass}: HTTP trigger function processed a request", nameof(GetEcho));
+public class GetEcho {
+  private ILogger<GetEcho> Logger { get; }
 
-    log.LogInformation("{FuncClass}... user.Identity.Name: {UserName}", nameof(GetEcho), user.Identity?.Name);
+  public GetEcho(ILogger<GetEcho> logger) {
+    Logger = logger;
+  }
+
+  [Function("Echo")]
+  public IActionResult Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req) {
+    Logger.LogInformation("{FuncClass}: HTTP trigger function processed a request", nameof(GetEcho));
+
+    var user = req.HttpContext.User;
+    Logger.LogInformation("{FuncClass}... user.Identity.Name: {UserName}", nameof(GetEcho), user.Identity?.Name);
     foreach (var claim in user.Claims) {
-      log.LogInformation("Claim: {Claim}", claim);
+      Logger.LogInformation("Claim: {Claim}", claim);
     }
 
     var value = new { req.Host, req.Headers };

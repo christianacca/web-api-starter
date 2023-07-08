@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
-using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Template.Functions.Shared;
 using Template.Shared.Azure.MessageQueue;
@@ -10,8 +10,8 @@ using Template.Shared.Model;
 namespace Template.Functions;
 
 public class ExampleQueue {
-  private const string QueueName = "example-queue";
-  private const string StorageTable = "examplequeuestorage";
+  private const string QueueName = "default-queue";
+  private const string StorageTable = "defaultqueuestorage";
   private ILogger<ExampleQueue> Logger { get; }
 
   public ExampleQueue(ILogger<ExampleQueue> logger) {
@@ -19,19 +19,25 @@ public class ExampleQueue {
   }
 
   /// <summary>
-  /// Handle messages whose type is <see cref="MessageBody"/>
+  /// Handle messages of type <see cref="MessageBody"/>
   /// </summary>
-  [FunctionName(nameof(ExampleQueue))]
+  /// <remarks>
+  /// Try the following to see how the function handles messages:
+  /// <list type="bullet">
+  /// <item>{ "Id": "3554CA0A-C0BD-4A71-824E-A3E0D7FA47E4", "Data": "throw", "Metadata": { "MessageType": "SimpleMessage" } }</item>
+  /// <item>{ "Id": "2F7CAD53-6CA6-498A-830E-C3F303F62653", "Data": "{\u0022SomeStringProp\u0022:\u0022throw\u0022,\u0022SomeBooleanProp\u0022:true}", "Metadata": { "MessageType": "ExampleMessageData" } }</item>
+  /// </list>
+  /// </remarks>
+  [Function(nameof(ExampleQueue))]
   public async Task RunAsync(
     [QueueTrigger(QueueName)] MessageBody messageBody,
-    [Table(StorageTable)] TableClient tableClient,
+    [TableInput(StorageTable)] TableClient tableClient,
     long dequeueCount,
     CancellationToken ct) {
-
     Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
 
     var lastAttempt = dequeueCount == QueueConstants.MaxDequeueCount;
-    
+
     try {
       switch (messageBody.Metadata.MessageType) {
         case nameof(ExampleMessageData):
@@ -46,7 +52,12 @@ public class ExampleQueue {
       }
     }
     catch (Exception ex) when (lastAttempt) {
-      // store exception dto so that the details are available to the queue trigger handling the poison message queue
+      // store exception dto so that the details are available to the queue trigger handling the poison message queue...
+
+      // as of version 1.2.0 of Microsoft.Azure.Functions.Worker.Extensions.Tables, we need to explicitly create table ourselves
+      // hopefully that will not be required in future version of the extension
+      await tableClient.CreateIfNotExistsAsync(ct);
+
       await tableClient
         .UpsertEntityAsync(MessageExceptionTableEntity.Create(messageBody.Id, ex), TableUpdateMode.Replace, ct);
       throw;
@@ -64,23 +75,18 @@ public class ExampleQueue {
   /// older than the message time-to-live (ttl) date (which will be set by the runtime to the default of 7 days).
   /// in that way the poison queue is also acting like a short lived dead letter queue
   /// </remarks>
-  [FunctionName($"{nameof(ExampleQueue)}ExceptionHandler")]
+  [Function($"{nameof(ExampleQueue)}ExceptionHandler")]
   public async Task RunExceptionHandler(
     [QueueTrigger($"{QueueName}-poison")] MessageBody messageBody,
-    [Table(StorageTable)] TableClient tableClient,
+    [TableInput(StorageTable)] TableClient tableClient,
     long dequeueCount,
     CancellationToken ct
   ) {
-
     Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
 
-    var msgException = await tableClient
-      .QueryAsync<MessageExceptionTableEntity>(
-        ent => ent.PartitionKey == MessageExceptionTableEntity.DefaultStoragePartitionKey &&
-               ent.RowKey == messageBody.Id.ToString(),
-        cancellationToken: ct
-      )
-      .SingleOrDefaultAsync(ct);
+    var msgExceptionResponse = await tableClient.GetEntityIfExistsAsync<MessageExceptionTableEntity>(
+      MessageExceptionTableEntity.DefaultStoragePartitionKey, messageBody.Id.ToString(), cancellationToken: ct);
+    var msgException = msgExceptionResponse.HasValue ? msgExceptionResponse.Value : null;
 
     var handled = true;
     try {

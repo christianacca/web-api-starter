@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "43b2a5dc-06a8-4d7c-8b6b-5c769bba3a66",
+		"_postman_id": "ff62d68c-dfa7-4362-bfb2-8470b978be58",
 		"name": "MRI Web API Starter Template",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "463636"
@@ -33,13 +33,13 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/Echo",
+							"raw": "{{baseUrl}}/api/EgModels",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"Echo"
+								"EgModels"
 							]
 						}
 					},
