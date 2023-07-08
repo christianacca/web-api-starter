@@ -1,8 +1,5 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
 using Template.Shared.Data;
 using Template.Shared.Model;
@@ -16,7 +13,7 @@ public class GetEgModels {
     Db = db;
   }
 
-  [FunctionName("EgModels")]
+  [Function("EgModels")]
   public async Task<List<ExampleModel>> Run(
     [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)]
     HttpRequest req) {

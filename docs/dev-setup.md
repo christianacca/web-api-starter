@@ -64,7 +64,7 @@ If you are unable to be granted access to Azure, you can still run the code loca
     * EG:  `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'REPLACE' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
 5. Build functions app: `dotnet build ./src/Template.Functions`
 6. Run functions app:
-    * change current directory: `cd ./src/Template.Functions/bin/Debug/net6.0`
+    * change current directory: `cd ./src/Template.Functions/bin/Debug/net7.0`
     * run: `func start`
 7. Check that the basics are running by calling function directly by browsing to: <http://localhost:7071/api/Echo>
 8. Check API -> Functions app via postman:
@@ -123,10 +123,10 @@ The following values will work for the [dev](https://github.com/MRI-Software/dat
 [deployed to Azure](https://portal.azure.com/#@MRISOFTWARE.onmicrosoft.com/resource/subscriptions/c398eb55-b057-45f9-8fe3-cfb0034418f5/resourceGroups/rg-dev-aig-eastus/overview)
 
 * API + Function app -> Azure SQL:
-    * `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Server=mridevaig01eastus.database.windows.net; Database=mridevaig01; Authentication=Active Directory Default;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=mridevaig01eastus.database.windows.net; Database=mridevaig01; Authentication=Active Directory Default;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+    * `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Server=mridevwebapistarter01eastus.database.windows.net; Database=mridevwebapistarter01; Authentication=Active Directory Default;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=mridevwebapistarter01eastus.database.windows.net; Database=mridevwebapistarter01; Authentication=Active Directory Default;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
 * API -> Azure function app:
-    * `dotnet user-secrets set Api:FunctionsAppToken:Audience 'api://func-mri-aig-dev-internalapi' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set Api:FunctionsAppToken:Audience 'api://func-mri-web-api-starter-dev-internalapi/.default' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
     * `dotnet user-secrets set Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address 'https://func-mri-web-api-starter-dev-internalapi.azurewebsites.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
     * `dotnet user-secrets set Api:FunctionsAppQueue:ServiceUri 'https://funcsadb57f465c2333.queue.core.windows.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 * Function App -> Blob storage:

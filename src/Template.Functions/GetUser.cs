@@ -1,9 +1,8 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Template.Functions.Shared;
 
 namespace Template.Functions;
@@ -15,7 +14,7 @@ public class GetUser {
     TokenValidator = tokenValidator;
   }
 
-  [FunctionName("User")]
+  [Function("User")]
   public async Task<IActionResult> Run(
     [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)]
     HttpRequest req, ILogger log) {
@@ -31,11 +30,11 @@ public class GetUser {
       log.LogInformation("Claim: {Claim}", claim);
     }
 
-    string name = req.Query["name"];
+    string? name = req.Query["name"];
 
     string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
-    dynamic? data = JsonConvert.DeserializeObject(requestBody);
+    dynamic? data = JsonSerializer.Deserialize<dynamic>(requestBody);
     name ??= data?.name ?? "";
 
     var userDto = new { Id = user.Identity?.Name, Name = name };

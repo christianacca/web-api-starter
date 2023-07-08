@@ -3,8 +3,8 @@
 # but if we did this dockerfile can be used
 
 # To enable ssh & remote debugging on app service change the base image to the one below
-# FROM mcr.microsoft.com/azure-functions/dotnet:4-appservice
-FROM mcr.microsoft.com/azure-functions/dotnet:4
+# FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated7.0-appservice
+FROM mcr.microsoft.com/azure-functions/dotnet-isolated:4-dotnet-isolated7.0
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot
 
 WORKDIR /home/site/wwwroot

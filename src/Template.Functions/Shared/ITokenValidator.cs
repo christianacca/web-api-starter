@@ -25,6 +25,6 @@ public static class TokenValidatorExtensions {
 
   public static Task<ClaimsPrincipal?> ValidateBearerTokenAsync(this ITokenValidator tokenValidator,
     IHeaderDictionary headers) {
-    return tokenValidator.ValidateBearerTokenAsync(headers["MRI-Original-Authorization"]);
+    return tokenValidator.ValidateBearerTokenAsync(headers["MRI-Original-Authorization"].ToString());
   }
 }
