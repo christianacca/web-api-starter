@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Azure;
 using Azure.Data.Tables;
-using Azure.Storage.Queues.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Template.Functions.Shared;
@@ -20,19 +19,18 @@ public class ExampleQueue {
   }
 
   /// <summary>
-  /// Handle messages whose <see cref="QueueMessage.MessageText"/> can be deserialized into an instance of
-  /// <see cref="MessageBody"/>
+  /// Handle messages whose type is <see cref="MessageBody"/>
   /// </summary>
   [FunctionName(nameof(ExampleQueue))]
   public async Task RunAsync(
-    [QueueTrigger(QueueName)] QueueMessage queueMessage,
+    [QueueTrigger(QueueName)] MessageBody messageBody,
     [Table(StorageTable)] TableClient tableClient,
+    long dequeueCount,
     CancellationToken ct) {
-    var messageBody = GetMessageBody(queueMessage);
 
     Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
 
-    var lastAttempt = queueMessage.DequeueCount == QueueConstants.MaxDequeueCount;
+    var lastAttempt = dequeueCount == QueueConstants.MaxDequeueCount;
     
     try {
       switch (messageBody.Metadata.MessageType) {
@@ -68,11 +66,11 @@ public class ExampleQueue {
   /// </remarks>
   [FunctionName($"{nameof(ExampleQueue)}ExceptionHandler")]
   public async Task RunExceptionHandler(
-    [QueueTrigger($"{QueueName}-poison")] QueueMessage queueMessage,
+    [QueueTrigger($"{QueueName}-poison")] MessageBody messageBody,
     [Table(StorageTable)] TableClient tableClient,
+    long dequeueCount,
     CancellationToken ct
   ) {
-    var messageBody = GetMessageBody(queueMessage);
 
     Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
 
@@ -100,7 +98,7 @@ public class ExampleQueue {
       throw;
     }
     finally {
-      if (msgException != null && (handled || queueMessage.DequeueCount == QueueConstants.MaxDequeueCount)) {
+      if (msgException != null && (handled || dequeueCount == QueueConstants.MaxDequeueCount)) {
         // clean-up now that we're done (or given up) handling poison message
         await tableClient.DeleteEntityAsync(msgException.PartitionKey, msgException.RowKey, ETag.All, ct);
       }
@@ -157,12 +155,6 @@ public class ExampleQueue {
     catch (Exception e) when (lastAttempt) {
       Logger.LogError(e, "Simulate handling exception 'inline' ie to NOT use the poison message queue");
     }
-  }
-
-  private static MessageBody GetMessageBody(QueueMessage queueMessage) {
-    var body = JsonSerializer.Deserialize<MessageBody>(queueMessage.Body.ToString());
-    return body ??
-           throw new InvalidOperationException($"Queue message expected to be an instance of {nameof(MessageBody)}");
   }
 
   private static T GetMessageData<T>(MessageBody messageBody) {
