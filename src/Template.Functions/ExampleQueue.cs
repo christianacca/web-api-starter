@@ -10,8 +10,8 @@ using Template.Shared.Model;
 namespace Template.Functions;
 
 public class ExampleQueue {
-  private const string QueueName = "example-queue";
-  private const string StorageTable = "examplequeuestorage";
+  private const string QueueName = "default-queue";
+  private const string StorageTable = "defaultqueuestorage";
   private ILogger<ExampleQueue> Logger { get; }
 
   public ExampleQueue(ILogger<ExampleQueue> logger) {
