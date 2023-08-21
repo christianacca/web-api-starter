@@ -9,7 +9,7 @@ public static class ConfigurationBuilderExtensions {
     this IConfigurationBuilder configuration, IConfiguration configurationSection
   ) {
     var settings = configurationSection.Get<KeyVaultSettings>();
-    if (settings.IsEnabled) {
+    if (settings?.IsEnabled == true) {
       configuration.AddAzureKeyVault(
         new Uri($"https://{settings.KeyVaultName}.vault.azure.net/"),
         new DefaultAzureCredential(settings.DefaultAzureCredentials),

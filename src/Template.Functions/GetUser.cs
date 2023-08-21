@@ -9,32 +9,34 @@ namespace Template.Functions;
 
 public class GetUser {
   private ITokenValidator TokenValidator { get; }
+  private ILogger<GetUser> Logger { get; }
 
-  public GetUser(ITokenValidator tokenValidator) {
+  public GetUser(ITokenValidator tokenValidator, ILogger<GetUser> logger) {
     TokenValidator = tokenValidator;
+    Logger = logger;
   }
 
   [Function("User")]
   public async Task<IActionResult> Run(
     [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)]
-    HttpRequest req, ILogger log) {
-    log.LogInformation("{FuncClass}... HTTP trigger function processed a request", nameof(GetUser));
+    HttpRequest req) {
+    Logger.LogInformation("{FuncClass}... HTTP trigger function processed a request", nameof(GetUser));
 
     var user = await TokenValidator.ValidateBearerTokenAsync(req.Headers);
     if (user == null) {
       return new UnauthorizedResult();
     }
 
-    log.LogInformation("{FuncClass}... user.Identity.Name: {UserName}", nameof(GetUser), user.Identity?.Name);
+    Logger.LogInformation("{FuncClass}... user.Identity.Name: {UserName}", nameof(GetUser), user.Identity?.Name);
     foreach (var claim in user.Claims) {
-      log.LogInformation("Claim: {Claim}", claim);
+      Logger.LogInformation("Claim: {Claim}", claim);
     }
 
     string? name = req.Query["name"];
 
     string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
-    dynamic? data = JsonSerializer.Deserialize<dynamic>(requestBody);
+    dynamic? data = string.IsNullOrWhiteSpace(requestBody) ? null : JsonSerializer.Deserialize<dynamic>(requestBody);
     name ??= data?.name ?? "";
 
     var userDto = new { Id = user.Identity?.Name, Name = name };

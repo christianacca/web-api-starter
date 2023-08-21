@@ -8,61 +8,79 @@ Once up and running, feel free to then switch to running the projects via an IDE
 
 ## Initial setup
 
-Follow guide "Grant access to Azure dev environment" below.
-
-This will ensure that when running locally, the api and function app will have access to keyvault to retrieve secrets required for certain runtime operations like:
-
-* authenticating to central identity for when adding new users
-
-If you are unable to be granted access to Azure, you can still run the code locally, but you will have to disable keyvault integration:
-
-* api: `dotnet user-secrets set Api:KeyVaultDisabled true --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-* functions: `dotnet user-secrets set InternalApi:KeyVaultDisabled true --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+1. Ensure you have dotnet sdk for .net 7 installed (to see what's installed: `dotnet --list-sdks`)
+2. For windows machines ensure you have installed [chocolotey](https://docs.chocolatey.org/en-us/choco/setup#installing-chocolatey-cli)
+3. Ensure you have powershell core with a minimum version of 6.2 installed:
+    * check version: `pwsh --version` - if this fails to find the command or is less the 6.2, then install:
+        * windows: `choco install powershell-core`
+        * mac: `brew install --cask powershell`
+4. Install az-cli (you'll use this to sign-in to azure)
+    * mac: `brew update && brew install azure-cli`
+    * windows: `choco install azure-cli` (note: you to restart command prompt after installation)
+5. Install postman
+    * mac: `brew install --cask postman`
+    * windows: `choco install postman` (or manually download and install from <https://www.postman.com/downloads/>)
+6. Install Azure functions core tools
+    * windows: `choco install azure-functions-core-tools`
+    * mac: `brew tap azure/functions && brew install azure-functions-core-tools@4`
+7. Clone the repo: `git clone https://github.com/christianacca/web-api-starter.git`
+    * **Tip**: prefer to clone to a directory that keep path short and avoid spaces. For example: `C:\git\` or `~/git/`
+8. Follow guide "[Grant access to Azure dev environment](#grant-access-to-azure-dev-environment)" below.
+    * This will ensure that when running locally, the api and function app will have access to keyvault to retrieve secrets required for certain runtime operations like:
+        * authenticating to xmla endpoints for when running report deployments
+        * authenticating to central identity for when adding new users
+    * If you are unable to be granted access to Azure, you can still run code locally, albeit limited functionality,
+      but you will have to disable keyvault integration by running the following commands
+        * api: `dotnet user-secrets set Api:KeyVaultDisabled true --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+        * functions: `dotnet user-secrets set InternalApi:KeyVaultDisabled true --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+9. Ensure you have a SQL Server instance you have access to (preferably a local one):
+    * windows: use localdb which will be installed by Visual Studio by default
+        * note: make sure to have installed 2019 or greater version of localdb
+        * you can check your version by running `SqlLocalDB v`
+    * mac: use docker to run MS SQL Server 2019 or greater
+10. Install Azure credentials provider:
+    * windows: `iex "& { $(irm https://aka.ms/install-artifacts-credprovider.ps1) }"`
+    * mac: `sh -c "$(curl -fsSL https://aka.ms/install-artifacts-credprovider.sh)"`
+    * for more details on installation see: <https://github.com/microsoft/artifacts-credprovider#setup>
 
 ## API
 
-1. Install az-cli (you'll use this to sign-in to azure)
-    * mac: `brew update && brew install azure-cli`
-    * windows: `choco install azure-cli`
-2. Ensure you have dotnet sdk for .net 7 installed
-3. Login to Azure using az-cli using your mri username/password
+1. Login to Azure using az-cli using your mri username/password. EG:
     * `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
-4. Ensure you have a SQL Server instance you have access to (preferably a local one):
-    * windows: use localdb which will be installed by Visual Studio by default
-        * note: make sure to have installed 2019 or greater version of localdb
-        * you can check your version by connecting to `(localdb)\MSSQLLocalDB` and running the sql `SELECT @@VERSION as SqlVersion`
-    * mac: use docker to run MS SQL Server 2019 or greater
-5. Install Azure credentials provider:
-   * windows: `iex "& { $(irm https://aka.ms/install-artifacts-credprovider.ps1) }"`
-   * mac: `sh -c "$(curl -fsSL https://aka.ms/install-artifacts-credprovider.sh)"`
-   * for more details on installation see: <https://github.com/microsoft/artifacts-credprovider#setup>
-6. Restore nuget packages from azure artifacts:
+2. Restore nuget packages from azure artifacts:
    * `dotnet restore --interactive`
    * follow onscreen prompts to sign-in using the device flow
-7. Install dotnet local tools: `dotnet tool restore`
-8. Trust the .net dev certificate
+3. Install dotnet local tools: `dotnet tool restore`
+4. Trust the .net dev certificate
     * `dotnet dev-certs https --trust`
     * Accept any prompts
-9. Ensure connection string is pointing to the SQL Server instance
-    * Review the connection string in appsettings.Development.json (the default is intended to work with localdb installed on a windows machine)
-    * Adjust as necessary to connect to your SQL Server instance (use dotnet user-secrets tool rather than modifying appsettings.Development.json file directly)
-    * EG:  `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'REPLACE' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-10. Start/Run the API project: `dotnet run --project ./src/Template.Api`
-11. Check that the basics are running by browsing to: <https://localhost:5000/health>
+5. Ensure connection string is pointing to the SQL Server instance
+   * Review the connection string in Api/appsettings.Development.json
+     (**tip**: the default is intended to work with localdb installed by Visual Studio on a windows machine)
+   * Adjust as necessary to connect to your SQL Server instance
+      * use dotnet user-secrets tool rather than modifying appsettings.Development.json file directly
+      * EG:  `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Data Source=(localdb)\YOURINSTANCE;Initial Catalog=web-api-starter;Integrated Security=True;TrustServerCertificate=true;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+      * **tip**: if you're using Visual Studio or Jetbrains Rider, you can use the built-in user-secrets tool to set the connection string.
+        But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
+6. Start/Run the API project: `dotnet run --project ./src/Template.Api`
+7. Check that the basics are running by browsing to: <https://localhost:5000/health>
 
 ## Functions App
 
-1. Install and run Azurite for the command-line as explained [here](../tools/azurite/README.md#install-and-run-for-command-line)
-2. Install Azure functions core tools
-    * windows: `choco install azure-functions-core-tools`
-    * mac: `brew tap azure/functions && brew install azure-functions-core-tools@4`
-3. Enable API -> function app messaging by modifying appsettings in the _Api project_:
+1. If not already, login to Azure using az-cli using your mri username/password. EG:
+   * `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
+2. Enable API -> function app messaging by modifying appsettings in the _Api project_:
     * run:  `dotnet user-secrets set Api:DevFeatureFlags:EnableQueues true --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-4. Ensure connection string in the _functions project_ is pointing to the SQL Server instance
-    * Review the connection string in appsettings.Development.json (the default is intended to work with localdb installed on a windows machine)
-    * Adjust as necessary to connect to your SQL Server instance (use dotnet user-secrets tool rather than modifying appsettings.Development.json file directly)
-    * EG:  `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'REPLACE' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
-5. Build functions app: `dotnet build ./src/Template.Functions`
+3. Ensure connection string in the _Functions project_ is pointing to the SQL Server instance
+   * Review the connection string in Functions/appsettings.Development.json
+     (**tip**: the default is intended to work with localdb installed by Visual Studio on a windows machine)
+   * Adjust as necessary to connect to your SQL Server instance:
+      * use dotnet user-secrets tool rather than modifying appsettings.Development.json file directly
+      * EG:  `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Data Source=(localdb)\YOURINSTANCE;Initial Catalog=web-api-starter;Integrated Security=True;TrustServerCertificate=true;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+      * **tip**: if you're using Visual Studio or Jetbrains Rider, you can use the built-in user-secrets tool to set the connection string.
+        But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
+4. Build functions app: `dotnet build ./src/Template.Functions`
+5. Ensure Azurite is running at the command-line as explained [here](../tools/azurite/README.md#install-and-run-for-command-line)
 6. Run functions app:
     * change current directory: `cd ./src/Template.Functions/bin/Debug/net7.0`
     * run: `func start`
@@ -70,11 +88,7 @@ If you are unable to be granted access to Azure, you can still run the code loca
 8. Check API -> Functions app via postman:
     1. Import the postman collection [api.postman_collection.json](../tests/postman/api.postman_collection.json)
     2. Import the postman environment [api-local.postman_environment.json](../tests/postman/api-local.postman_environment.json)
-    3. Run the requests "GetUser Function" in the collection "MRI Web API Starter>Proxied". Before executing the request, you will need to get a valid token:
-       1. In postman browse to the collection folder "MRI Web API Starter"
-       2. Select the authorization tab and at the bottom of the postman page, click "Get New Access Token"
-       3. At the prompt for credentials, sign-in with a user that belongs to the specific Okta group 'MRIQWEB'
-       4. Once authentication is successful, postman will present a dialog "Manage Access Tokens". Click "Use Token". The token will now be added as a header to all requests in this folder
+    3. Run the requests "GetUser Function" in the collection "MRI Web API Starter>Proxied"
 
 
 ## Running the API and Functions app from VS2022
@@ -114,7 +128,7 @@ Typically you will want to be running local emulators for any Azure service (see
 to connect your dev machine to Azure cloud services instead.
 
 1. Follow the section "Grant access to Azure environment" above
-2. Establish an authenticated session by login to Azure with Azure CLI: `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
+2. Establish an authenticated session by login to Azure with Azure CLI. EG: `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
 3. Modify appsettings.Development.json as detailed below using dotnet user-secrets
 
 ### appsettings
