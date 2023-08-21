@@ -73,8 +73,8 @@ void ConfigureLogging(IHostBuilder host) {
     } else {
       // at minimum we HAVE to log to the *console* to capture exceptions that occur during startup as other sinks (eg App Insights)
       // might not have been configured at the point when the exception occurred
-      var logLevel = appInsights.IsDisabled ? LogEventLevel.Information : LogEventLevel.Fatal;
-      if (appInsights.IsDisabled) {
+      var logLevel = appInsights?.IsDisabled == true ? LogEventLevel.Information : LogEventLevel.Fatal;
+      if (appInsights?.IsDisabled == true) {
         consoleOnlyLogger.Information("Application Insights is disabled, falling back to sending '{LogLevel}' level logs to stdout", logLevel);
       } else {
         consoleOnlyLogger.Information("Application Insights is enabled, only sending '{LogLevel}' level logs to stdout", logLevel);
@@ -139,9 +139,11 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   ConfigureProxyServices();
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
-  aiSettings.CloudRoleName = "AIG API";
-  aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
-  services.AddAppInsights(aiSettings);
+  if (aiSettings != null) {
+    aiSettings.CloudRoleName = "AIG API";
+    aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
+    services.AddAppInsights(aiSettings);
+  }
 
   void ConfigureAzureClients() {
 
@@ -189,7 +191,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     services
       .AddHttpClient<FunctionAppHttpClient>(client => {
         var baseUrl =
-          configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address");
+          configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address") ?? "";
         client.BaseAddress = new Uri(baseUrl);
       })
       .AddHttpMessageHandler<HeaderForwardingHttpClientHandler>()
