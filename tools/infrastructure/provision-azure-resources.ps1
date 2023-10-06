@@ -151,7 +151,7 @@
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
-        . "$PSScriptRoot/ps-functions/Grant-ADAppRolePermision.ps1"
+        . "$PSScriptRoot/ps-functions/Grant-ADAppRolePermission.ps1"
         . "$PSScriptRoot/ps-functions/Grant-RbacRole.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-FunctionAppAzureResource.ps1"
@@ -363,7 +363,7 @@
                 ManagedIdentityDisplayName          =   $api.ManagedIdentity
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
             }
-            $appRoleGrants | Grant-ADAppRolePermision
+            $appRoleGrants | Grant-ADAppRolePermission
 
 
             #------- Set Azure AD Groups and membership --------
