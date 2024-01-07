@@ -34,6 +34,12 @@ process {
             $InputObject
         }
 
+        $EnvironmentName = if (-not($EnvironmentName)) {
+            $InputObject.EnvironmentName
+        } else {
+            $EnvironmentName
+        }
+
         if ($AsFailover -and -not($InputObject.Aks.Failover)) {
             throw 'Failover AKS cluster is not defined for the requested environment'
         }

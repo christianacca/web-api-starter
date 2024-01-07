@@ -41,8 +41,8 @@
             }
             
 #            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
-            
-            # If you need to override conventions, follow the example below...
+
+            # If you need to override conventions, comment out the above line, and follow the example below...
 
             $convention = Get-ResourceConvention @conventionsParams -AsHashtable
 

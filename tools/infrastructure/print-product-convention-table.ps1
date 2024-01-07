@@ -75,7 +75,7 @@
       demo      Storage Blob Data Reader
 
       .EXAMPLE
-      ./tools/infrastructure//print-product-convention-table.ps1 { $_.SubProducts.Values.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
          select @{ n='Env'; e={ $role.Env }}, @{ n='RoleName'; e={ $role.Role }}, @{ n='Member'; e={ $memb.Name }}
 
       Description
@@ -143,6 +143,16 @@
       prod-na   SubProducts.Api id-aig-prod-na-api           ManagedIdentity
 
       .EXAMPLE
+      @(
+        ./tools/infrastructure/print-product-convention-table.ps1 { $_.Aks.Primary } -AsArray
+        ./tools/infrastructure/print-product-convention-table.ps1 { $_.Aks.Failover } -AsArray
+      ) | select @{ n='Type'; e={$_.Path} }, ResourceName, ResourceGroupName, TrafficManagerHost | ? ResourceName | ConvertTo-Csv > ./out/cluster-info.csv
+    
+      Description
+      -----------
+      Returns multiple sections as an array that is projected, filtered, output as csv, and saved to a file
+
+      .EXAMPLE
       Write-Host '## RBAC (sub-products)' -ForegroundColor Blue; `
       ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
         select @{ n='Env'; e={ $role.Env }}, @{ n='RoleName'; e={ $role.Role }}, @{ n='Member'; e={ $memb.Name }} | ft; `
@@ -178,7 +188,7 @@
     process {
         try {
 
-            $environments = 'dev', 'qa', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac'
+            $environments = 'dev', 'qa', 'rel', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac'
             
             if ($SchemaOnly) {
                 $environments |

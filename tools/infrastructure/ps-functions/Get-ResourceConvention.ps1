@@ -113,20 +113,30 @@ function Get-ResourceConvention {
     }
 
     $rootDomain = Get-RootDomain $EnvironmentName
+
     switch ($EnvironmentName) {
-        { $_ -in 'ff', 'dev', 'demo'} {
+        'demo' {
             $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
             $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-            $aksRootDomain = $rootDomain
         }
-        'staging' {
+        { $_ -in 'ff', 'dev', 'staging'} {
             $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
             $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-            $aksRootDomain = "cloud.$rootDomain"
         }
         Default {
             $aksClusterNameTemplate = "$aksClusterPrefix-aks-{0}"
             $aksResourceGroupNameTemplate = "$aksClusterPrefix-aks-{0}"
+        }
+    }
+    # todo: delete the above switch statement and uncomment the next 2 lines once switched from old aks clusters to new
+#    $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
+#    $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
+    
+    switch ($EnvironmentName) {
+        'staging' {
+            $aksRootDomain = "cloud.$rootDomain"
+        }
+        Default {
             $aksRootDomain = $rootDomain
         }
     }
@@ -141,7 +151,7 @@ function Get-ResourceConvention {
     $aksSecondaryClusterName = $aksClusterNameTemplate -f $azureSecondaryRegion
     $aksSecondaryCluster = @{
         ResourceName        =   $aksSecondaryClusterName
-        ResourceGroupName   =   $aksSecondaryClusterName
+        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azureSecondaryRegion
         TrafficManagerHost  =   '{0}.{1}' -f $aksSecondaryClusterName, $aksRootDomain
     }
 
@@ -214,6 +224,7 @@ function Get-ResourceConvention {
                         $sqlPrimaryServer = @{
                             ResourceName        =   $sqlPrimaryName
                             ResourceLocation    =   $azurePrimaryRegion
+                            DataSource          =   "tcp:$sqlPrimaryName.database.windows.net,1433"
                         }
                         $sqlFailoverServer = @{
                             ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion
@@ -371,7 +382,7 @@ function Get-ResourceConvention {
                 @{
                     # Note: this `AuthTokenAudience` is the only value to work (in addition to the app client id)
                     # tried "api://$funcResourceName.azurewebsites.net" and "https://$funcResourceName.azurewebsites.net"
-                    AuthTokenAudience   =   "api://$funcResourceName"
+                    AuthTokenAudience   =   "api://$funcResourceName/.default"
                     ManagedIdentity     =   '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
                     HostName            =   $funcHostName
                     RbacAssignment      =   $rbacAssignment

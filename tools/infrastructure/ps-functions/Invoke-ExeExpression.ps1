@@ -14,8 +14,9 @@ function Invoke-ExeExpression {
             Write-Verbose "Executing: $Command"
             Invoke-Expression $Command
             if ($LASTEXITCODE -ne 0) {
+                $exitCode = $LASTEXITCODE
                 $global:LASTEXITCODE = $null # reset so that runtimes like github actions doesn't fail the entire script
-                throw "Command failed with exit code $LASTEXITCODE; Cmd: $Command"
+                throw "Command failed with exit code $exitCode; Cmd: $Command"
             }
         }
         catch {

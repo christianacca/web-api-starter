@@ -31,11 +31,11 @@
       already set as the current context will used (see az account show)
 
       .EXAMPLE
-      ./deprovision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -UninstallDataResource -DeleteResourceGroup -DeleteAADGroups -UninstallAksApp
+      ./deprovision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -DeleteAADGroups -UninstallAksApp
    
       Description
       -----------
-      Uninstall and also DELETE every resource and AAD security group
+      Uninstall and also DELETE every resource and AAD security group and uninstall the AKS release for the application stack
     
     #>
 
