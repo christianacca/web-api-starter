@@ -10,9 +10,6 @@ param aadAdminName string
 @description('The Object ID of the Azure AD admin.')
 param aadAdminObjectId string
 
-@description('The Tenant ID of the Azure Active Directory')
-param aadAdminTenantId string = subscription().tenantId
-
 @allowed([
   'User'
   'Group'
@@ -20,41 +17,107 @@ param aadAdminTenantId string = subscription().tenantId
 ])
 param aadAdminType string = 'User'
 
-@description('The Resource ID of the user-assigned managed identity, in the form of /subscriptions/<subscriptionId>/resourceGroups/<ResourceGroupName>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<managedIdentity>.')
-param managedIdentityResourceId string
+@description('The name of the sql db.')
+param databaseName string
+
+@description('The name of the user-assigned managed identity.')
+param managedIdentityName string
 
 @description('The firewall rules to configure access to the SQL server')
 param firewallRules array = []
 
-resource server 'Microsoft.Sql/servers@2021-05-01-preview' = {
-  name: serverName
+@description('Optional. The failover server to configure.')
+param failoverInfo serverType?
+
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+  name: managedIdentityName
   location: location
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${managedIdentityResourceId}': {
+}
+
+var admin = {
+  login: aadAdminName
+  sid: aadAdminObjectId
+  principalType: aadAdminType
+  azureADOnlyAuthentication: true
+}
+
+var managedId = {
+  userAssignedResourceIds: [
+    managedIdentity.id
+  ]
+}
+
+module server 'br/public:avm/res/sql/server:0.1.4' = {
+  name: '${serverName}Deployment'
+  params: {
+    name: serverName
+    location: location
+    primaryUserAssignedIdentityId: managedIdentity.id
+    managedIdentities: managedId
+    administrators: admin
+    firewallRules: firewallRules
+    databases: [
+      {
+        name: databaseName
+        skuName: 'Standard'
+        skuTier: 'Standard'
+        maxSizeBytes: 268435456000
+        requestedBackupStorageRedundancy: 'Geo'
       }
-    }
-  }
-  properties: {
-    primaryUserAssignedIdentityId: managedIdentityResourceId
-    minimalTlsVersion: '1.2'
-    administrators: {
-      login: aadAdminName
-      sid: aadAdminObjectId
-      tenantId: aadAdminTenantId
-      principalType: aadAdminType
-      azureADOnlyAuthentication: true
-    }
+    ]
   }
 }
 
-@batchSize(1)
-resource server_firewallRules 'Microsoft.Sql/servers/firewallRules@2020-02-02-preview' = [for rule in firewallRules: {
-  name: rule.Name
-  parent: server
-  properties: {
-    startIpAddress: rule.StartIpAddress
-    endIpAddress: rule.EndIpAddress
+var failoverServerName = failoverInfo != null ? failoverInfo!.serverName : ''
+
+module failoverServer 'br/public:avm/res/sql/server:0.1.4' = if (failoverInfo != null) {
+  name: '${failoverServerName}Deployment'
+  params: {
+    name: failoverServerName
+    location: failoverInfo != null ? failoverInfo!.location : ''
+    primaryUserAssignedIdentityId: managedIdentity.id
+    managedIdentities: managedId
+    administrators: admin
+    firewallRules: firewallRules
   }
-}]
+}
+
+resource server_failoverGroup 'Microsoft.Sql/servers/failoverGroups@2021-05-01-preview' = if (failoverInfo != null) {
+  name: '${serverName}/${databaseName}-fg'
+  properties: {
+    partnerServers: [
+      {
+        id: resourceId('Microsoft.Sql/servers', failoverServerName)
+      }
+    ]
+    readWriteEndpoint: {
+      failoverPolicy: 'Automatic'
+      failoverWithDataLossGracePeriodMinutes: 60
+    }
+    readOnlyEndpoint: {
+      failoverPolicy: 'Disabled'
+    }
+    databases: [
+      resourceId('Microsoft.Sql/servers/databases', serverName, databaseName)
+    ]
+  }
+  dependsOn: [
+    failoverServer
+    server
+  ]
+}
+
+@description('The ID of the Azure AD application associated with the managed identity.')
+output managedIdentityClientId string = managedIdentity.properties.clientId
+
+// =============== //
+//   Definitions   //
+// =============== //
+
+type serverType = {
+  @description('Required. The name of the server.')
+  serverName: string
+
+  @description('Required. Location for this server and child resources.')
+  location: string
+}?

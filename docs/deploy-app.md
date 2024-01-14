@@ -205,7 +205,7 @@ specifically, the example with the description "Returns tables describing all Az
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
     * run dev scripts
-* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually)
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.24.24**)
 * powershell core (tested on v7.2)
 * docker engine to run the dev script with the flag `-DockerPush`
 

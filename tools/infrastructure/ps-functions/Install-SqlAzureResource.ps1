@@ -13,7 +13,6 @@ function Install-SqlAzureResource {
       * Azure SQL database (logical server and single database) configured with:
         - Azure AD authentication
         - Azure AD Admin mapped to an Azure AD group
-        - Contained database users mapped to the Azure AD groups above
       * User assigned managed identity assigned as the identity for Azure SQL Server    
 
       Required permission to run this script:
@@ -31,10 +30,7 @@ function Install-SqlAzureResource {
       
       .PARAMETER TemplateDirectory
       The path to the directory containing the ARM templates. The following ARM templates should exist:
-      * sql-managed-identity.bicep
       * azure-sql-server.bicep
-      * azure-sql-failover.bicep
-      * azure-sql-db.bicep       
       
       .PARAMETER ResourceLocation
       The region to create the Azure resources within
@@ -108,9 +104,10 @@ function Install-SqlAzureResource {
         Set-StrictMode -Version 'Latest'
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
-
+        
         . "$PSScriptRoot/Invoke-Exe.ps1"
         . "$PSScriptRoot/Invoke-EnsureHttpSuccess.ps1"
+        . "$PSScriptRoot/Set-AADGroup.ps1"
 
         $summaryInfo = @{}
         function Add-Summary {
@@ -133,35 +130,6 @@ function Install-SqlAzureResource {
                 New-AzResourceGroup $ResourceGroup $ResourceLocation -EA Stop | Out-Null
             }
 
-
-            #------------- Set user assigned managed identities -------------
-            $existingId = Get-AzUserAssignedIdentity -Name $ManagedIdentityName -ResourceGroupName $ResourceGroup -EA SilentlyContinue
-            $managedIdArmParams = @{
-                ResourceGroup           =   $ResourceGroup
-                Name                    =   $ManagedIdentityName
-                TemplateFile            =   Join-Path $TemplateDirectory sql-managed-identity.bicep
-            }
-            $sqlManagedId = Install-ManagedIdentityAzureResource @managedIdArmParams -EA Stop
-            
-            Write-Information "SQL Service princiapl: $($sqlManagedId.ClientId)"
-
-            if (!$existingId) {
-                $wait = 15
-                Write-Information "Waitinng $wait secconds for new service principal to be propogated before assigning to group"
-                Start-Sleep -Seconds 15    
-            }
-            
-            $groups = [PsCustomObject]@{
-                Name                =   'sg.aad.role.custom.azuresqlauthentication'
-                Member              = @{
-                    ApplicationId       =   $sqlManagedId.ClientId
-                    Type                =   'ServicePrincipal'
-                }
-            }
-            $groups | Set-AADGroup
-            
-
-            #------------- Set Azure SQL Server -------------
             $sqlAdAdminGroup = Get-AzADGroup -DisplayName $AADSqlAdminGroupName
             $currentIpRule = if (-not($SkipIncludeCurrentIPAddressInSQLFirewall)) {
                 $currentIPAddress = ((Invoke-WebRequest -Uri https://icanhazip.com).Content).Trim()
@@ -183,6 +151,14 @@ function Install-SqlAzureResource {
                 @()
             }
             $FirewallRule = @($FirewallRule; $allAzureServicesRule; $currentIpRule)
+            $failoverInfo = if ($SecondarySqlServerName) {
+                @{
+                    ServerName  =   $SecondarySqlServerName
+                    Location    =   $SecondarySqlServerLocation
+                }
+            } else {
+                $null
+            }
             $sqlArmParams = @{
                 ResourceGroupName       =   $ResourceGroup
                 TemplateParameterObject =   @{
@@ -190,65 +166,35 @@ function Install-SqlAzureResource {
                     aadAdminName                    =   $AADSqlAdminGroupName
                     aadAdminObjectId                =   $sqlAdAdminGroup.Id
                     aadAdminType                    =   'Group'
-                    managedIdentityResourceId       =   $sqlManagedId.ResourceId
                     firewallRules                   =   $FirewallRule
                     location                        =   $ResourceLocation
+                    databaseName                    =   $DatabaseName
+                    managedIdentityName             =   $ManagedIdentityName
+                    failoverInfo                    =   $failoverInfo
                 }
                 TemplateFile            =   Join-Path $TemplateDirectory azure-sql-server.bicep
             }
             Write-Information "Setting Azure SQL '$SqlServerName'..."
-            # Retry logic added because it's not uncommon to receive the following failure when creating:
-            # "... The operation on the resource could not be completed because it was interrupted by another operation on the same resource"
-            try {
-                New-AzResourceGroupDeployment @sqlArmParams -EA Continue | Out-Null
-            }
-            catch {
-                Write-Warning "  Azure SQL server provisioning failed... retrying"
-                New-AzResourceGroupDeployment @sqlArmParams -EA Stop | Out-Null
-            }
-            New-AzResourceGroupDeployment @sqlArmParams -EA Stop | Out-Null
+            $deploymentResult = New-AzResourceGroupDeployment @sqlArmParams -EA Stop
+            $outputs = [PSCustomObject]$deploymentResult.Outputs
             Add-Summary 'Azure Sql Server Instance Name' "$SqlServerName.database.windows.net"
-
-
-            #------------- Set Azure SQL Server Database -------------
-            # Note: we're splitting the provisioning of the Azure SQL Server and it's db into seperate ARM templates
-            # to reduce the chance of receiving the failure noted above
-            $sqlDbArmParams = @{
-                ResourceGroupName       =   $ResourceGroup
-                TemplateParameterObject =   @{
-                    serverName      =   $SqlServerName
-                    databaseName    =   $DatabaseName
-                    location        =   $ResourceLocation
-                }
-                TemplateFile            =   Join-Path $TemplateDirectory azure-sql-db.bicep
-            }
-            Write-Information "Setting Azure SQL DB '$DatabaseName'..."
-            New-AzResourceGroupDeployment @sqlDbArmParams -EA Continue | Out-Null
             Add-Summary 'Azure Sql Database Name' $DatabaseName
-            
-            
             if ($SecondarySqlServerName) {
-                $sql2ArmParams = @{
-                    ResourceGroupName       =   $ResourceGroup
-                    TemplateParameterObject =   @{
-                        sqlServerPrimaryName            =   $SqlServerName
-                        sqlServerSecondaryName          =   $SecondarySqlServerName
-                        sqlServerSecondaryRegion        =   $SecondarySqlServerLocation
-                        sqlFailoverGroupName            =   "$DatabaseName-fg"
-                        databaseName                    =   $DatabaseName
-                        aadAdminName                    =   $AADSqlAdminGroupName
-                        aadAdminObjectId                =   $sqlAdAdminGroup.Id
-                        aadAdminType                    =   'Group'
-                        managedIdentityResourceId       =   $sqlManagedId.ResourceId
-                        firewallRules                   =   $FirewallRule
-                    }
-                    TemplateFile            =   Join-Path $TemplateDirectory azure-sql-failover.bicep
-                }
-                Write-Information "Setting Azure SQL '$SecondarySqlServerName'..."
-                New-AzResourceGroupDeployment @sql2ArmParams -EA Stop | Out-Null
                 Add-Summary 'Azure Sql Server Failover Instance Name' "$SecondarySqlServerName.database.windows.net"
             }
-            
+            Add-Summary 'SQL Service Princiapl' $outputs.managedIdentityClientId.Value
+
+            $wait = 15
+            Write-Information "Waitinng $wait secconds for new service principal to be propogated before assigning to group"
+            Start-Sleep -Seconds $wait
+            $groups = [PsCustomObject]@{
+                Name                =   'sg.aad.role.custom.azuresqlauthentication'
+                Member              = @{
+                    ApplicationId       =   $outputs.managedIdentityClientId.Value
+                    Type                =   'ServicePrincipal'
+                }
+            }
+            $groups | Set-AADGroup
             
             $summaryInfo
 
