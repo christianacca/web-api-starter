@@ -16,20 +16,17 @@ function Install-SqlAzureResource {
       * User assigned managed identity assigned as the identity for Azure SQL Server    
 
       Required permission to run this script:
-      * Azure 'Contributor' on:
-        - resource group for which Azure resource will be created OR
-        - subscription IF the resource group does not already exist
+      * Azure 'Contributor' on resource group in which Azure resource will be created
       * Azure AD permission: microsoft.directory/groups.security/createAsOwner (or member of 'sg.aad.role.custom.securitygroupcreator' Azure AD group)
       * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
         (assumed that 'sg.aad.role.custom.azuresqlauthentication' has been assigned MS Graph directory permissions
         as described here: https://docs.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-user-assigned-managed-identity?view=azuresql#permissions)
     
       .PARAMETER ResourceGroup
-      The name of the resource group to add the resources to. If the resource group is not found a new one will be
-      created with this name
+      The name of the resource group to add the resources to
       
       .PARAMETER TemplateDirectory
-      The path to the directory containing the ARM templates. The following ARM templates should exist:
+      The path to the directory containing the ARM templates. The following ARM template should exist:
       * azure-sql-server.bicep
       
       .PARAMETER ResourceLocation
@@ -104,7 +101,7 @@ function Install-SqlAzureResource {
         Set-StrictMode -Version 'Latest'
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
-        
+
         . "$PSScriptRoot/Invoke-Exe.ps1"
         . "$PSScriptRoot/Invoke-EnsureHttpSuccess.ps1"
         . "$PSScriptRoot/Set-AADGroup.ps1"
@@ -123,11 +120,6 @@ function Install-SqlAzureResource {
             $currentAzContext = Get-AzContext -EA Stop
             if (-not($currentAzContext)) {
                 throw 'There is no Azure Account context set. Please make sure to login using Connect-AzAccount'
-            }
-            
-            if (-not(Get-AzResourceGroup $ResourceGroup)) {
-                Write-Information "Creating Azure Resource Group '$ResourceGroup'..."
-                New-AzResourceGroup $ResourceGroup $ResourceLocation -EA Stop | Out-Null
             }
 
             $sqlAdAdminGroup = Get-AzADGroup -DisplayName $AADSqlAdminGroupName
