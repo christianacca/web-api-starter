@@ -23,20 +23,19 @@ function Set-AzureSqlAADUser {
       .PARAMETER DatabaseName
       The name of the Azure SQL server database to add the user to   
       
-      .PARAMETER ServicePrincipalCredential
-      The credentials of a service principal to sign in to Azure to set the security context used to run the SQL that adds
-      database users. This user must be an AAD Admin for the Azure SQL database.
-      If not supplied the security context of the current user logged in via Connect-AzAccount will be used
+      .PARAMETER AccessToken
+      The access token used to authenticate to SQL Server
       
       .EXAMPLE
-      Set-AzureSqlAADUser 'kc.mriazure_gmail.com#EXT#@kcmriazuregmail.onmicrosoft.com' -SqlServerName my-app-sql -DatabaseName my-app-sql-db
+      $accessToken = (Get-AzAccessToken -ResourceUrl https://database.windows.net -EA Stop).Token
+      Set-AzureSqlAADUser 'kc.mriazure_gmail.com#EXT#@kcmriazuregmail.onmicrosoft.com' -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessToken $accessToken
     
       Description
       -----------
       Ensures there is a datbaase user that is associated with the User in Azure AD
 
       .EXAMPLE
-      Set-AzureSqlAADUser grp-my-app-sql-admin -DatabaseRole db_datareader,db_datawriter -SqlServerName my-app-sql -DatabaseName my-app-sql-db
+      Set-AzureSqlAADUser grp-my-app-sql-admin -DatabaseRole db_datareader,db_datawriter -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessToken $accessToken
     
       Description
       -----------
@@ -44,19 +43,11 @@ function Set-AzureSqlAADUser {
       Ensure this datbaase user is assigned the db_datareader and db_datawriter database roles
       
       .EXAMPLE
-      Set-AzureSqlAADUser web-api-identity -SqlServerName my-app-sql -DatabaseName my-app-sql-db
+      Set-AzureSqlAADUser web-api-identity -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessToken $accessToken
     
       Description
       -----------
       Ensures there is a datbaase user that is associated with the managed identity named 'web-api-identity'
-      
-      .EXAMPLE
-      $creds = Get-Credential -UserName 96a99e94-acdc-41a0-ae6a-0836b968de57
-      Set-AzureSqlAADUser grp-my-app-sql-admin -ServicePrincipalCredential $creds -SqlServerName my-app-sql -DatabaseName my-app-sql-db
-    
-      Description
-      -----------
-      Execute the SQL signed in under the credentials of the service principal supplied
       
     #>
     [CmdletBinding()]
@@ -73,7 +64,8 @@ function Set-AzureSqlAADUser {
         [Parameter(Mandatory)]
         [string] $DatabaseName,
 
-        [PSCredential] $ServicePrincipalCredential
+        [Parameter(Mandatory)]
+        [string] $AccessToken
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -91,44 +83,6 @@ IF IS_ROLEMEMBER('{0}','{1}') = 0 BEGIN
     ALTER ROLE {0} ADD MEMBER [{1}];
 END
 "@
-        $servicePrincipalAppId = if ($ServicePrincipalCredential) {
-            $ServicePrincipalCredential.UserName
-        } else {
-            $null
-        }
-
-        Write-Information "Setting Azure SQL '$SqlServerName/$DatabaseName' database users..."
-        
-        try {
-            $currentAzContext = Get-AzContext -EA Stop
-            if (-not($currentAzContext)) {
-                throw 'There is no Azure Account context set. Please make sure to login using Connect-AzAccount'
-            }
-
-            if ($servicePrincipalAppId) {
-                $servicePrincipal = Get-AzADServicePrincipal -ApplicationId $servicePrincipalAppId -EA Stop
-                if(-not($servicePrincipal)) {
-                    throw "Cannot find a Service Principal object for the supplied ServicePrincipalCredential (searched using AppId: '$servicePrincipalAppId')"
-                }
-            }
-
-            if ($ServicePrincipalCredential) {
-                $connectParams = @{
-                    ServicePrincipal    =   $true
-                    Credential          =   $ServicePrincipalCredential
-                    Tenant              =   $currentAzContext.Tenant.Id
-                }
-                Write-Information "  Connecting to Azure AD Account using service principal (AppId: '$servicePrincipalAppId')..."
-                Connect-AzAccount @connectParams -EA Stop | Out-Null
-            }
-
-            $azContextInfo = Get-AzContext -EA Stop |  Select-Object -ExpandProperty Account | Select-Object Id, Type
-            Write-Information "  Acquiring access token using current account context ($azContextInfo)..."
-            $sqlAdAdminDbToken = (Get-AzAccessToken -ResourceUrl https://database.windows.net -EA Stop).Token
-        }
-        catch {
-            Write-Error -ErrorRecord $_ -EA $callerEA
-        }
     }
     process {
         try {
@@ -140,7 +94,7 @@ END
             $setDbUserSql = $sqlStatements | Out-String
 
             $setDbUserParams = @{
-                AccessToken         =   $sqlAdAdminDbToken
+                AccessToken         =   $AccessToken
                 ServerInstance      =   "$SqlServerName.database.windows.net"
                 Database            =   $DatabaseName
                 Query               =   $setDbUserSql
@@ -149,25 +103,10 @@ END
             }
             Write-Information "  Executing SQL..."
             Write-Verbose "  SQL: $setDbUserSql"
-            try {
-                Invoke-SqlCmd @setDbUserParams -EA Stop | Out-Null
-            }
-            catch {
-                $wait = 60
-                Write-Warning "  SQL Script failed... retrying token acquistion after a delay of $wait seconds"
-                Start-Sleep -Seconds $wait
-                $sqlAdAdminDbToken = (Get-AzAccessToken -ResourceUrl https://database.windows.net -EA Stop).Token
-                Write-Warning "  Re-executing SQL..."
-                Invoke-SqlCmd @setDbUserParams -AccessToken $sqlAdAdminDbToken -EA Stop | Out-Null
-            }
+            Invoke-SqlCmd @setDbUserParams -EA Stop | Out-Null
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
-        }
-    }
-    end {
-        if ($ServicePrincipalCredential) {
-            Disconnect-AzAccount -EA Continue | Out-Null # restore the original loggin context
         }
     }
 }

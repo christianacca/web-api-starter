@@ -151,6 +151,7 @@
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
+        . "$PSScriptRoot/ps-functions/Get-ServicePrincipalAccessToken.ps1"
         . "$PSScriptRoot/ps-functions/Grant-ADAppRolePermission.ps1"
         . "$PSScriptRoot/ps-functions/Grant-RbacRole.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
@@ -220,6 +221,19 @@
             if (-not($currentAzContext)) {
                 throw 'There is no Azure Account context set. Please make sure to login using Connect-AzAccount'
             }
+            
+            # IMPORTANT: we're acquiring the access token here before anything else runs to avoid the risk of
+            # any federated id token (eg github id token) having a short expiry and causing access token
+            # acquisition to fail when trying to swap the id token for an access token
+            $sqlTokenResourceUrl = 'https://database.windows.net'
+            $sqlAccessToken = if ($AADSqlAdminServicePrincipalCredential) {
+                Get-ServicePrincipalAccessToken $AADSqlAdminServicePrincipalCredential $sqlTokenResourceUrl -EA Stop
+            } else {
+                Write-Information "Acquiring access token for $sqlTokenResourceUrl using current signed in context..."
+                Get-AzAccessToken -ResourceUrl $sqlTokenResourceUrl -EA Stop
+            }
+            Write-Information "  Token expiry: $($sqlAccessToken.ExpiresOn)"
+            $sqlAccessTokenString = $sqlAccessToken.Token
             
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
             $appResourceGroup = $convention.AppResourceGroup
@@ -419,7 +433,7 @@
             $dbConnectionParams = @{
                 SqlServerName               =   $sqlServer.Primary.ResourceName
                 DatabaseName                =   $sqlDatabase.ResourceName
-                ServicePrincipalCredential  =   $AADSqlAdminServicePrincipalCredential
+                AccessToken                 =   $sqlAccessTokenString
             }
             $dbUsers | Set-AzureSqlAADUser @dbConnectionParams
 
