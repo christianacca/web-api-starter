@@ -115,11 +115,11 @@ function Get-ResourceConvention {
     $rootDomain = Get-RootDomain $EnvironmentName
 
     switch ($EnvironmentName) {
-        'demo' {
+        { $_ -in 'ff', 'dev', 'demo'} {
             $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
             $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
         }
-        { $_ -in 'ff', 'dev', 'staging'} {
+        { $_ -in 'staging'} {
             $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
             $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
         }
