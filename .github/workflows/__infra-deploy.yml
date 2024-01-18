@@ -28,7 +28,7 @@ jobs:
       # 1. to increase the chance that the azure access token will not expire during provisioning work
       # 2. to reduce script time by caching installation
       - name: 'Install dependent powershell modules'
-        uses: potatoqualitee/psmodulecache@v4.5
+        uses: potatoqualitee/psmodulecache@b3b931ae410fa0639756c2dc81d3da545d12a0a0 # <- v6.0
         with:
           modules-to-cache: ${{ env.PS_MODULE_LIST }}
           
