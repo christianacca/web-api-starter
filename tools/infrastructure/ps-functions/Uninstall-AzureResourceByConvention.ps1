@@ -10,9 +10,9 @@ function Uninstall-AzureResourceByConvention {
       
       Required permission to run this script:
       
-      * Azure AD 'Groups administrator'
-      * The permissions required by Install-FunctionAppAzureResource.ps1
-      * The permissions required by Install-SqlAzureResource.ps1
+      * Azure 'Contributor' and 'User Access Administrator' on resource group
+      * Azure AD 'Groups administrator' or owner of each Azure AD group to be deleted
+      * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
       
     
       .PARAMETER InputObject

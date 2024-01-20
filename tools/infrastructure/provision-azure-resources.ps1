@@ -24,7 +24,9 @@
       
       Required permission to run this script as a service principal:
       
-      * Azure RBAC Role: 'Azure Contributor' and 'User Access Administrator'
+      * Azure RBAC Role: 'Azure Contributor' and 'User Access Administrator' on
+        - resource group for which Azure resource will be created OR
+        - subscription IF the resource group does not already exist
       * Azure AD role: 'Application developer'
       * Azure AD permission: 'microsoft.directory/groups.security/createAsOwner' (or member of 'sg.aad.role.custom.securitygroupcreator' Azure AD group)
       * MS Graph API permission: 'Application.ReadWrite.OwnedBy'
@@ -34,7 +36,9 @@
     
       Required permission to run this script as a user:
       
-      * Azure RBAC Role: 'Azure Contributor' and 'User Access Administrator'
+      * Azure RBAC Role: 'Azure Contributor' and 'User Access Administrator' on
+        - resource group for which Azure resource will be created OR
+        - subscription IF the resource group does not already exist
       * Azure AD role: 'Application administrator'
       * Azure AD permission: 'microsoft.directory/groups.security/createAsOwner' (or member of 'sg.aad.role.custom.securitygroupcreator' Azure AD group)
       * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
@@ -59,6 +63,9 @@
       Skip the default behaviour of setting the current IP address as the Azure SQL firewall entry named ProvisioningMachine.
       WARNING: unless the IP address of the machine from which this script is run is whitelisted by the Azure SQL firewall,
       the task this script performs to create database logins will fail
+
+      .PARAMETER WhatIfAzureResourceDeployment
+      Print resource changes that would be made to Azure but do NOT actually make the changes
 
       .PARAMETER Login
       Perform an interactive login to azure
@@ -130,6 +137,7 @@
         
         [switch] $SkipIncludeCurrentUserInAADSqlAdminGroup,
         [switch] $SkipIncludeCurrentIPAddressInSQLFirewall,
+        [switch] $WhatIfAzureResourceDeployment,
         
         [switch] $Login,
 
@@ -155,35 +163,13 @@
         . "$PSScriptRoot/ps-functions/Grant-ADAppRolePermission.ps1"
         . "$PSScriptRoot/ps-functions/Grant-RbacRole.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
-        . "$PSScriptRoot/ps-functions/Install-FunctionAppAzureResource.ps1"
-        . "$PSScriptRoot/ps-functions/Install-ManagedIdentityAzureResource.ps1"
-        . "$PSScriptRoot/ps-functions/Install-SqlAzureResource.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
-        . "$PSScriptRoot/ps-functions/Install-TrafficManagerProfileResource.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
-        . "$PSScriptRoot/ps-functions/Set-ADAppCredential.ps1"
         . "$PSScriptRoot/ps-functions/Set-ADApplication.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureSqlAADUser.ps1"
         
         $templatePath = Join-Path $PSScriptRoot arm-templates
-
-        $summaryInfo = @{}
-        function Add-Summary {
-            param([string] $Description, [string] $Value)
-            $key = $Description.Replace(' ', '')
-            Write-Information "  INFO | $($Description):- $Value"
-            $summaryInfo[$key] = $Value
-        }
-
-        function Get-PrefixedSummary {
-            param([Hashtable] $Summary, [string] $Prefix)
-            $result = @{}
-            $summary.Keys | ForEach-Object {
-                $result["$($Prefix)$($_)"] = $summary[$_]
-            }
-            $result
-        }
     }
     process {
         try {
@@ -221,6 +207,26 @@
             if (-not($currentAzContext)) {
                 throw 'There is no Azure Account context set. Please make sure to login using Connect-AzAccount'
             }
+
+            $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '1. Check resource providers are registered...'
+            $resourceProviderName = @(
+                'Microsoft.Web' # for Azure Function App
+            )
+            $unregisteredResoureProvider = Get-AzResourceProvider -ListAvailable -EA Stop |
+                Where-Object ProviderNamespace -in $resourceProviderName |
+                Where-Object RegistrationState -eq 'NotRegistered'
+            if ($unregisteredResoureProvider) {
+                Write-Information '  Registering resource providers required to run ARM/bicep template...'
+                $unregisteredResoureProvider | ForEach-Object {
+                    Register-AzResourceProvider -ProviderNamespace $_.ProviderNamespace -EA Stop | Out-Null
+                }
+            }
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '2. Acquire Azure resource access tokens...'
             
             # IMPORTANT: we're acquiring the access token here before anything else runs to avoid the risk of
             # any federated id token (eg github id token) having a short expiry and causing access token
@@ -234,26 +240,26 @@
             }
             Write-Information "  Token expiry: $($sqlAccessToken.ExpiresOn)"
             $sqlAccessTokenString = $sqlAccessToken.Token
-            
-            $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            $appResourceGroup = $convention.AppResourceGroup
-            
-            
-            #------------- Team AAD groups -------------
-            $teamGroups = $convention.Ad.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
-            $teamGroups | Set-AADGroup
-            
 
-            #------------- Set resource group -------------
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '3. Set resource group...'
+            $appResourceGroup = $convention.AppResourceGroup
             $rg = Get-AzResourceGroup ($appResourceGroup.ResourceName) -EA SilentlyContinue
             if (-not($rg)) {
                 Write-Information "Creating Azure Resource Group '$($appResourceGroup.ResourceName)'..."
                 $rg = New-AzResourceGroup ($appResourceGroup.ResourceName) ($appResourceGroup.ResourceLocation) -EA Stop
             }
 
-            
-            #------- Set Azure RBAC --------
-            Write-Information "Assigning RBAC roles to scope '$($rg.ResourceId)'..."
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '4. Set AAD groups - for Teams...'
+            $teamGroups = $convention.Ad.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+            $teamGroups | Set-AADGroup | Out-Null
+
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information "5. Set Azure RBAC - for teams to scope '$($rg.ResourceId)'..."
             $currentUserMember = Get-CurrentUserAsMember
             $kvSecretOfficer = $convention.SubProducts.KeyVault.RbacAssignment | Where-Object Role -eq 'Key Vault Secrets Officer'
             $kvSecretOfficer.Member = @($currentUserMember; $kvSecretOfficer.Member)
@@ -262,138 +268,109 @@
             Write-Information 'RBAC permissions granted (see table below)'
             $roleAssignments | Format-Table
 
-            
-            #------------- Create key vault -------------
-            $keyvault = $convention.SubProducts.KeyVault
-            Write-Information "Setting Azure Key Vault '$($keyvault.ResourceName)'..."
-            $keyvaultParams = @{
-                ResourceGroupName       =   $appResourceGroup.ResourceName
-                TemplateParameterObject =   @{
-                    keyVaultName            =   $keyVault.ResourceName
-                    enablePurgeProtection   =   $keyVault.EnablePurgeProtection
-                }
-                TemplateFile            =   Join-Path $templatePath key-vault.bicep
-            }
-            New-AzResourceGroupDeployment @keyvaultParams -EA Stop | Out-Null
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '6. Set AAD groups - for Azure resource (pre-resource creation)...'
+            $sqlAdAdminGroup = Set-AADGroup $convention.SubProducts.Sql.AadAdminGroupName -EA Stop
 
 
-            #------------- Azure monitor (eg app insights) -------------
-            Write-Information "Setting Azure monitor resources..."
-            $appInsights = $convention.SubProducts.AppInsights
-            $monitorArmParams = @{
-                ResourceGroupName       =   $appInsights.ResourceGroupName
-                TemplateParameterObject =   @{
-                    alertEmailCritical      =   $convention.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
-                    alertEmailNonCritical   =   $convention.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
-                    appInsightsName         =   $appInsights.ResourceName
-                    appName                 =   $convention.ProductName
-                    enableMetricAlerts      =   $appInsights.IsMetricAlertsEnabled
-                    environmentName         =   $EnvironmentName
-                    environmentAbbreviation =   $appInsights.EnvironmentAbbreviation
-                    workspaceName           =   $appInsights.WorkspaceName
-                }
-                TemplateFile            =   Join-Path $templatePath azure-monitor.bicep
-            }
-            $monitoringOutput = New-AzResourceGroupDeployment @monitorArmParams -EA Stop | ForEach-Object { $_.Outputs }
-            
-            #------------- Set user assigned managed identity for api -------------
-            $api = $convention.SubProducts.Api
-            $aksPrimary = $convention.Aks.Primary
-            $aksFailoverInfo = $convention.Aks.Failover ? @{
-                aksFailoverCluster              =   $convention.Aks.Failover.ResourceName
-                aksFailoverClusterResourceGroup =   $convention.Aks.Failover.ResourceGroupName
-            } : @{}
-            $apiManagedIdArmParams = @{
-                ResourceGroup           =   $appResourceGroup.ResourceName
-                Name                    =   $api.ManagedIdentity
-                TemplateFile            =   Join-Path $templatePath api-managed-identity.bicep
-                TemplateParameterObject =   @{
-                    aksCluster                      =   $aksPrimary.ResourceName
-                    aksClusterResourceGroup         =   $aksPrimary.ResourceGroupName
-                    aksServiceAccountName           =   $api.ServiceAccountName
-                    aksServiceAccountNamespace      =   $convention.Aks.Namespace
-                } + $aksFailoverInfo
-            }
-            $apiManagedId = Install-ManagedIdentityAzureResource @apiManagedIdArmParams -EA Stop
-            Add-Summary 'Api Managed Identity Client Id' ($apiManagedId.ClientId)
-
-            #------------- Set storage accounts -------------
-            $reportStorage = $convention.SubProducts.PbiReportStorage
-            Write-Information "Setting Report storage account '$($reportStorage.StorageAccountName)'..."
-            $storageAccountArmParams = @{
-                ResourceGroupName       =   $appResourceGroup.ResourceName
-                TemplateParameterObject =   @{
-                    storageAccountName      =   $reportStorage.StorageAccountName
-                    storageAccountType      =   $reportStorage.StorageAccountType
-                    defaultStorageTier      =   $reportStorage.DefaultStorageTier
-                }
-                TemplateFile            =   Join-Path $templatePath storage-account.bicep
-            }
-            New-AzResourceGroupDeployment @storageAccountArmParams -EA Stop | Out-Null
-            
-
-            #------- Api Traffic manager profile --------
-            $apiTmParams = @{
-                ResourceGroup       =   $appResourceGroup.ResourceName
-                InputObject         =   $convention.SubProducts.ApiTrafficManager
-                TemplateDirectory   =   $templatePath
-            }
-            Install-TrafficManagerProfileResource @apiTmParams -EA Stop | Out-Null
-
-
-            #------- Web Traffic manager profile --------
-            $webTmParams = @{
-                ResourceGroup       =   $appResourceGroup.ResourceName
-                InputObject         =   $convention.SubProducts.WebTrafficManager
-                TemplateDirectory   =   $templatePath
-            }
-            Install-TrafficManagerProfileResource @webTmParams -EA Stop | Out-Null
-
-
-            #------- Set Azure function app resource --------
-            $funcApp = $convention.SubProducts.InternalApi
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '7. Set AAD App registrations...'
+            $funcApiName = $convention.SubProducts.InternalApi.ResourceName
             $appOnlyAppRoleName = 'app_only'
-            $funcAppParams = @{
-                ResourceGroup               =   $appResourceGroup.ResourceName
-                Name                        =   $funcApp.ResourceName
-                ManagedIdentityName         =   $funcApp.ManagedIdentity
-                ManagedIdentityTemplateFile =   'internalapi-managed-identity.bicep'
-                AppRoleDisplayName          =   $appOnlyAppRoleName
-                TemplateDirectory           =   $templatePath
-                TemplateParameterObject     =   @{
-                    appInsightsCloudRoleName            =   'Web API Starter Functions'
-                    appInsightsConnectionString         =   $monitoringOutput.appInsightsConnectionString.Value
-                    deployDefaultStorageQueue           =   $true
+            $funcAdParams = @{
+                IdentifierUri       =   "api://$funcApiName"
+                DisplayName         =   $funcApiName
+                AppRole             =   @{
+                    Id                  =   Get-AppRoleId $appOnlyAppRoleName $funcApiName
+                    AllowedMemberType   =   'Application'
+                    DisplayName         =   $appOnlyAppRoleName
+                    Description         =   'Service-to-Service access'
+                    Value               =   'app_only_access'
+                    IsEnabled           =   $true
                 }
-                StorageAccountName      =   $funcApp.StorageAccountName
             }
-            $funcAppInfo = Install-FunctionAppAzureResource @funcAppParams
+            $funcAdRegistration = Set-ADApplication -InputObject $funcAdParams
 
 
-            #------------- Assign AD app role for function app to api managed identity -------------
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '8. Set Azure resources...'
+            $currentIpRule = if (-not($SkipIncludeCurrentIPAddressInSQLFirewall)) {
+                $currentIPAddress = ((Invoke-WebRequest -Uri https://icanhazip.com).Content).Trim()
+                @{
+                    StartIpAddress  =   $currentIPAddress
+                    EndIpAddress    =   $currentIPAddress
+                    Name            =   'ProvisioningMachine'
+                }
+            } else {
+                @()
+            }
+            if ($convention.SubProducts.Sql.Firewall.Rule) {
+                $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)    
+            }
+            $mainArmParams = @{
+                ResourceGroupName       =   $appResourceGroup.ResourceName
+                TemplateParameterObject =   @{
+                    internalApiClientId         =   $funcAdRegistration.AppId
+                    settings                    =   $convention
+                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
+                }
+                TemplateFile        =   Join-Path $templatePath main.bicep
+            }
+            Write-Information '  Print Azure resource desired state changes...'
+            New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
+            if ($WhatIfAzureResourceDeployment) {
+                return
+            }
+            Write-Information '  Set Azure resource desired state...'
+            $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
+            Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
+            Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
+
+
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '9. Set AAD App role memberships...'
+            
+            # 8.1. Set AD app role for function app to api managed identity
+            $funcApp = $convention.SubProducts.InternalApi
             $appRoleGrants = [PSCustomObject]@{
                 TargetAppDisplayName                =   $funcApp.ResourceName
                 AppRoleId                           =   Get-AppRoleId $appOnlyAppRoleName ($funcApp.ResourceName)
-                ManagedIdentityDisplayName          =   $api.ManagedIdentity
+                ManagedIdentityDisplayName          =   $convention.SubProducts.Api.ManagedIdentity
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
             }
             $appRoleGrants | Grant-ADAppRolePermission
 
 
-            #------- Set Azure AD Groups and membership --------
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '10. Set AAD groups - for resources (post-resource creation)...'
+            
+            $wait = 15
+            Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
+            Start-Sleep -Seconds $wait
+
+            # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
+            $sqlAadAuthGroup = [PsCustomObject]@{
+                Name                =   'sg.aad.role.custom.azuresqlauthentication'
+                Member              = @{
+                    ApplicationId       =   $armResources.sqlManagedIdentityClientId.Value
+                    Type                =   'ServicePrincipal'
+                }
+            }
+            
             $dbCrudMembership = @(
                 @{
-                    ApplicationId       =   $summaryInfo.ApiManagedIdentityClientId
+                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
                     Type                =   'ServicePrincipal'
                 }
                 @{
-                    ApplicationId       =   $funcAppInfo.FunctionAppManagedIdentityClientId
+                    ApplicationId       =   $armResources.internalApiManagedIdentityClientId.Value
                     Type                =   'ServicePrincipal'
                 }
             )
+
             $sqlServer = $convention.SubProducts.Sql
             $sqlDatabase = $convention.SubProducts.Db
-            
             $sqlGroups = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
             if (-not($SkipIncludeCurrentUserInAADSqlAdminGroup)) {
                 $sqlGroups |
@@ -403,32 +380,15 @@
             $sqlGroups |
                 Where-Object Name -like '*.crud' |
                 ForEach-Object { $_.Member = $dbCrudMembership + $_.Member }
-            
-            $groups = @($sqlGroups)
-            $groups | Set-AADGroup
-            
 
-            #------- Set Azure SQL --------
-            $secondarySqlServerName = if ($sqlServer.Failover) { $sqlServer.Failover.ResourceName } else { $null }
-            $secondarySqlServerLocation = if ($sqlServer.Failover) { $sqlServer.Failover.ResourceLocation } else { $null }
-            $sqlParams = @{
-                ResourceGroup                               =   $convention.DataResourceGroup.ResourceName
-                ResourceLocation                            =   $convention.DataResourceGroup.ResourceLocation
-                TemplateDirectory                           =   $templatePath
-                SqlServerName                               =   $sqlServer.Primary.ResourceName
-                SecondarySqlServerName                      =   $secondarySqlServerName
-                SecondarySqlServerLocation                  =   $secondarySqlServerLocation
-                DatabaseName                                =   $sqlDatabase.ResourceName
-                ManagedIdentityName                         =   $sqlServer.ManagedIdentity
-                AADSqlAdminGroupName                        =   $sqlServer.AadAdminGroupName
-                FirewallRule                                =   $sqlServer.Firewall.Rule
-                AllowAllAzureServices                       =   $sqlServer.Firewall.AllowAllAzureServices
-                SkipIncludeCurrentIPAddressInSQLFirewall    =   $SkipIncludeCurrentIPAddressInSQLFirewall
-            }
-            $sqlInfo = Install-SqlAzureResource @sqlParams
+            $groups = @($sqlGroups; $sqlAadAuthGroup)
+            $groups | Set-AADGroup | Out-Null
 
 
-            #------- Set Azure SQL users --------
+            #-----------------------------------------------------------------------------------------------
+            Write-Information '11. Set Data plane operations...'
+
+            # Azure SQL users
             $dbUsers = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
             $dbConnectionParams = @{
                 SqlServerName               =   $sqlServer.Primary.ResourceName
@@ -436,16 +396,6 @@
                 AccessToken                 =   $sqlAccessTokenString
             }
             $dbUsers | Set-AzureSqlAADUser @dbConnectionParams
-
-
-            $summary = $funcAppInfo + $summaryInfo + $sqlInfo
-            Write-Host '******************* Summary: start ******************************'
-            $summary.Keys | ForEach-Object {
-                Write-Host "$($_): $($summary[$_])" -ForegroundColor Yellow
-            }
-            Write-Host '******************* Summary: end ********************************'
-
-            $summary
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA
