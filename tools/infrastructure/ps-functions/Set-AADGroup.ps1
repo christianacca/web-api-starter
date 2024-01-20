@@ -266,6 +266,8 @@ function Set-AADGroup {
                     Add-AzADGroupMember -TargetGroupObjectId ($group.Id) -MemberObjectId ($missingServicePrincipals.Id) -EA Stop | Out-Null
                 }
             }
+
+            $group
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
