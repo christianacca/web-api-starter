@@ -8,6 +8,8 @@ public interface ITokenValidator {
 }
 
 public static class TokenValidatorExtensions {
+  public const string MriOriginalAuthorizationHeader = "MRI-Original-Authorization";
+
   public static async Task<ClaimsPrincipal?> ValidateBearerTokenAsync(this ITokenValidator tokenValidator,
     string authorizationHeader) {
     if (string.IsNullOrEmpty(authorizationHeader)) {
@@ -24,6 +26,6 @@ public static class TokenValidatorExtensions {
 
   public static Task<ClaimsPrincipal?> ValidateBearerTokenAsync(this ITokenValidator tokenValidator,
     IHeaderDictionary headers) {
-    return tokenValidator.ValidateBearerTokenAsync(headers["MRI-Original-Authorization"].ToString());
+    return tokenValidator.ValidateBearerTokenAsync(headers[MriOriginalAuthorizationHeader].ToString());
   }
 }
