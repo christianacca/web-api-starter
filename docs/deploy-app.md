@@ -252,8 +252,9 @@ In practice the only way to run these scripts from a dev machine is:
       ````
 6. Test that it worked:
     * browse to the "Api health Url" printed to the console
-    * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-local.postman_environment.json),
-      change the baseUrl postman variable to the "Api Url" printed to the console. Run the requests in the collection
+    * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-dev.postman_environment.json)
+      * Change the baseUrl postman variable to the "Api Url" printed to the console above
+      * Run the requests in the collection
 
 
 ## Cleanup
