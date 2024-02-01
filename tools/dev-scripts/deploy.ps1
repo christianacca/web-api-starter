@@ -66,7 +66,7 @@ process {
                 $Settings.Api.Database.InitialCatalog = $databaseName
                 $Settings.Api.Database.UserID = $infra.Api.ManagedIdentityClientId
                 $Settings.Api.DefaultAzureCredentials.ManagedIdentityClientId = $infra.Api.ManagedIdentityClientId
-                $Settings.Api.FunctionsAppToken.Audience = $funcApp.AuthTokenAudience + '/.default'
+                $Settings.Api.FunctionsAppToken.Audience = $funcApp.AuthTokenAudience
                 $Settings.Api.FunctionsAppQueue.ServiceUri = "https://$($funcApp.StorageAccountName).queue.core.windows.net"
                 $Settings.Api.KeyVaultName = $keyVault.ResourceName
                 $Settings.Api.ReverseProxy.Clusters.FunctionsApp.Destinations.Primary.Address = "https://$($funcApp.HostName)"

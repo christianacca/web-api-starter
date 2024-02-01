@@ -114,7 +114,7 @@ jobs:
                 "Api_Database_UserID": "${{ env.Infra_Api_ManagedIdentityClientId }}",
                 "Api_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_Api_ManagedIdentityClientId }}",
                 "Api_FunctionsAppQueue_ServiceUri": "https://${{ env.Convention_SubProducts_InternalApi_StorageAccountName }}.queue.core.windows.net",
-                "Api_FunctionsAppToken_Audience": "${{ env.Convention_SubProducts_InternalApi_AuthTokenAudience }}/.default",
+                "Api_FunctionsAppToken_Audience": "${{ env.Convention_SubProducts_InternalApi_AuthTokenAudience }}",
                 "Api_KeyVaultName": "${{ env.Convention_SubProducts_KeyVault_ResourceName }}",
                 "Api_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net",
                 "Api_ReverseProxy_Clusters_FunctionsApp_Destinations_Primary_Address": "https://${{ env.Convention_SubProducts_InternalApi_HostName }}",
