@@ -114,7 +114,7 @@ process {
             Name                            =   $funcApp.ResourceName
             Path                            =   'out/Template.Functions'
         }
-        ./tools/dev-scripts/deploy-functions @funcParams -EA Stop
+        ./tools/dev-scripts/deploy-functions.ps1 @funcParams -EA Stop
         
 
         Write-Host '******************* Summary: start ******************************'

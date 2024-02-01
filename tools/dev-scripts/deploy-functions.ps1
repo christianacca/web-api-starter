@@ -49,15 +49,11 @@ process {
         if ($ConfigureAppSettingsJson) {
             Set-AppSettings $Path $ConfigureAppSettingsJson
         }
-
-        $zipArchiveFullPath = Join-Path $Path .zip
-        $compress = @{
-            Path = (Join-Path $Path *)
-            CompressionLevel = "Fastest"
-            DestinationPath = $zipArchiveFullPath
-            Force           = $true
-        }
-        Compress-Archive @compress -EA Stop | Out-Null
+        
+        $parentPath = Split-Path $Path -Parent
+        $folderToZip = Split-Path $Path -Leaf
+        $zipArchiveFullPath = Join-Path $parentPath "$folderToZip.zip"
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($Path, $zipArchiveFullPath)
 
         Invoke-Exe {
             az functionapp deployment source config-zip -g $ResourceGroup -n $Name --src $zipArchiveFullPath
