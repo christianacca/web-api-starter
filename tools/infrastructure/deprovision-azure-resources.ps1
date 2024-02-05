@@ -7,10 +7,7 @@
       Therefore there is no guarantees that the script will not error out if run multiple times.
       
       Required permission to run this script:
-      
-      * Azure AD 'Groups administrator'
-      * The permissions required by ps-functions/Install-FunctionAppAzureResource.ps1
-      * The permissions required by ps-functions/Install-SqlAzureResource.ps1
+      * The permissions required by ps-functions/Uninstall-AzureResourceByConvention.ps1
       
     
       .PARAMETER EnvironmentName

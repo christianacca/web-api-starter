@@ -232,6 +232,11 @@ function Get-ResourceConvention {
                         }
                         $sqlFirewallRule = @(
                             @{
+                                StartIpAddress  =   '0.0.0.0'
+                                EndIpAddress    =   '0.0.0.0'
+                                Name            =   'AllowAllWindowsAzureIps' # this is a special name that allows all Azure services
+                            }
+                            @{
                                 StartIpAddress  =   '38.67.200.0'
                                 EndIpAddress    =   '38.67.200.126'
                                 Name            =   'mriNetwork01'
@@ -466,22 +471,21 @@ function Get-ResourceConvention {
                     ''
                 }
                 $primaryAksTrafficManagerEndpoint = @{
-                    Name        =   '{0}-{1}-{2}' -f $aksPrimaryClusterName, $aksNamespace, $spInput.Target.ToLower()
-                    HostName    =   $aksPrimaryCluster.TrafficManagerHost
-                    Location    =   $azurePrimaryRegion
+                    Name                =   '{0}-{1}-{2}' -f $aksPrimaryClusterName, $aksNamespace, $spInput.Target.ToLower()
+                    Target              =   $aksPrimaryCluster.TrafficManagerHost
+                    EndpointLocation    =   $azurePrimaryRegion
                 }
                 $secondaryAksTrafficManagerEndpoint = @{
-                    Name        =   '{0}-{1}-{2}' -f $aksSecondaryClusterName, $aksNamespace, $spInput.Target.ToLower()
-                    HostName    =   $aksSecondaryCluster.TrafficManagerHost
-                    Location    =   $azureSecondaryRegion
+                    Name                =   '{0}-{1}-{2}' -f $aksSecondaryClusterName, $aksNamespace, $spInput.Target.ToLower()
+                    Target              =   $aksSecondaryCluster.TrafficManagerHost
+                    EndpointLocation    =   $azureSecondaryRegion
                 }
                 $targetSubProduct = $subProductsConventions[$spInput.Target]
                 if ($targetSubProduct.Type = 'AksPod') {
                     @{
                         ResourceName        =   '{0}-{1}{2}-{3}' -f $aksPrimaryClusterName, $productNameLower, $tmEnvQualifier, $spInput.Target.ToLower()
                         TrafficManagerPath  =   $targetSubProduct.TrafficManagerPath
-                        PrimaryEndpoint     =   $primaryAksTrafficManagerEndpoint
-                        SecondaryEndpoint   =   $hasFailover ? $secondaryAksTrafficManagerEndpoint : $null
+                        Endpoints           =   @($primaryAksTrafficManagerEndpoint) + ($hasFailover ? @($secondaryAksTrafficManagerEndpoint) : @())
                         Type                =   $spInput.Type
                     }
                 } else {
