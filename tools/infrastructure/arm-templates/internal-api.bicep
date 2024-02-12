@@ -85,6 +85,7 @@ module functionApp 'br/public:avm/res/web/site:0.2.0' = {
       }
       http20Enabled: true
     }
+    storageAccountResourceId: storageAccount.id
     clientAffinityEnabled: false
     authSettingV2Configuration: {
       platform: {

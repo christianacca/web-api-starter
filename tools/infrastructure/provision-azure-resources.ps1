@@ -238,7 +238,9 @@
                 Write-Information "Acquiring access token for $sqlTokenResourceUrl using current signed in context..."
                 Get-AzAccessToken -ResourceUrl $sqlTokenResourceUrl -EA Stop
             }
-            Write-Information "  Token expiry: $($sqlAccessToken.ExpiresOn)"
+            Write-Information "  INFO | Token ExpiresOn: $($sqlAccessToken.ExpiresOn)"
+            Write-Information "  INFO | Token TenantId: $($sqlAccessToken.TenantId)"
+            Write-Information "  INFO | Token UserId: $($sqlAccessToken.UserId)"
             $sqlAccessTokenString = $sqlAccessToken.Token
 
 
@@ -317,15 +319,15 @@
                 }
                 TemplateFile        =   Join-Path $templatePath main.bicep
             }
-            Write-Information '  Print Azure resource desired state changes...'
-            New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
             if ($WhatIfAzureResourceDeployment) {
+                Write-Information '  Print Azure resource desired state changes only...'
+                New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
                 return
             }
-            Write-Information '  Set Azure resource desired state...'
             $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
             Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
+            Write-Information "  INFO | 'Azure SQL Managed Identity Client Id':- $($armResources.sqlManagedIdentityClientId.Value)"
 
 
             #-----------------------------------------------------------------------------------------------
@@ -389,6 +391,7 @@
             Write-Information '11. Set Data plane operations...'
 
             # Azure SQL users
+            Write-Information 'Setting Azure SQL users logins...'
             $dbUsers = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
             $dbConnectionParams = @{
                 SqlServerName               =   $sqlServer.Primary.ResourceName

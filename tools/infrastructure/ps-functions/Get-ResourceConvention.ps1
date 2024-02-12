@@ -57,14 +57,21 @@ function Get-ResourceConvention {
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
     $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
-    
-    $resourceGroupRbac = @{
-        Role    =   'Contributor'
-        Member  =   @{ 
-            Name = ($isTestEnv -or ($EnvironmentName -eq 'demo')) ? $addGlobalGroupNames.DevelopmentGroup : $addGlobalGroupNames.Tier2SupportGroup 
-            Type = 'Group'
+
+    $resourceGroupRbac = @(
+        @{
+            Role    =   $isTestEnv -or ($EnvironmentName -eq 'demo') ? 'Contributor' : 'Reader'
+            Member  =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
         }
-    }
+        @{
+            Role    =   'Reader'
+            Member  =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+        }
+        @{
+            Role    =   $isTestEnv ? 'Reader' : 'Contributor'
+            Member  =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+        }
+    )
 
     $appInstance = '{0}-{1}' -f $productNameLower, $EnvironmentName
     $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
@@ -72,7 +79,6 @@ function Get-ResourceConvention {
         ResourceName        =   $appResourceGroupName
         ResourceLocation    =   $azurePrimaryRegion
         UniqueString        =   Get-UniqueString $appResourceGroupName
-        # note: assumes that everyone has the 'Reader' RBAC role at the subscription level
         RbacAssignment      =   $resourceGroupRbac
     }
     

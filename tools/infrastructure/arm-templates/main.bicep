@@ -45,16 +45,19 @@ module azureMonitor 'azure-monitor.bicep' = {
   }
 }
 
-var apiSettings = settings.SubProducts.Api
-module apiManagedIdentity 'api-managed-identity.bicep' = {
+module apiManagedIdentity 'federated-managed-identity.bicep' = {
   name: '${uniqueString(deployment().name, location)}-ApiManagedIdentity'
   params: {
-    aksCluster: settings.Aks.Primary.ResourceName
-    aksClusterResourceGroup: settings.Aks.Primary.ResourceGroupName
-    aksServiceAccountName: apiSettings.ServiceAccountName
+    aksCluster: settings.Aks.Primary
+    aksFailoverCluster: settings.Aks.Failover
+    aksServiceAccountName: settings.SubProducts.Api.ServiceAccountName
     aksServiceAccountNamespace: settings.Aks.Namespace
     location: location
-    managedIdentityName: apiSettings.ManagedIdentity
+    managedIdentityName: settings.SubProducts.Api.ManagedIdentity
+    rbacRoleIds: [
+      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+      'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a' // Storage Queue Data Message Sender
+    ]
   }
 }
 

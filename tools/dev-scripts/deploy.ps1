@@ -82,6 +82,7 @@ process {
                 'api.image.registry' = "$($convention.Aks.RegistryName).azurecr.io"
                 'api.image.tag' = $BuildNumber
                 'api.podLabels.releasedate' = Get-Date -Format 'yyyy-MM-ddTHH.mm.ss'
+                'api.serviceAccount.name' = $api.ServiceAccountName
                 'api.ingress.hostname' = $apiHostName
 #                'api.healthIngress.enabled' = 'false'
             }
