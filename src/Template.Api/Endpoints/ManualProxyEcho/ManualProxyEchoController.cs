@@ -16,7 +16,7 @@ public class ManualProxyEchoController : ControllerBase {
 
   [AllowAnonymous]
   [HttpGet]
-  public async Task<JsonElement> Get() {
-    return await HttpClient.GetFromJsonAsync<JsonElement>("api/echo");
+  public async Task<JsonElement> Get(CancellationToken ct) {
+    return await HttpClient.GetFromJsonAsync<JsonElement>("api/echo", ct);
   }
 }
