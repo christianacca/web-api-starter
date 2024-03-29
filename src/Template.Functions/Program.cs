@@ -47,10 +47,7 @@ internal class Program {
         services.AddDbContext<AppDatabase>(options => {
           var configuration = context.Configuration.GetSection("InternalApi");
           options.UseSqlServer(configuration.GetDefaultConnectionString(), sqlOptions =>
-            sqlOptions.EnableRetryOnFailure(
-              maxRetryCount: 3,
-              maxRetryDelay: TimeSpan.FromSeconds(10),
-              errorNumbersToAdd: null)
+            sqlOptions.EnableRetryOnFailure()
           );
           if (context.HostingEnvironment.IsDevelopment()) {
             options.EnableSensitiveDataLogging();
