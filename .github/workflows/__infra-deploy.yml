@@ -3,6 +3,9 @@ name: __Infrastructure Deployment
 on:
   workflow_call:
     inputs:
+      build-version:
+        required: true
+        type: string
       environment-name:
         required: true
         type: string    
@@ -41,4 +44,4 @@ jobs:
           
       - name: 'Provision infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/provision-azure-resources.ps1 -EnvironmentName ${{ inputs.environment-name }} -SkipInstallModules -SkipIncludeCurrentIPAddressInSQLFirewall -InfA Continue
+        run: ./tools/infrastructure/provision-azure-resources.ps1 -EnvironmentName ${{ inputs.environment-name }} -BuildVersion ${{ inputs.build-version }} -SkipInstallModules -SkipIncludeCurrentIPAddressInSQLFirewall -InfA Continue

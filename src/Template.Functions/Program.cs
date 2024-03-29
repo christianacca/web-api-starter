@@ -56,6 +56,8 @@ internal class Program {
             options.EnableSensitiveDataLogging();
           }
         });
+        
+        services.AddEnvironmentInfoOptions(context.HostingEnvironment.IsDevelopment());
 
         ConfigureAzureClients(context, services);
       }).ConfigureLogging(logging => {

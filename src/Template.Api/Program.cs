@@ -140,6 +140,8 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   ConfigureAzureClients();
   ConfigureAzureIdentityServices();
   ConfigureProxyServices();
+  
+  services.AddEnvironmentInfoOptions(environment.IsDevelopment());
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
   aiSettings.CloudRoleName = "AIG API";
