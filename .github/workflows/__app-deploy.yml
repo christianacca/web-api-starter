@@ -130,7 +130,8 @@ jobs:
                 "InternalApi_Database_UserID": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",
                 "InternalApi_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",
                 "InternalApi_KeyVaultName": "${{ env.Convention_SubProducts_KeyVault_ResourceName }}",
-                "InternalApi_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net"
+                "InternalApi_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net",
+                "Serilog_MinimumLevel_Default": "Information"
               }
             }
 
