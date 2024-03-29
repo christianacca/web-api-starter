@@ -122,6 +122,8 @@ jobs:
                 "ApplicationInsights_ConnectionString": "${{ env.Infra_AppInsights_ConnectionString }}",
                 "Docker_DockerRegistry": "${{ inputs.docker-registry }}",
                 "Docker_ImageTag": "${{ inputs.docker-image-tag }}",
+                "EnvironmentInfo_EnvId": "${{ inputs.environment-name }}",
+                "EnvironmentInfo_InfraVersion": "${{ env.Infra_Version }}",
                 "Helm_ReleaseName": "${{ env.Convention_Aks_HelmReleaseName }}",
                 "InternalApi_Database_DataSource": "tcp:${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}.database.windows.net,1433",
                 "InternalApi_Database_InitialCatalog": "${{ env.Convention_SubProducts_Db_ResourceName }}",

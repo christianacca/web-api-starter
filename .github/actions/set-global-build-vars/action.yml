@@ -8,6 +8,9 @@ inputs:
     required: false
 
 outputs:
+  buildFullVersion:
+    description: Build full version to assign to the application
+    value: ${{ steps.vars.outputs.buildFullVersion }}
   buildNumber:
     description: Build number
     value: ${{ steps.vars.outputs.buildNumber }}

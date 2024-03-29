@@ -48,6 +48,9 @@
     
       .PARAMETER EnvironmentName
       The name of the environment to provision. This value will be used to calculate conventions for that environment.
+    
+      .PARAMETER BuildVersion
+      The version number to assign to the resource group.
 
       .PARAMETER AADSqlAdminServicePrincipalCredential
       The credentials of a service principal to sign in to Azure to set the security context used to run the SQL that adds
@@ -132,7 +135,9 @@
     param(
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
-        
+
+        [string] $BuildVersion = '0.0.0',
+
         [PSCredential] $AADSqlAdminServicePrincipalCredential,
         
         [switch] $SkipIncludeCurrentUserInAADSqlAdminGroup,
@@ -167,6 +172,7 @@
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Set-ADApplication.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
+        . "$PSScriptRoot/ps-functions/Set-AzureResourceGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureSqlAADUser.ps1"
         
         $templatePath = Join-Path $PSScriptRoot arm-templates
@@ -247,11 +253,15 @@
             #-----------------------------------------------------------------------------------------------
             Write-Information '3. Set resource group...'
             $appResourceGroup = $convention.AppResourceGroup
-            $rg = Get-AzResourceGroup ($appResourceGroup.ResourceName) -EA SilentlyContinue
-            if (-not($rg)) {
-                Write-Information "Creating Azure Resource Group '$($appResourceGroup.ResourceName)'..."
-                $rg = New-AzResourceGroup ($appResourceGroup.ResourceName) ($appResourceGroup.ResourceLocation) -EA Stop
+            $resourceGroupParams = @{
+                Name        =   $appResourceGroup.ResourceName
+                Location    =   $appResourceGroup.ResourceLocation
+                Tag         =   @{
+                    Version     =   $BuildVersion
+                }
+                MergeTag    =   $true # other departments have added tags to the resource group that we probably don't want to remove
             }
+            $rg = Set-AzureResourceGroup @resourceGroupParams -EA Stop
 
 
             #-----------------------------------------------------------------------------------------------

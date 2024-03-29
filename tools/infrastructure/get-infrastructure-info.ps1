@@ -52,7 +52,9 @@ process {
         $api = $InputObject.SubProducts.Api
         $funcApp = $InputObject.SubProducts.InternalApi
         $appResourceGroup = $InputObject.AppResourceGroup.ResourceName
-        
+
+        $metadata = Invoke-Exe { az group show -n $appResourceGroup } | ConvertFrom-Json | Select-Object -Exp tags
+
         $apiManagedIdentity = Invoke-Exe {
             az identity show -g $appResourceGroup -n $api.ManagedIdentity
         } | ConvertFrom-Json
@@ -83,6 +85,7 @@ process {
                 ManagedIdentityClientId     =   $funcManagedIdentity.clientId
                 ManagedIdentityObjectId     =   $funcManagedIdentity.principalId
             }
+            Version         =   $metadata | Select-Object -Exp Version -EA Ignore
         }
 
         if ($AsHashtable) {

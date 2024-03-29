@@ -57,13 +57,14 @@ process {
         $runBuild = $env:GITHUB_EVENT_NAME -eq 'create' ? $createRelease : 'true'
 
         @{
-            buildNumber     =   $buildNumber
-            buildTag        =   $buildTag
-            buildType       =   $buildType
-            buildVersion    =   "$releaseNumber.0.$buildNumber"
-            createRelease   =   $createRelease
-            gitTag          =   '{0}{1}{2}' -f $GitTagSuffix, $tagDelimiter, $buildTag
-            runBuild        =   $runBuild
+            buildNumber         =   $buildNumber
+            buildTag            =   $buildTag
+            buildType           =   $buildType
+            buildFullVersion    =   '{0}-{1}+{2}' -f $releaseNumber, $buildNumber, ($env:GITHUB_SHA[0..7] -Join '')
+            buildVersion        =   "$releaseNumber.0.$buildNumber"
+            createRelease       =   $createRelease
+            gitTag              =   '{0}{1}{2}' -f $GitTagSuffix, $tagDelimiter, $buildTag
+            runBuild            =   $runBuild
         }
     }
 

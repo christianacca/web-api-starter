@@ -32,6 +32,7 @@ jobs:
         with:
           git-tag-suffix: infra
     outputs:
+      buildFullVersion: ${{ steps.vars.outputs.buildFullVersion }}
       gitTag: ${{ steps.vars.outputs.gitTag }}
       createRelease: ${{ steps.vars.outputs.createRelease }}
       runBuild: ${{ steps.vars.outputs.runBuild }}
@@ -59,6 +60,7 @@ jobs:
     uses: ./.github/workflows/__infra-deploy.yml
     with:
       environment-name: dev
+      build-version: ${{ needs.globalvars.outputs.buildFullVersion }}
     permissions:
       actions: read
       contents: read
@@ -69,6 +71,7 @@ jobs:
     uses: ./.github/workflows/__infra-deploy.yml
     with:
       environment-name: qa
+      build-version: ${{ needs.globalvars.outputs.buildFullVersion }}
     permissions:
       actions: read
       contents: read
