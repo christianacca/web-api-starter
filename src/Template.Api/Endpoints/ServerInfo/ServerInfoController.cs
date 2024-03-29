@@ -1,5 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Template.Shared.Data;
 using Template.Shared.Util;
@@ -8,7 +8,7 @@ using ServerInfoModel = Template.Shared.Model.ServerInfo;
 namespace Template.Api.Endpoints.ServerInfo {
   [Route("api/[controller]")]
   [ApiController]
-  [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+  [AllowAnonymous]
   public class ServerInfoController : ControllerBase {
     private AppDatabase Db { get; }
     
@@ -25,12 +25,10 @@ namespace Template.Api.Endpoints.ServerInfo {
 
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ServerInfoModel> Get(CancellationToken ct) {
-      var result = await Db.Set<ServerInfoModel>()
-        .FromSqlRaw("SELECT @@VERSION as SqlVersion, '' AS ApiVersion, '' AS InfraVersion").FirstAsync(ct);
-      result.ApiVersion = ApiVersion.Value?.ToString() ?? "";
-      result.InfraVersion = EnvironmentInfoSettings.InfraVersion;
-      return result;
+    public ServerInfoModel Get() {
+      return new ServerInfoModel {
+        ApiVersion = ApiVersion.Value?.ToString() ?? "", InfraVersion = EnvironmentInfoSettings.InfraVersion
+      };
     }
   }
 }
