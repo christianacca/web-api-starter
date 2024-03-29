@@ -8,9 +8,10 @@ Clone this repo and copy the solution to kickstart the effort of creating a new 
 
 See [architecture-and-project-structure.md](docs/architecture-and-project-structure.md)
 
-## Local dev setup
+## Development
 
-Follow guide [here](docs/dev-setup.md)
+* [Setup / running backend stack on local dev machine](docs/dev-setup.md)
+* [Contribution guide](docs/CONTRIBUTING.md)
 
 ## Deployment
 

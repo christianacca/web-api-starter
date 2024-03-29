@@ -25,7 +25,8 @@ public static class ModelBuilderExtensions {
       stringProperty.SetMaxLength(500);
     }
 
-    Type[] ownedOrKeylessTypes = { typeof(ServerInfo) };
+    // Type[] ownedOrKeylessTypes = { typeof(ServerInfo) };
+    var ownedOrKeylessTypes = Enumerable.Empty<Type>();
     foreach (var entityType in modelBuilder.Model.GetEntityTypes()
                .Where(t => !ownedOrKeylessTypes.Contains(t.ClrType))) {
       // Singularize table name

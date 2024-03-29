@@ -194,41 +194,6 @@
 							"response": []
 						},
 						{
-							"name": "ServerInfo",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/ServerInfo",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ServerInfo"
-									]
-								}
-							},
-							"response": []
-						},
-						{
 							"name": "ExampleModels",
 							"event": [
 								{
@@ -632,6 +597,41 @@
 									"path": [
 										"api",
 										"ManualProxyEcho"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "ServerInfo",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/ServerInfo",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"ServerInfo"
 									]
 								}
 							},
