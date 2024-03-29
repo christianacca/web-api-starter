@@ -102,10 +102,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
   services.AddDbContext<AppDatabase>(options => {
     options.UseSqlServer(configuration.GetSection("Api").GetDefaultConnectionString(), sqlOptions =>
-      sqlOptions.EnableRetryOnFailure(
-        maxRetryCount: 3,
-        maxRetryDelay: TimeSpan.FromSeconds(10),
-        errorNumbersToAdd: null)
+      sqlOptions.EnableRetryOnFailure()
     );
     if (environment.IsDevelopment()) {
       options.EnableSensitiveDataLogging();
