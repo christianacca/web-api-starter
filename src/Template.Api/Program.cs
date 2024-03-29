@@ -144,7 +144,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
-  aiSettings.CloudRoleName = "AIG API";
+  aiSettings.CloudRoleName = "API";
   aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
   aiSettings.ApplicationVersion =
     ProductVersion.GetFromAssemblyInformation(Assembly.GetExecutingAssembly())?.ToString();
