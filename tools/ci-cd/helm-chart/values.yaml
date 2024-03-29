@@ -83,6 +83,16 @@ api:
     annotations:
       # todo: replace with `ingressClassName: nginx` above once all our aks clusters are updated to support `ingressClassName` field
       kubernetes.io/ingress.class: nginx
+      # note: we have TWO DIFFERENT ingress controllers in play depending on the aks cluster being deployed to. Both of
+      # these use different annotation prefixes as follows:
+      # 1. nginx.org (https://github.com/nginxinc/kubernetes-ingress/) (dev and demo, and maybe staging cluster)
+      # 2. nginx.ingress.kubernetes.io (https://github.com/kubernetes/ingress-nginx) (all other cluster)
+      # CRITICAL: the timeouts configured here should be greater than the timeouts configured in our api code itself.
+      # otherwise the ingress controller will cancel the request to our api before our api has had a chance to respond
+      # with it's own timeout response. This will result in a 504 with a content-type of 'text/html' being returned to the
+      # caller rather than our api returning a well formed problem-details json response.
+      nginx.org/proxy-read-timeout: "180s"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
     hostname: dev-api-web-api-starter.redmz.mrisoftware.com
     extraTls:
       - hosts:
@@ -96,7 +106,7 @@ api:
       kubernetes.io/ingress.class: nginx
       # note: we have TWO DIFFERENT ingress controllers in play depending on the aks cluster being deployed to. Both of
       # these use different annotation prefixes as follows:
-      # 1. nginx.org (https://github.com/nginxinc/kubernetes-ingress/) (dev and demo cluster)
+      # 1. nginx.org (https://github.com/nginxinc/kubernetes-ingress/) (dev and demo, and maybe staging cluster)
       # 2. nginx.ingress.kubernetes.io (https://github.com/kubernetes/ingress-nginx) (all other cluster)
       nginx.ingress.kubernetes.io/rewrite-target: /health
       nginx.ingress.kubernetes.io/ssl-redirect: "false"

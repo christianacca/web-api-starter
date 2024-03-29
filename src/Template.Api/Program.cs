@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json.Serialization;
 using Azure.Core;
 using Azure.Identity;
@@ -16,10 +17,12 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 using Template.Api.Shared;
+using Template.Api.Shared.ExceptionHandling;
 using Template.Api.Shared.Mvc;
 using Template.Api.Shared.Proxy;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
+using Template.Shared.Util;
 
 // ReSharper disable UnusedParameter.Local
 
@@ -110,7 +113,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   });
 
   services
-    .AddProblemDetails(ServiceConfiguration.ConfigureProblemDetails)
+    .AddProblemDetails(ProblemDetailsConfigurator.ConfigureProblemDetails)
     .AddProblemDetailsConventions();
 
   services.AddControllers(o => {
@@ -137,10 +140,15 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   ConfigureAzureClients();
   ConfigureAzureIdentityServices();
   ConfigureProxyServices();
+  
+  services.AddEnvironmentInfoOptions(environment.IsDevelopment());
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
   aiSettings.CloudRoleName = "AIG API";
   aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
+  aiSettings.ApplicationVersion =
+    ProductVersion.GetFromAssemblyInformation(Assembly.GetExecutingAssembly())?.ToString();
+  aiSettings.ExcludeDataCancellationException = true; // our api considers cancellations to be handled successfully
   services.AddAppInsights(aiSettings);
 
   void ConfigureAzureClients() {
@@ -186,14 +194,10 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
     // NOTE: this strongly typed HttpClient is NOT used by the YARP reverse proxy
     // Instead FunctionAppHttpClient is when you meed to make calls to the Functions app directly, say from your Controller
-    services
-      .AddHttpClient<FunctionAppHttpClient>(client => {
-        var baseUrl =
-          configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address");
-        client.BaseAddress = new Uri(baseUrl);
-      })
-      .AddHttpMessageHandler<HeaderForwardingHttpClientHandler>()
-      .AddHttpMessageHandler<AzureIdentityAuthHttpClientHandler>();
+    services.AddProxyHttpClient<FunctionAppHttpClient>(
+      configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address"),
+      TokenOptionNames.FunctionApp
+    );
   }
 }
 
@@ -204,6 +208,8 @@ void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHo
     app.UseSwagger();
     app.UseSwaggerUI();
   }
+  
+  app.UseMiddleware<ApiVsResponseHeaderMiddleware>();
 
   app.UseRouting();
   
