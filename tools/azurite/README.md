@@ -17,10 +17,16 @@ See: <https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite>
 
 ### Run Azurite
 
-1. Run `Azurite` listening over https (using powershell prompt): `./tools/azurite/azurite-run.ps1`
+```pwsh
+# use powershell core prompt
+./tools/azurite/azurite-run.ps1
+```
 
-Note: if you have only just installed Azurite then you might need to re-open the powershell command prompt before the term `azurite` is recognised.
-Note: if after re-opening the powershell prompt the term `azurite` is still not recognised then it might be that the global folder into which
+> [!NOTE] azurite-run.ps1 requires Azurite v3.28.0 or later in order to use `--inMemoryPersistence` option
+
+> [!NOTE] if you have only just installed Azurite then you might need to re-open the powershell command prompt before the term `azurite` is recognised.
+
+> [!NOTE] if after re-opening the powershell prompt the term `azurite` is still not recognised then it might be that the global folder into which
 npm installs global modules is not included in your PATH environment variable. For example, on a windows VM created in Azure, I had to add to my PATH
 environment variable (for me C:\Users\ccrowhurst\AppData\Roaming\npm)
 
@@ -39,8 +45,6 @@ from command-line first BEFORE starting the function app in VS2022. See instruct
 ## Install and use Azure Storage Explorer
 
 [Azure Storage Explorer](https://azure.microsoft.com/en-us/products/storage/storage-explorer/) is a tool that can be used to explore and manage the content of Azure storage account emulated by Azurite.
-
-> Note: version 1.25.1 of Azure Storage Explorer has a bug that prevents it from viewing blobs. This bug should be resolved in 1.26
 
 1. Install Azure Storage Explorer:
    * mac: `brew install --cask microsoft-azure-storage-explorer`

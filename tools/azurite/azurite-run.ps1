@@ -1,1 +1,1 @@
-azurite --oauth basic --cert $PSScriptRoot/dev-certs/127.0.0.1.pem --key $PSScriptRoot/dev-certs/127.0.0.1-key.pem --location $PSScriptRoot/tmp-storage
+azurite --oauth basic --cert $PSScriptRoot/dev-certs/127.0.0.1.pem --key $PSScriptRoot/dev-certs/127.0.0.1-key.pem --inMemoryPersistence
