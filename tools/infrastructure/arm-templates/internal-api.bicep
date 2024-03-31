@@ -78,7 +78,7 @@ module functionApp 'br/public:avm/res/web/site:0.2.0' = {
     setAzureWebJobsDashboard: false
     // setWebsiteContentAzureFileConnectionString: true
     siteConfig: {
-      netFrameworkVersion: 'v7.0'
+      netFrameworkVersion: 'v8.0'
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials

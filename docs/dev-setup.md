@@ -8,7 +8,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
 
 ## Initial setup
 
-1. Ensure you have dotnet sdk for .net 7 installed (to see what's installed: `dotnet --list-sdks`)
+1. Ensure you have dotnet sdk for .net 8 installed (to see what's installed: `dotnet --list-sdks`)
 2. For windows machines ensure you have installed [chocolotey](https://docs.chocolatey.org/en-us/choco/setup#installing-chocolatey-cli)
 3. Ensure you have powershell core with a minimum version of 6.2 installed:
     * check version: `pwsh --version` - if this fails to find the command or is less the 6.2, then install:
@@ -82,7 +82,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
 4. Build functions app: `dotnet build ./src/Template.Functions`
 5. Ensure Azurite is running at the command-line as explained [here](../tools/azurite/README.md#install-and-run-for-command-line)
 6. Run functions app:
-    * change current directory: `cd ./src/Template.Functions/bin/Debug/net7.0`
+    * change current directory: `cd ./src/Template.Functions/bin/Debug/net8.0`
     * run: `func start`
 7. Check that the basics are running by calling function directly by browsing to: <http://localhost:7071/api/Echo>
 8. Check API -> Functions app via postman:

@@ -33,7 +33,7 @@ resource functionApp 'Microsoft.Web/sites@2019-08-01' = {
   }
   properties: {
     siteConfig: {
-      netFrameworkVersion: 'v7.0'  
+      netFrameworkVersion: 'v8.0'  
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials
