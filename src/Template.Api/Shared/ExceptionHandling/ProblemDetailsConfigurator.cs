@@ -2,6 +2,7 @@ using System.Data;
 using Hellang.Middleware.ProblemDetails;
 using Microsoft.EntityFrameworkCore;
 using Template.Api.Shared.Mvc;
+using ProblemDetailsOptions = Hellang.Middleware.ProblemDetails.ProblemDetailsOptions;
 
 namespace Template.Api.Shared.ExceptionHandling; 
 

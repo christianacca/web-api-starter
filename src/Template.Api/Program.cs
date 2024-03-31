@@ -76,8 +76,8 @@ void ConfigureLogging(IHostBuilder host) {
     } else {
       // at minimum we HAVE to log to the *console* to capture exceptions that occur during startup as other sinks (eg App Insights)
       // might not have been configured at the point when the exception occurred
-      var logLevel = appInsights.IsDisabled ? LogEventLevel.Information : LogEventLevel.Fatal;
-      if (appInsights.IsDisabled) {
+      var logLevel = appInsights?.IsDisabled == true ? LogEventLevel.Information : LogEventLevel.Fatal;
+      if (appInsights?.IsDisabled == true) {
         consoleOnlyLogger.Information("Application Insights is disabled, falling back to sending '{LogLevel}' level logs to stdout", logLevel);
       } else {
         consoleOnlyLogger.Information("Application Insights is enabled, only sending '{LogLevel}' level logs to stdout", logLevel);
@@ -87,9 +87,9 @@ void ConfigureLogging(IHostBuilder host) {
 
     loggerConfiguration
       .MinimumLevel.Override("Template.Api", LogEventLevel.Information)
-      .MinimumLevel.Override(typeof(TokenServiceFactory).Namespace, LogEventLevel.Information)
-      .MinimumLevel.Override(typeof(ProblemDetailsMiddleware).Namespace, LogEventLevel.Warning)
-      .MinimumLevel.Override(typeof(DeveloperExceptionPageMiddleware).Namespace, LogEventLevel.Warning)
+      .MinimumLevel.Override(typeof(TokenServiceFactory).Namespace ?? "", LogEventLevel.Information)
+      .MinimumLevel.Override(typeof(ProblemDetailsMiddleware).Namespace ?? "", LogEventLevel.Warning)
+      .MinimumLevel.Override(typeof(DeveloperExceptionPageMiddleware).Namespace ?? "", LogEventLevel.Warning)
       .ReadFrom.Configuration(context.Configuration)
       .Enrich.FromLogContext()
       .ReadFrom.Services(services)
@@ -144,12 +144,14 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
-  aiSettings.CloudRoleName = "API";
-  aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
-  aiSettings.ApplicationVersion =
-    ProductVersion.GetFromAssemblyInformation(Assembly.GetExecutingAssembly())?.ToString();
-  aiSettings.ExcludeDataCancellationException = true; // our api considers cancellations to be handled successfully
-  services.AddAppInsights(aiSettings);
+  if (aiSettings != null) {
+    aiSettings.CloudRoleName = "API";
+    aiSettings.AuthenticatedUserNameClaimTypes = new List<string> { JwtRegisteredClaimNames.Sub };
+    aiSettings.ApplicationVersion =
+      ProductVersion.GetFromAssemblyInformation(Assembly.GetExecutingAssembly())?.ToString();
+    aiSettings.ExcludeDataCancellationException = true; // our api considers cancellations to be handled successfully
+    services.AddAppInsights(aiSettings);
+  }
 
   void ConfigureAzureClients() {
 
@@ -195,7 +197,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     // NOTE: this strongly typed HttpClient is NOT used by the YARP reverse proxy
     // Instead FunctionAppHttpClient is when you meed to make calls to the Functions app directly, say from your Controller
     services.AddProxyHttpClient<FunctionAppHttpClient>(
-      configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address"),
+      configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address") ?? "",
       TokenOptionNames.FunctionApp
     );
   }
