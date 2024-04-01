@@ -65,7 +65,7 @@ namespace Template.Shared.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ExampleModel");
+                    b.ToTable("ExampleModel", (string)null);
 
                     b.ToTable(tb => tb.IsTemporal(ttb =>
                             {
