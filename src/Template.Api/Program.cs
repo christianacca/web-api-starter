@@ -60,7 +60,9 @@ finally {
 }
 
 void ConfigureConfiguration(ConfigurationManager configuration, IHostEnvironment environment) {
-  configuration.AddAzureKeyVault(configuration.GetSection("Api"));
+  if (!EF.IsDesignTime) {
+    configuration.AddAzureKeyVault(configuration.GetSection("Api"));  
+  }
 }
 
 void ConfigureLogging(IHostBuilder host) {
@@ -235,7 +237,7 @@ void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHo
 }
 
 async Task MigrateDbAsync(IServiceProvider services, IHostEnvironment environment) {
-  if (!environment.IsDevelopment()) return;
+  if (!environment.IsDevelopment() || EF.IsDesignTime) return;
 
   Log.Logger.Warning("Developer mode detected... running database migrations");
   try {

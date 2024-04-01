@@ -89,25 +89,21 @@ Here are the typical commands you will need to run to generate EF Core migration
 
 ```pwsh
 # rollback to an previous migration
-$Env:Api__KeyVaultDisabled = $true
 dotnet ef database update Name_of_migration_to_revert_to -p src/Template.Shared -s src/DataServicesGateway.Api
 ```
 
 ```pwsh
 # add a migration
-$Env:Api__KeyVaultDisabled = $true
 dotnet ef migrations add Name_of_migration -p src/Template.Shared -s src/Template.Api
 ```
 
 ```pwsh
 # remove the last migration (requires the migration NOT to exist in the db)
-$Env:Api__KeyVaultDisabled = $true
 dotnet ef migrations remove -p src/Template.Shared -s src/Template.Api
 ```
 
 ```pwsh
 # generate a sql script for creating or updating the database
-$Env:Api__KeyVaultDisabled = $true
 Remove-Item -Force -ErrorAction Continue ./obj/CreateOrUpdateDb.sql
 dotnet ef migrations script -i -o obj/CreateOrUpdateDb.sql -p src/Template.Shared -s src/Template.Api
 ```
