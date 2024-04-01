@@ -10,8 +10,11 @@ public class AppDatabase : DbContext {
 
   public DbSet<ExampleModel> Examples => Set<ExampleModel>();
 
+  protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) {
+    configurationBuilder.ApplyDefaultConventions();
+  }
+  
   protected override void OnModelCreating(ModelBuilder modelBuilder) {
-    modelBuilder.ApplyDefaultConventions();
     modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDatabase).Assembly);
   }
 }

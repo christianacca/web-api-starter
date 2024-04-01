@@ -1,0 +1,19 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
+
+namespace Template.Shared.Data.Mapping;
+
+public static class ModelConfigurationBuilderExtensions {
+  public static void ApplyDefaultConventions(this ModelConfigurationBuilder configurationBuilder) {
+    configurationBuilder.Conventions.Remove(typeof(TableNameFromDbSetConvention));
+    configurationBuilder.Conventions.Add(_ => new TemporalTableConvention());
+    configurationBuilder.Conventions.Add(_ => new StringConvention());
+    configurationBuilder.Conventions.Add(_ => new DateTimeConvention());
+  }
+
+
+  public static IEnumerable<IConventionProperty> HasClrType<T>(this IEnumerable<IConventionProperty> properties) {
+    return properties.Where(p => p.ClrType == typeof(T));
+  }
+}
