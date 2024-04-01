@@ -2,7 +2,7 @@
 
 ## Architecture
 
-* ASP.NET 6 (aka core) API
+* ASP.NET (aka core) API
     * MS Application Insights configured to suitable conventions
     * [ProblemDetails middleware](https://www.nuget.org/packages/Hellang.Middleware.ProblemDetails/) to format non-success responses
     * [YARP middleware](https://microsoft.github.io/reverse-proxy/index.html) to proxy requests to other APIs that you want to aggregate with your API
@@ -13,7 +13,7 @@
 * Azure managed identity to avoid API keys, OAuth client secrets and database passwords
 * Azure [AKS Workload identity](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview)
 * Azure AD authentication for Azure SQL database
-* Entity Framework Core 6 (providing examples of a typical setup and configuration)
+* Entity Framework Core (providing examples of a typical setup and configuration)
 * Automation scripts for implementing Infrastructure as Code (IaC)
 * Convenient dev scripts for deploying the app to Azure from your dev machine
 * CI/CD pipelines for both infrastructure and app deployment
