@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
-namespace Template.Shared.Data.Mapping;
+namespace Template.Shared.Data.Mapping.Conventions;
 
 public class TemporalTableConvention : IModelFinalizingConvention {
   public void ProcessModelFinalizing(

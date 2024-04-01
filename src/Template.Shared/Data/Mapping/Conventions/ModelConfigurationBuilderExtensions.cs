@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
-namespace Template.Shared.Data.Mapping;
+namespace Template.Shared.Data.Mapping.Conventions;
 
 public static class ModelConfigurationBuilderExtensions {
   public static void ApplyDefaultConventions(this ModelConfigurationBuilder configurationBuilder) {

@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Template.Shared.Data.Mapping;
+using Template.Shared.Data.Mapping.Conventions;
 using Template.Shared.Model;
 
 namespace Template.Shared.Data;
