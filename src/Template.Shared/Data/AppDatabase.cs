@@ -9,6 +9,10 @@ public class AppDatabase : DbContext {
   }
 
   public DbSet<ExampleModel> Examples => Set<ExampleModel>();
+  public DbSet<IdentityPrincipal> Identities => Set<IdentityPrincipal>();
+  public DbSet<UserPrincipal> Users => Set<UserPrincipal>();
+  public DbSet<OrganisationPrincipal> Organisations => Set<OrganisationPrincipal>();
+  public DbSet<GroupPrincipal> Groups => Set<GroupPrincipal>();
 
   protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) {
     configurationBuilder.ApplyDefaultConventions();

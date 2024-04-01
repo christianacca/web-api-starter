@@ -10,6 +10,8 @@ public static class ModelConfigurationBuilderExtensions {
     configurationBuilder.Conventions.Add(_ => new TemporalTableConvention());
     configurationBuilder.Conventions.Add(_ => new StringConvention());
     configurationBuilder.Conventions.Add(_ => new DateTimeConvention());
+    // important: this convention must be added after the StringConvention
+    configurationBuilder.Conventions.Add(_ => new DiscriminatorPropertyConvention());
   }
 
 
