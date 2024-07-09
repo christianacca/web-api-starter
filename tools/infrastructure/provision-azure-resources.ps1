@@ -266,7 +266,10 @@
 
             #-----------------------------------------------------------------------------------------------
             Write-Information '4. Set AAD groups - for Teams...'
-            $teamGroups = $convention.Ad.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+            $teamGroups = @(
+                $convention.TeamGroups.Values
+                $convention.SubProducts.Values | ForEach-Object { $_['TeamGroups'] } | Select-Object -ExpandProperty Values
+            )
             $teamGroups | Set-AADGroup | Out-Null
 
 
@@ -288,13 +291,14 @@
 
             #-----------------------------------------------------------------------------------------------
             Write-Information '7. Set AAD App registrations...'
-            $funcApiName = $convention.SubProducts.InternalApi.ResourceName
+            $funcApp = $convention.SubProducts.InternalApi
             $appOnlyAppRoleName = 'app_only'
+            $funcAppRoleId = Get-AppRoleId $appOnlyAppRoleName $funcApp.ResourceName
             $funcAdParams = @{
-                IdentifierUri       =   "api://$funcApiName"
-                DisplayName         =   $funcApiName
+                IdentifierUri       =   ('api://{0}' -f $funcApp.ResourceName)
+                DisplayName         =   $funcApp.ResourceName
                 AppRole             =   @{
-                    Id                  =   Get-AppRoleId $appOnlyAppRoleName $funcApiName
+                    Id                  =   $funcAppRoleId
                     AllowedMemberType   =   'Application'
                     DisplayName         =   $appOnlyAppRoleName
                     Description         =   'Service-to-Service access'
@@ -318,7 +322,7 @@
                 @()
             }
             if ($convention.SubProducts.Sql.Firewall.Rule) {
-                $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)    
+                $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
@@ -342,24 +346,31 @@
 
             #-----------------------------------------------------------------------------------------------
             Write-Information '9. Set AAD App role memberships...'
-            
-            # 8.1. Set AD app role for function app to api managed identity
-            $funcApp = $convention.SubProducts.InternalApi
+
+            # 9.1. Set AD app role for function app to api managed identity
+            $api = $convention.SubProducts.Api
             $appRoleGrants = [PSCustomObject]@{
-                TargetAppDisplayName                =   $funcApp.ResourceName
-                AppRoleId                           =   Get-AppRoleId $appOnlyAppRoleName ($funcApp.ResourceName)
-                ManagedIdentityDisplayName          =   $convention.SubProducts.Api.ManagedIdentity
+                ManagedIdentityDisplayName          =   $api.ManagedIdentity
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
             }
-            $appRoleGrants | Grant-ADAppRolePermission
+            $appRoleGrants | Grant-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId
 
 
             #-----------------------------------------------------------------------------------------------
             Write-Information '10. Set AAD groups - for resources (post-resource creation)...'
-            
+
             $wait = 15
             Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
             Start-Sleep -Seconds $wait
+
+            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
+            $pbiAppGroup.Member = @(
+                @{
+                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
+                    Type                =   'ServicePrincipal'
+                }
+            ) + $pbiAppGroup.Member
 
             # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
             $sqlAadAuthGroup = [PsCustomObject]@{
@@ -369,7 +380,7 @@
                     Type                =   'ServicePrincipal'
                 }
             }
-            
+
             $dbCrudMembership = @(
                 @{
                     ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
@@ -393,7 +404,7 @@
                 Where-Object Name -like '*.crud' |
                 ForEach-Object { $_.Member = $dbCrudMembership + $_.Member }
 
-            $groups = @($sqlGroups; $sqlAadAuthGroup)
+            $groups = @($pbiGroups; $sqlGroups; $sqlAadAuthGroup)
             $groups | Set-AADGroup | Out-Null
 
 

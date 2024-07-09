@@ -9,6 +9,9 @@ on:
       access-level:
         required: true
         type: string
+      scope:
+        required: false
+        type: string
       user-principal-name:
         required: true
         type: string
@@ -43,4 +46,4 @@ jobs:
 
       - name: Revoke access
         shell: pwsh
-        run: ./tools/infrastructure/revoke-azure-environment-access.ps1 -InfA Continue -EnvironmentName ${{ inputs.environment-name }} -AccessLevel '${{ inputs.access-level }}' -UserPrincipalName "${{ inputs.user-principal-name }}" -SkipInstallModules
+        run: ./tools/infrastructure/revoke-azure-environment-access.ps1 -InfA Continue -EnvironmentName ${{ inputs.environment-name }} -AccessLevel '${{ inputs.access-level }}' -SubProductName ${{ inputs.scope }} -UserPrincipalName "${{ inputs.user-principal-name }}" -SkipInstallModules

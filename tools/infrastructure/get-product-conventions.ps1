@@ -34,8 +34,12 @@
                     InternalApi         =   @{ Type = 'FunctionApp'; StorageUsage = 'Queue' }
                     Api                 =   @{ Type = 'AksPod' }
                     ApiTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'Api' }
+                    ApiAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'Api' }
+                    # example of an extended health check:
+#                    ApiExtendedAvailabilityTest =   @{ Type = 'AvailabilityTest'; IsExtendedCheck = $true; Path = '/health-extended'; Target = 'Api' }
                     Web                 =   @{ Type = 'AksPod'; IsMainUI = $true; EnableManagedIdentity = $false }
                     WebTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'Web' }
+                    WebAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'Web' }
                     KeyVault            =   @{ Type = 'KeyVault' }
                 }
             }

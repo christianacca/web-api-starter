@@ -23,8 +23,10 @@ function Get-ResourceConvention {
 
     . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
     . "$PSScriptRoot/Get-PublicHostName.ps1"
+    . "$PSScriptRoot/Get-PbiAadSecurityGroupConvention.ps1"
     . "$PSScriptRoot/Get-RootDomain.ps1"
     . "$PSScriptRoot/Get-StorageRbacAccess.ps1"
+    . "$PSScriptRoot/Get-TeamGroupNames.ps1"
     . "$PSScriptRoot/Get-UniqueString.ps1"
 
     $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
@@ -46,11 +48,7 @@ function Get-ResourceConvention {
         }
     }
 
-    $addGlobalGroupNames = @{
-        DevelopmentGroup    =   "sg.role.development.$productNameLower.$EnvironmentName".Replace('-', '')
-        Tier1SupportGroup   =   "sg.role.supporttier1.$productNameLower.$EnvironmentName".Replace('-', '')
-        Tier2SupportGroup   =   "sg.role.supporttier2.$productNameLower.$EnvironmentName".Replace('-', '')
-    }
+    $teamGroupNames = Get-TeamGroupNames $ProductName $EnvironmentName
 
     $azurePrimaryRegion = $azureRegions[0]
     $azureSecondaryRegion = $azureRegions[1]
@@ -61,15 +59,15 @@ function Get-ResourceConvention {
     $resourceGroupRbac = @(
         @{
             Role    =   $isTestEnv -or ($EnvironmentName -eq 'demo') ? 'Contributor' : 'Reader'
-            Member  =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+            Member  =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
         }
         @{
             Role    =   'Reader'
-            Member  =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+            Member  =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
         }
         @{
             Role    =   $isTestEnv ? 'Reader' : 'Contributor'
-            Member  =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+            Member  =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
         }
     )
 
@@ -119,13 +117,12 @@ function Get-ResourceConvention {
     }
 
     $rootDomain = Get-RootDomain $EnvironmentName
-
     switch ($EnvironmentName) {
         { $_ -in 'ff', 'dev', 'demo'} {
             $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
             $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
         }
-        { $_ -in 'staging'} {
+        'staging' {
             $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
             $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
         }
@@ -135,9 +132,9 @@ function Get-ResourceConvention {
         }
     }
     # todo: delete the above switch statement and uncomment the next 2 lines once switched from old aks clusters to new
-#    $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
-#    $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-    
+    #    $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
+    #    $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
+
     switch ($EnvironmentName) {
         'staging' {
             $aksRootDomain = "cloud.$rootDomain"
@@ -178,19 +175,19 @@ function Get-ResourceConvention {
                     { $isTestEnv } {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                            Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         }
                     }
                     'demo' {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
-                            Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                         }
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
                             Member          =   @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                             )
                         }
                     }
@@ -198,13 +195,13 @@ function Get-ResourceConvention {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
                             Member          =   @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                             )
                         }
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                            Member          =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                         }
                     }
                     Default {
@@ -230,7 +227,7 @@ function Get-ResourceConvention {
                         $sqlPrimaryServer = @{
                             ResourceName        =   $sqlPrimaryName
                             ResourceLocation    =   $azurePrimaryRegion
-                            DataSource          =   "tcp:$sqlPrimaryName.database.windows.net,1433"
+                            DataSource          =   $hasFailover ? "tcp:$sqlDbName-fg.database.windows.net,1433" : "tcp:$sqlPrimaryName.database.windows.net,1433"
                         }
                         $sqlFailoverServer = @{
                             ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion
@@ -288,11 +285,11 @@ function Get-ResourceConvention {
                                 DatabaseRole    = 'db_datareader'
                                 Member          = switch ($EnvironmentName) {
                                     { $_ -like 'prod-*' -or $_ -eq 'staging' } {
-                                        @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                        @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                     }
                                     'demo' {
-                                        @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                     }
                                     Default {
                                         Write-Output @() -NoEnumerate
@@ -304,7 +301,7 @@ function Get-ResourceConvention {
                                 DatabaseRole    = 'db_datareader', 'db_datawriter'
                                 Member          = switch ($EnvironmentName) {
                                     'demo' {
-                                        @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                                     }
                                     Default {
                                         Write-Output @() -NoEnumerate
@@ -316,7 +313,7 @@ function Get-ResourceConvention {
                                 DatabaseRole    = 'db_datareader', 'db_datawriter', 'db_ddladmin'
                                 Member          = switch ($EnvironmentName) {
                                     { $_ -like 'prod-*' -or $_ -eq 'staging' -or $_ -eq 'demo' } {
-                                        @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                                     }
                                     Default {
                                         Write-Output @() -NoEnumerate
@@ -326,7 +323,7 @@ function Get-ResourceConvention {
                             @{
                                 Name            =   $sqlAdAdminGroupName
                                 Member          = if ($isTestEnv) {
-                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                                 }
                                 else {
                                     Write-Output @() -NoEnumerate
@@ -354,19 +351,19 @@ function Get-ResourceConvention {
                         { $isTestEnv } {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                                Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                             }
                         }
                         'demo' {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
-                                Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                             }
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
                                 Member          =   @(
-                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                    @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                                 )
                             }
                         }
@@ -374,13 +371,13 @@ function Get-ResourceConvention {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
                                 Member          =   @(
-                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                    @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                 )
                             }
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                                Member          =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                Member          =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                             }
                         }
                         Default {
@@ -414,6 +411,7 @@ function Get-ResourceConvention {
                     OidcAppName         =   $oidcAppName
                     ServiceAccountName  =   '{0}-{1}' -f $helmReleaseName, $componentName.ToLower()
                     TrafficManagerPath  =   '/trafficmanager-health-{0}-{1}' -f $aksNamespace, $componentName.ToLower()
+                    DefaultHealthPath   =   $isMainUI ? '/health/status' : '/health'
                     Type                =   $spInput.Type
                 }
             }
@@ -437,21 +435,21 @@ function Get-ResourceConvention {
                     { $isTestEnv } {
                         @{
                             Role            =   'Monitoring Contributor'
-                            Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         }
                     }
                     { $isEnvProdLike -or $_ -eq 'demo' } {
                         @{
                             Role            =   'Monitoring Contributor'
                             Member          =   @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                             )
 
                         }
                         @{
                             Role            =   'Monitoring Reader'
-                            Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                         }
                     }
                     Default {
@@ -467,6 +465,41 @@ function Get-ResourceConvention {
                     ResourceGroupName       =   $appResourceGroupName
                     Type                    =   $spInput.Type
                     WorkspaceName           =   "log-$appInstance"
+                }
+            }
+            'AvailabilityTest' {
+                $targetSubProduct = $subProductsConventions[$spInput.Target]
+
+                $fifteenMinutes = 900
+                $availabilityTestFrequency = $spInput.IsExtendedCheck -or $isTestEnv ? $fifteenMinutes : 300
+                $availabilityMetricFrequency = $availabilityTestFrequency -eq $fifteenMinutes ? 'PT5M' : 'PT1M'
+                $availabilityMetricQueryWindow = $availabilityTestFrequency -eq $fifteenMinutes ? 'PT15M' : 'PT5M'
+
+                # for a list of locations, see https://learn.microsoft.com/en-us/azure/azure-monitor/app/availability-standard-tests#azure
+                # for a default health check, use the default set of (5) locations from which to run availability tests
+                # for an extended health check, use fewer locations (Central US and West Europe) so as to not tax our service endpoint
+                $testLocations = $spInput.IsExtendedCheck ? @('us-fl-mia-edge', 'emea-nl-ams-azr') : $null
+                $nameQualifier = $spInput.IsExtendedCheck ? 'extended' : 'default'
+
+                $isAvailabilityTestEnabled = $EnvironmentName -ne 'dev' # we want dev to scale to zero therefore don't check availability
+                $availabilityFriendlyName = '{0} {1} - {2} health check' -f $ProductName.ToUpper(), $spInput.Target, $nameQualifier
+
+                @{
+                    Enabled                     =   $isAvailabilityTestEnabled
+                    Frequency                   =   $availabilityTestFrequency
+                    Locations                   =   $testLocations
+                    MetricAlert                 =   @{
+                        Description             =   'Alert rule for availability test "{0}"' -f $availabilityFriendlyName
+                        Enabled                 =   $isAvailabilityTestEnabled
+                        EvaluationFrequency     =   $availabilityMetricFrequency
+                        ResourceName            =   'ima-{0}-{1}-{2}' -f $appInstance, $spInput.Target.ToLower(), $nameQualifier
+                        FailedLocationCount     =   2
+                        WindowSize              =   $availabilityMetricQueryWindow
+                    }
+                    Name                        =   $availabilityFriendlyName
+                    RequestUrl                  =   'https://{0}{1}' -f $targetSubProduct.HostName, ($spInput.Path ?? $targetSubProduct.DefaultHealthPath)
+                    ResourceName                =   'iwt-{0}-{1}-{2}' -f $appInstance, $spInput.Target.ToLower(), $nameQualifier
+                    Type                        =   $spInput.Type
                 }
             }
             'TrafficManager' {
@@ -489,7 +522,7 @@ function Get-ResourceConvention {
                 $targetSubProduct = $subProductsConventions[$spInput.Target]
                 if ($targetSubProduct.Type = 'AksPod') {
                     @{
-                        ResourceName        =   '{0}-{1}{2}-{3}' -f $aksPrimaryClusterName, $productNameLower, $tmEnvQualifier, $spInput.Target.ToLower()
+                        ResourceName        =   $targetSubProduct.HostName.Replace(".$rootDomain", '').Replace('.', '-')
                         TrafficManagerPath  =   $targetSubProduct.TrafficManagerPath
                         Endpoints           =   @($primaryAksTrafficManagerEndpoint) + ($hasFailover ? @($secondaryAksTrafficManagerEndpoint) : @())
                         Type                =   $spInput.Type
@@ -499,95 +532,26 @@ function Get-ResourceConvention {
                 }
             }
             'Pbi' {
-                $adPbiGroupNamePrefix = 'sg.365.pbi'
-                $adPbiWksGroupNamePrefix = $('{0}.workspace.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-                $adPbiReportGroupNamePrefix = $('{0}.report.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-                $adPbiDatasetGroupNamePrefix = $('{0}.dataset.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-                $pbiGroup = @(switch ($EnvironmentName) {
-                    { $isTestEnv } {
-                        @{
-                            Name            = "$adPbiWksGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                        }
-                    }
-                    'demo' {
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.contributor";
-                            PbiRole         = 'Contributor'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiReportGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.contributor";
-                            PbiRole         = 'Contributor'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = "$adPbiDatasetGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.viewer";
-                            PbiRole         = 'Viewer'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiDatasetGroupNamePrefix.contributor"; Type = 'Group' }
-                            )
-                        }
-                    }
-                    { $isEnvProdLike } {
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.contributor";
-                            PbiRole         = 'Contributor'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiReportGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.viewer";
-                            PbiRole         = 'Viewer'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiDatasetGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                    }
-                    Default {
-                        Write-Output @() -NoEnumerate
-                    }
-                }) + @{
-                    Name            = "$adPbiWksGroupNamePrefix.app";
-                    PbiRole         = 'Admin'
-                    Member          = @()
+                $pbiTeamGroupNames = Get-TeamGroupNames -ProductName "$ProductName-Pbi" -EnvironmentName $EnvironmentName
+                $pbiTeamAadConventionParams = @{
+                    ProductName         =   $ProductName
+                    EnvironmentName     =   $EnvironmentName
+                    TeamGroupNames      =   $pbiTeamGroupNames
+                    TeamGroupMemberOnly =   $true
                 }
-
+                $pbiTeamGroupMembership = Get-PbiAadSecurityGroupConvention @pbiTeamAadConventionParams | ForEach-Object { [PsCustomObject]$_ }
+                $pbiGroups = Get-PbiAadSecurityGroupConvention $ProductName $EnvironmentName $teamGroupNames | ForEach-Object {
+                    $pbiGrp = $_
+                    $pbiGrp.Member = @(
+                        $pbiTeamGroupMembership | Where-Object Name -like $pbiGrp.Name | Select-Object -Exp Member
+                        $pbiGrp.Member
+                    )
+                    $pbiGrp
+                }
                 @{
-                    AadGroupNamePrefix  =   $adPbiGroupNamePrefix
-                    AadSecurityGroup    =   $pbiGroup
+                    AadGroupNamePrefix  =   'sg.365.pbi'
+                    AadSecurityGroup    =   $pbiGroups
+                    TeamGroups          =   $pbiTeamGroupNames
                     Type                =   $spInput.Type
                 }
             }
@@ -596,9 +560,9 @@ function Get-ResourceConvention {
                     @{
                         Role            =   'Key Vault Secrets Officer'
                         Member          =   if ($isTestEnv) {
-                            @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         } else {
-                            @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                         }
                     }
                 )
@@ -623,13 +587,9 @@ function Get-ResourceConvention {
             $_.RbacAssignment = @()
         }
     }
-    
-    $ad = @{
-        AadSecurityGroup    =   $addGlobalGroupNames.Values | ForEach-Object { @{ Name = $_ } }
-    }
 
     $results = @{
-        Ad                      =   $ad
+        TeamGroups              =   $teamGroupNames
         Aks                     =   @{
             Primary             =   $aksPrimaryCluster
             Failover            =   if($hasFailover) { $aksSecondaryCluster } else { $null }
