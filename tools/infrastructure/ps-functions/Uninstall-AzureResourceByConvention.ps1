@@ -76,8 +76,9 @@ function Uninstall-AzureResourceByConvention {
 
             if ($DeleteAADGroups) {
                 $groups = @(
-                    $InputObject.SubProducts.Values | ForEach-Object { $_['AadSecurityGroup'] } | Select-Object -ExpandProperty Name
-                    $InputObject.Ad.AadSecurityGroup.Name
+                $InputObject.SubProducts.Values | ForEach-Object { $_['AadSecurityGroup'] } | Select-Object -ExpandProperty Name
+                $convention.SubProducts.Values | ForEach-Object { $_['TeamGroups'] } | Select-Object -ExpandProperty Values
+                    $InputObject.TeamGroups.Values
                 )
                 $groups | ForEach-Object {
                     $groupName = $_

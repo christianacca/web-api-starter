@@ -37,6 +37,10 @@ module azureMonitor 'azure-monitor.bicep' = {
     alertEmailNonCritical: settings.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
     appInsightsName: aiSettings.ResourceName
     appName: settings.ProductName
+    defaultAvailabilityTests: [
+      settings.SubProducts.ApiAvailabilityTest
+      settings.SubProducts.WebAvailabilityTest
+    ]
     enableMetricAlerts: aiSettings.IsMetricAlertsEnabled
     environmentName: settings.EnvironmentName
     environmentAbbreviation: aiSettings.EnvironmentAbbreviation

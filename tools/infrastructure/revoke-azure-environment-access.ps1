@@ -11,6 +11,9 @@
       .PARAMETER AccessLevel
       The access level to revoke (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
       and 'App Admin / support-tier-2' is an alias of 'support-tier-2'
+
+      .PARAMETER $SubProductName
+      The name of the sub product to grant access
     #>
 
     
@@ -26,6 +29,8 @@
         [Parameter(Mandatory, ParameterSetName = 'Main')]
         [ValidateSet('development', 'support-tier-1', 'support-tier-2', 'GPS / support-tier-1', 'App Admin / support-tier-2')]
         [string] $AccessLevel,
+        
+        [string] $SubProductName,
 
         [switch] $Login,
         [string] $SubscriptionId,
@@ -59,8 +64,13 @@
             Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            $userNameList = $UserPrincipalName -split ','
-            $convention | Revoke-AzureEnvironmentAccess -UserPrincipalName $userNameList -AccessLevel $AccessLevel
+            $params = @{
+                InputObject         = $convention
+                UserPrincipalName   = $UserPrincipalName -split ','
+                AccessLevel         = $AccessLevel
+                SubProductName      = $SubProductName
+            }
+            Revoke-AzureEnvironmentAccess @params
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA

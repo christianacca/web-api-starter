@@ -13,6 +13,9 @@ function Grant-AzureEnvironmentAccess {
       The access level to grant (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
       and 'App Admin / support-tier-2' is an alias of 'support-tier-2'
 
+      .PARAMETER $SubProductName
+      The name of the sub product to grant access
+
       .PARAMETER ApplyCurrentPermissions
       Apply the current desired permissions to existing Azure resources
     #>
@@ -28,6 +31,8 @@ function Grant-AzureEnvironmentAccess {
         [Parameter(Mandatory)]
         [ValidateSet('development', 'support-tier-1', 'support-tier-2', 'GPS / support-tier-1', 'App Admin / support-tier-2')]
         [string] $AccessLevel,
+        
+        [string] $SubProductName,
     
         [switch] $ApplyCurrentPermissions
     )
@@ -60,11 +65,11 @@ function Grant-AzureEnvironmentAccess {
                 }
             }
 
-            $groupName = $InputObject | Resolve-TeamGroupName -AccessLevel $AccessLevel
+            $groupName = $InputObject | Resolve-TeamGroupName -AccessLevel $AccessLevel -SubProductName $SubProductName
 
             #------------- Assign to AAD group -------------
             $group = [PsCustomObject]@{ Name = $groupName; Member = $groupMembers }
-            $group | Set-AADGroup
+            $group | Set-AADGroup | Out-Null
 
             #------------- Set RBAC permissions -------------
             $resourceGroupName = $InputObject.AppResourceGroup.ResourceName
@@ -83,11 +88,11 @@ function Grant-AzureEnvironmentAccess {
             } else {
                 Write-Output "Permissions granted to '$userNames' (see tables below)"
             }
-            
+
             Write-Output 'RBAC Permissions'
             Write-Output '----------------'
             $roleAssignments | Select-Object MemberName, Role, @{ N='Scope'; E={ $resourceGroupName } } | Format-Table
-            
+
             if ($users) {
                 Write-Output 'Security Group Membership'
                 Write-Output '-------------------------'

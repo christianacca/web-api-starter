@@ -49,6 +49,16 @@ function Set-AADGroup {
       Ensures the group 'my-group' is created in Azure AD and has the service principal as a member
 
       .EXAMPLE
+      'my-group1', 'my-group2' | Set-AADGroup -Member @{
+        ApplicationId           =   '96a99e94-acdc-41a0-ae6a-0836b968de57'
+        Type                    =   'ServicePrincipal'
+      }
+    
+      Description
+      -----------
+      Ensures the group 'my-group1' and 'my-group2' is created in Azure AD and has the service principal as a member
+
+      .EXAMPLE
       Set-AADGroup my-group -Member @{
         UserPrincipalName       =   'kc.mriazure_gmail.com#EXT#@kcmriazuregmail.onmicrosoft.com'
         Type                    =   'User'
@@ -112,7 +122,7 @@ function Set-AADGroup {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName, ValueFromPipeline)]
         [string] $Name,
 
         [Parameter(ValueFromPipelineByPropertyName)]
