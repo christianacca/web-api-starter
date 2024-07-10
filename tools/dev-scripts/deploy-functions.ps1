@@ -40,9 +40,10 @@ begin {
     $callerEA = $ErrorActionPreference
     $ErrorActionPreference = 'Stop'
     
+    . "./tools/infrastructure/ps-functions/ConvertTo-StringData.ps1"
     . "./tools/infrastructure/ps-functions/Invoke-Exe.ps1"
+    . "./tools/infrastructure/ps-functions/Invoke-ExeExpression.ps1"
     . "./tools/dev-scripts/Set-AppSettings.ps1"
-    
 }
 process {
     try {
@@ -53,6 +54,7 @@ process {
         $parentPath = Split-Path $Path -Parent
         $folderToZip = Split-Path $Path -Leaf
         $zipArchiveFullPath = Join-Path $parentPath "$folderToZip.zip"
+        Remove-Item -Path $zipArchiveFullPath -EA SilentlyContinue
         [System.IO.Compression.ZipFile]::CreateFromDirectory($Path, $zipArchiveFullPath)
 
         Invoke-Exe {
@@ -60,13 +62,10 @@ process {
         } | Out-Null
 
         if ($AppSettings.Keys.Count) {
-            $appSettingsString = $AppSettings | ConvertTo-Json -Compress | ConvertTo-Json
-            Write-Verbose "--settings value: $appSettingsString"
-            Invoke-Exe {
-                az functionapp config appsettings set -g $ResourceGroup -n $Name --settings $appSettingsString
-            } | Out-Null
+            $appSettingsString = $AppSettings | ConvertTo-StringData | Join-String -Separator ' '
+            $updateAppSettings = "az functionapp config appsettings set -n $Name -g $ResourceGroup --settings $appSettingsString"
+            Invoke-ExeExpression $updateAppSettings | Out-Null
         }
-        
     }
     catch {
         Write-Error -ErrorRecord $_ -EA $callerEA
