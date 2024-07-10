@@ -8,11 +8,11 @@
       
       This following Azure resources will be provisioned by this script:
       
-      * User assgined managed identity that are bound to pod(s) running in AKS (one managed identity per AKS service)
+      * User assgined managed identity that are bound to Azure container apps
       * Azure Function app x2 ('internalapi', 'testpbi')
       * User assigned managed identity assigned as the identity for Azure function apps
       * Azure AD App registration and associated AD Enterprise app (aka service principal). This App registration is associated with the 
-        Azure Function app 'internalapi' to authentication requests from the AKS pods
+        Azure Function app 'internalapi' to authentication requests from the Azure container apps
       * Azure SQL database (logical server and single database for a primary and failover region) configured with:
         - Azure AD authentication
         - Azure AD Admin mapped to an Azure AD group
@@ -327,10 +327,21 @@
             if ($convention.SubProducts.Sql.Firewall.Rule) {
                 $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
+            Write-Information "  Gathering existing resource information..."
+            $apiFailoverExists = if ($convention.SubProducts.Api.Failover) {
+                $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Failover.ResourceName -EA SilentlyContinue)    
+            } else {
+                $false
+            }
+            $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
+            $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $funcApp.ResourceName -EA SilentlyContinue)
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
+                    apiFailoverExists           =   $apiFailoverExists
+                    apiPrimaryExists            =   $apiPrimaryExists
                     internalApiClientId         =   $funcAdRegistration.AppId
+                    internalApiExists           =   $internalApiExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
                 }
@@ -341,6 +352,7 @@
                 New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
                 return
             }
+            Write-Information '  Creating desired resource state'
             $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
             Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
@@ -353,7 +365,7 @@
             # 9.1. Set AD app role for function app to api managed identity
             $api = $convention.SubProducts.Api
             $appRoleGrants = [PSCustomObject]@{
-                ManagedIdentityDisplayName          =   $api.ManagedIdentity
+                ManagedIdentityDisplayName          =   $api.ManagedIdentity.Primary
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
             }
             $appRoleGrants | Grant-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId
@@ -366,14 +378,14 @@
             Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
             Start-Sleep -Seconds $wait
 
-            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
-            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
-            $pbiAppGroup.Member = @(
-                @{
-                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
-                    Type                =   'ServicePrincipal'
-                }
-            ) + $pbiAppGroup.Member
+#            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+#            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
+#            $pbiAppGroup.Member = @(
+#                @{
+#                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
+#                    Type                =   'ServicePrincipal'
+#                }
+#            ) + $pbiAppGroup.Member
 
             # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
             $sqlAadAuthGroup = [PsCustomObject]@{
@@ -407,8 +419,8 @@
                 Where-Object Name -like '*.crud' |
                 ForEach-Object { $_.Member = $dbCrudMembership + $_.Member }
 
-            $groups = @($pbiGroups; $sqlGroups; $sqlAadAuthGroup)
-            $groups | Set-AADGroup | Out-Null
+#            @($pbiGroups; $sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
+            @($sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
 
 
             #-----------------------------------------------------------------------------------------------

@@ -22,7 +22,7 @@
 
             if ($DockerPush.IsPresent) {
                 $convention = & "./tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
-                $registryName = $convention.Aks.RegistryName
+                $registryName = $convention.ContainerRegistries.Dev.ResourceName
                 $registryInstance = "$registryName.azurecr.io"
                 Write-Information "Conect to Azure Container Registry '$registryInstance'"
                 Invoke-Exe { az acr login -n $registryName }

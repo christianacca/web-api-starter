@@ -2,7 +2,10 @@ function Get-RootDomain {
     param(
         [Parameter(Mandatory)]
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
-        [string] $EnvironmentName
+        [string] $EnvironmentName,
+
+        [Parameter(Mandatory)]
+        [string] $CompanyDomain = 'mrisoftware'
     )
     begin {
         . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
@@ -10,9 +13,9 @@ function Get-RootDomain {
     process {
         $isProdLike = Get-IsEnvironmentProdLike $EnvironmentName
         if ($isProdLike) { 
-            'mrisoftware.com' 
+            "$CompanyDomain.com"
         } else { 
-            'redmz.mrisoftware.com' 
+            "redmz.$CompanyDomain.com"
         }
     }
 }
