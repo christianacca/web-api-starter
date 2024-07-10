@@ -28,24 +28,12 @@ param appInsightsResourceId string = ''
 @description('The name of the function app as it appears in application insights')
 param appInsightsCloudRoleName string = functionAppName
 
-@description('Create a default message queue for this function app')
-param deployDefaultStorageQueue bool = false
-
 @description('Flag to indicate site exists. If true, the module will preserve the existing appsettings for the site.')
 param resourceExists bool = true
 
 
-module internalApiManagedIdentity 'managed-identity-with-rbac.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-InternalApiManagedIdentity'
-  params: {
-    managedIdentityName: managedIdentityName
-    location: location
-    rbacRoleIds: [
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-      '8a0f0c08-91a1-4084-bc3d-661d67233fed' // Storage Queue Data Message Processor
-      'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
-    ]
-  }
+resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: managedIdentityName
 }
 
 var requiredAppsettings = {
@@ -70,7 +58,7 @@ module functionApp 'br/public:avm/res/web/site:0.2.0' = {
     managedIdentities: {
       systemAssigned: false
       userAssignedResourceIds: [
-        internalApiManagedIdentity.outputs.resourceId
+        internalApiManagedId.id
       ]
     }
     appInsightResourceId: appInsightsResourceId
@@ -138,28 +126,9 @@ module hostingPlan 'br/public:avm/res/web/serverfarm:0.1.0' = {
   }
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2019-06-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2019-06-01' existing = {
   name: storageAccountName
-  location: location
-  kind: 'Storage'
-  sku: {
-    name: 'Standard_LRS'
-  }
-}
-
-resource storageAccountName_default_default_queue 'Microsoft.Storage/storageAccounts/queueServices/queues@2019-06-01' = if (deployDefaultStorageQueue) {
-  name: '${storageAccountName}/default/default-queue'
-  dependsOn: [
-    storageAccount
-  ]
-}
-
-resource storageAccountName_default_default_queue_poison 'Microsoft.Storage/storageAccounts/queueServices/queues@2019-06-01' = if (deployDefaultStorageQueue) {
-  name: '${storageAccountName}/default/default-queue-poison'
-  dependsOn: [
-    storageAccount
-  ]
 }
 
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
-output internalApiManagedIdentityClientId string = internalApiManagedIdentity.outputs.clientId
+output internalApiManagedIdentityClientId string = internalApiManagedId.properties.clientId

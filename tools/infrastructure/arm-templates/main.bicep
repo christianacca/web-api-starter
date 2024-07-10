@@ -1,6 +1,15 @@
 @description('The Client ID of the Internal Api AAD app registration.')
 param internalApiClientId string
 
+@description('Whether the Internal Api function app already exists.')
+param internalApiExists bool = true
+
+@description('Whether the failover intance of the API container app already exists.')
+param apiFailoverExists bool = true
+
+@description('Whether the primary intance of the API container app already exists.')
+param apiPrimaryExists bool = true
+
 param location string = resourceGroup().location
 
 @description('The settings for all resources provisioned by this template.')
@@ -9,23 +18,24 @@ param settings object
 @description('The Object ID of the SQL AAD Admin security group.')
 param sqlAdAdminGroupObjectId string
 
+
 var kvSettings = settings.SubProducts.KeyVault
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
-  name: kvSettings.ResourceName
-  location: location
-  properties: {
+module keyVault 'br/public:avm/res/key-vault/vault:0.6.2' = {
+  name: '${uniqueString(deployment().name, location)}-KeyVault'
+  params: {
+    name: kvSettings.ResourceName
     enableRbacAuthorization: true
-    enablePurgeProtection: kvSettings.EnablePurgeProtection == false ? null : true
+    enablePurgeProtection: kvSettings.EnablePurgeProtection
     softDeleteRetentionInDays: 90
-    tenantId: subscription().tenantId
-    sku: {
-      name: 'standard'
-      family: 'A'
-    }
+    sku: 'standard'
     networkAcls: {
       defaultAction: 'Allow'
       bypass: 'AzureServices'
     }
+    roleAssignments: [
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+      { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+    ]
   }
 }
 
@@ -36,10 +46,9 @@ module azureMonitor 'azure-monitor.bicep' = {
     alertEmailCritical: settings.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
     alertEmailNonCritical: settings.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
     appInsightsName: aiSettings.ResourceName
-    appName: settings.ProductName
+    appName: settings.Product.Abbreviation
     defaultAvailabilityTests: [
       settings.SubProducts.ApiAvailabilityTest
-      settings.SubProducts.WebAvailabilityTest
     ]
     enableMetricAlerts: aiSettings.IsMetricAlertsEnabled
     environmentName: settings.EnvironmentName
@@ -49,53 +58,169 @@ module azureMonitor 'azure-monitor.bicep' = {
   }
 }
 
-module apiManagedIdentity 'federated-managed-identity.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-ApiManagedIdentity'
+var reportStorage = settings.SubProducts.PbiReportStorage
+module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.11.0' = {
+  name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
   params: {
-    aksCluster: settings.Aks.Primary
-    aksFailoverCluster: settings.Aks.Failover
-    aksServiceAccountName: settings.SubProducts.Api.ServiceAccountName
-    aksServiceAccountNamespace: settings.Aks.Namespace
-    location: location
-    managedIdentityName: settings.SubProducts.Api.ManagedIdentity
-    rbacRoleIds: [
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-      'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a' // Storage Queue Data Message Sender
+    name: reportStorage.StorageAccountName
+    skuName: reportStorage.StorageAccountType
+    accessTier: reportStorage.DefaultStorageTier
+    allowSharedKeyAccess: false
+    defaultToOAuthAuthentication: true
+    blobServices: {
+      changeFeedEnabled: true
+      changeFeedRetentionInDays: 95
+      restorePolicyEnabled: true
+      restorePolicyDays: 90
+      containerDeleteRetentionPolicyDays: 90
+      deleteRetentionPolicyDays: 95
+      isVersioningEnabled: true
+    }
+    managementPolicyRules: [
+      {
+        definition: {
+          actions: {
+            version: {
+              delete: {
+                daysAfterCreationGreaterThan: 90
+              }
+            }
+          }
+          filters: {
+            blobTypes: [
+              'blockBlob'
+            ]
+          }
+        }
+        enabled: true
+        name: 'retention-lifecyle'
+        type: 'Lifecycle'
+      }
+    ]
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    // note: if you have an old storage account you might need to uncomment this if it's already false:
+//     requireInfrastructureEncryption: false
+    roleAssignments: [
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Blob Data Contributor', principalType: 'ServicePrincipal' }
     ]
   }
 }
 
-var reportStorage = settings.SubProducts.PbiReportStorage
-module pbiReportStorage 'storage-account.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
-  params: {
-    defaultStorageTier: reportStorage.DefaultStorageTier
-    location: location
-    storageAccountName: reportStorage.StorageAccountName
-    storageAccountType: reportStorage.StorageAccountType
-  }
+resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity.Primary
+  location: location
 }
 
-var tmpSettings = [
-  settings.SubProducts.ApiTrafficManager
-  settings.SubProducts.WebTrafficManager
-]
-module trafficManagerProfiles 'br/public:network/traffic-manager:2.3.3' = [for (tmProfile, i) in tmpSettings: {
-  name: '${uniqueString(deployment().name, location)}-${i}-TrafficManager'
+resource apiAcrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity.AcrPull
+  location: location
+}
+
+// dev and prod container registries can be the same instance, therefore we use union to de-dup references to same registry
+var containerRegistries = union(settings.ContainerRegistries.Available, [])
+module acrPullPermissions 'acr-pull-role-assignment.bicep' = [for (registry, index) in containerRegistries: {
+  name: '${uniqueString(deployment().name, location)}-${index}-AcrPullPermission'
+  scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), (registry.ResourceGroupName ?? resourceGroup().name))
   params: {
-    name: tmProfile.ResourceName
-    trafficManagerDnsName: tmProfile.ResourceName
-    ttl: 60
-    monitorConfig: {
-      protocol: 'HTTP'
-      port: 80
-      path: tmProfile.TrafficManagerPath
-      expectedStatusCodeRanges: null // defaults to 200
-    }
-    endpoints: tmProfile.Endpoints
+    principalId: apiAcrPullManagedId.properties.principalId
+    registryName: registry.ResourceName
   }
 }]
 
+module acaEnvPrimary 'br/public:avm/res/app/managed-environment:0.5.2' = {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvPrimary'
+  params: {
+    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    name: settings.SubProducts.Aca.Primary.ResourceName
+    workloadProfiles: [
+      {
+        name: 'Consumption'
+        workloadProfileType: 'Consumption'
+      }
+    ]
+    zoneRedundant: false
+  }
+}
+
+var acaContainerRegistries = map(containerRegistries, registry => ({
+  server: '${registry.ResourceName}.azurecr.io'
+  identity: apiAcrPullManagedId.id
+}))
+
+module apiPrimary 'api.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AcaApiPrimary'
+  params: {
+    acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
+    apiSettings: settings.SubProducts.Api.Primary
+    appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+    exists: apiPrimaryExists
+    primaryManagedIdentityClientId: apiManagedId.properties.clientId
+    registries: acaContainerRegistries
+    subProductsSettings: settings.SubProducts
+    userAssignedResourceIds: [
+      apiManagedId.id
+      apiAcrPullManagedId.id
+    ]
+  }
+}
+
+module acaEnvFailover 'br/public:avm/res/app/managed-environment:0.5.2' = if (!empty(settings.SubProducts.Aca.Failover ?? {})) {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
+  params: {
+    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    name: settings.SubProducts.Aca.Failover.ResourceName
+    zoneRedundant: false
+  }
+}
+
+module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
+  name: '${uniqueString(deployment().name, location)}-AcaApiFailover'
+  params: {
+    acaEnvironmentResourceId: !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.resourceId : ''
+    apiSettings: settings.SubProducts.Api.Failover
+    appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+    exists: apiFailoverExists
+    primaryManagedIdentityClientId: apiManagedId.properties.clientId
+    registries: acaContainerRegistries
+    subProductsSettings: settings.SubProducts
+    userAssignedResourceIds: [
+      apiManagedId.id
+      apiAcrPullManagedId.id
+    ]
+  }
+}
+
+resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.InternalApi.ManagedIdentity
+  location: location
+}
+
+module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.11.0' = {
+  name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
+  params: {
+    name: settings.SubProducts.InternalApi.StorageAccountName
+    kind: 'Storage'
+    skuName: 'Standard_LRS'
+    blobServices: {}
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    queueServices: {
+      queues: [
+        { name: 'default-queue' }
+        { name: 'default-queue-poison' }
+      ]
+    }
+    roleAssignments: [
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Processor', principalType: 'ServicePrincipal' }
+      { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
+    ]
+  }
+}
 
 var internalApiSettings = settings.SubProducts.InternalApi
 module internalApi 'internal-api.bicep' = {
@@ -104,13 +229,31 @@ module internalApi 'internal-api.bicep' = {
     appClientId: internalApiClientId
     appInsightsCloudRoleName: 'Web API Starter Functions'
     appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
-    deployDefaultStorageQueue: true
     functionAppName: internalApiSettings.ResourceName
     managedIdentityName: internalApiSettings.ManagedIdentity
     location: location
-    storageAccountName: internalApiSettings.StorageAccountName
+    resourceExists: internalApiExists
+    storageAccountName: internalApiStorageAccount.outputs.name
   }
 }
+
+var apiPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
+var apiFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
+var apiTmEndpoints = map(settings.SubProducts.ApiTrafficManager.Endpoints, endpoint => ({ 
+  ...endpoint
+  Target: replace(endpoint.Target, 'ACA_ENV_DEFAULT_DOMAIN', endpoint.Name == settings.SubProducts.Api.Primary.ResourceName ? apiPrimaryDomain : apiFailoverDomain )
+}))
+
+module apiTrafficManager 'traffic-manager-profile.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-ApiTrafficManager'
+  params: {
+    tmSettings: {
+      ...settings.SubProducts.ApiTrafficManager
+      Endpoints: apiTmEndpoints
+    }
+  }
+}
+
 
 var sqlServer = settings.SubProducts.Sql
 var sqlDatabase = settings.SubProducts.Db
@@ -135,7 +278,7 @@ module azureSqlDb 'azure-sql-server.bicep' = {
 }
 
 @description('The Client ID of the Azure AD application associated with the api managed identity.')
-output apiManagedIdentityClientId string = apiManagedIdentity.outputs.clientId
+output apiManagedIdentityClientId string = apiManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
 output internalApiManagedIdentityClientId string = internalApi.outputs.internalApiManagedIdentityClientId
 @description('The Client ID of the Azure AD application associated with the sql managed identity.')
