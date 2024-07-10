@@ -1,6 +1,9 @@
 @description('The Client ID of the Internal Api AAD app registration.')
 param internalApiClientId string
 
+@description('Whether the Internal Api function app already exists.')
+param internalApiExists bool = true
+
 param location string = resourceGroup().location
 
 @description('The settings for all resources provisioned by this template.')
@@ -49,22 +52,6 @@ module azureMonitor 'azure-monitor.bicep' = {
   }
 }
 
-module apiManagedIdentity 'federated-managed-identity.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-ApiManagedIdentity'
-  params: {
-    aksCluster: settings.Aks.Primary
-    aksFailoverCluster: settings.Aks.Failover
-    aksServiceAccountName: settings.SubProducts.Api.ServiceAccountName
-    aksServiceAccountNamespace: settings.Aks.Namespace
-    location: location
-    managedIdentityName: settings.SubProducts.Api.ManagedIdentity
-    rbacRoleIds: [
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-      'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a' // Storage Queue Data Message Sender
-    ]
-  }
-}
-
 var reportStorage = settings.SubProducts.PbiReportStorage
 module pbiReportStorage 'storage-account.bicep' = {
   name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
@@ -75,6 +62,50 @@ module pbiReportStorage 'storage-account.bicep' = {
     storageAccountType: reportStorage.StorageAccountType
   }
 }
+
+var internalApiSettings = settings.SubProducts.InternalApi
+module internalApi 'internal-api.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-InternalApi'
+  params: {
+    appClientId: internalApiClientId
+    appInsightsCloudRoleName: 'Web API Starter Functions'
+    appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
+    deployDefaultStorageQueue: true
+    functionAppName: internalApiSettings.ResourceName
+    managedIdentityName: internalApiSettings.ManagedIdentity
+    location: location
+    keyVaultResourceId: keyVault.id
+    pbiReportStorageAccountResourceId: pbiReportStorage.outputs.storageAccountId
+    resourceExists: internalApiExists
+    storageAccountName: internalApiSettings.StorageAccountName
+  }
+}
+
+resource apiManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity
+  location: location
+}
+
+resource internalApiStorage 'Microsoft.Storage/storageAccounts@2021-02-01' existing = {
+  name: internalApiSettings.StorageAccountName
+}
+var apiRoleAssignments = [
+  { resourceId: keyVault.id, roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6', roleName: 'Key Vault Secrets User' }
+  { resourceId: internalApiStorage.id, roleDefinitionId: 'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a', roleName: 'Storage Queue Data Message Sender' }
+]
+module apiPermissions 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = [for (roleAssignment, index) in apiRoleAssignments: {
+  name: '${uniqueString(deployment().name, location)}-ApiPermission-${index}'
+  params: {
+    principalId: apiManagedIdentity.properties.principalId
+    resourceId: roleAssignment.resourceId
+    roleDefinitionId: roleAssignment.roleDefinitionId
+    roleName: roleAssignment.roleName
+    principalType: 'ServicePrincipal'
+  }
+  dependsOn: [
+    internalApi // need to wait for internalApi module to complete to ensure storage account is already be created
+  ]
+}]
 
 var tmpSettings = [
   settings.SubProducts.ApiTrafficManager
@@ -96,21 +127,6 @@ module trafficManagerProfiles 'br/public:network/traffic-manager:2.3.3' = [for (
   }
 }]
 
-
-var internalApiSettings = settings.SubProducts.InternalApi
-module internalApi 'internal-api.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-InternalApi'
-  params: {
-    appClientId: internalApiClientId
-    appInsightsCloudRoleName: 'Web API Starter Functions'
-    appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
-    deployDefaultStorageQueue: true
-    functionAppName: internalApiSettings.ResourceName
-    managedIdentityName: internalApiSettings.ManagedIdentity
-    location: location
-    storageAccountName: internalApiSettings.StorageAccountName
-  }
-}
 
 var sqlServer = settings.SubProducts.Sql
 var sqlDatabase = settings.SubProducts.Db
@@ -135,7 +151,7 @@ module azureSqlDb 'azure-sql-server.bicep' = {
 }
 
 @description('The Client ID of the Azure AD application associated with the api managed identity.')
-output apiManagedIdentityClientId string = apiManagedIdentity.outputs.clientId
+output apiManagedIdentityClientId string = apiManagedIdentity.properties.clientId
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
 output internalApiManagedIdentityClientId string = internalApi.outputs.internalApiManagedIdentityClientId
 @description('The Client ID of the Azure AD application associated with the sql managed identity.')

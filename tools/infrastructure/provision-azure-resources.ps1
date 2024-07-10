@@ -324,10 +324,13 @@
             if ($convention.SubProducts.Sql.Firewall.Rule) {
                 $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
+            Write-Information "  Gathering existing resource information..."
+            $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $funcApp.ResourceName -EA SilentlyContinue)
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
                     internalApiClientId         =   $funcAdRegistration.AppId
+                    internalApiExists           =   $internalApiExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
                 }
@@ -338,6 +341,7 @@
                 New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
                 return
             }
+            Write-Information '  Creating desired resource state'
             $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
             Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
@@ -363,14 +367,14 @@
             Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
             Start-Sleep -Seconds $wait
 
-            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
-            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
-            $pbiAppGroup.Member = @(
-                @{
-                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
-                    Type                =   'ServicePrincipal'
-                }
-            ) + $pbiAppGroup.Member
+#            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+#            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
+#            $pbiAppGroup.Member = @(
+#                @{
+#                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
+#                    Type                =   'ServicePrincipal'
+#                }
+#            ) + $pbiAppGroup.Member
 
             # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
             $sqlAadAuthGroup = [PsCustomObject]@{
@@ -404,8 +408,8 @@
                 Where-Object Name -like '*.crud' |
                 ForEach-Object { $_.Member = $dbCrudMembership + $_.Member }
 
-            $groups = @($pbiGroups; $sqlGroups; $sqlAadAuthGroup)
-            $groups | Set-AADGroup | Out-Null
+#            @($pbiGroups; $sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
+            @($sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
 
 
             #-----------------------------------------------------------------------------------------------

@@ -19,6 +19,12 @@ param managedIdentityName string
 @description('The name of the Storage Account')
 param storageAccountName string = toLower('funcsa${uniqueString(resourceGroup().id)}')
 
+@description('The resource id of the Keyvault service that this function app will connect to for its secrets')
+param keyVaultResourceId string
+
+@description('The resource id of the storage account used to persist pbi reports')
+param pbiReportStorageAccountResourceId string
+
 @description('The ID of the tenant providing auth token')
 param tenantID string = subscription().tenantId
 
@@ -35,18 +41,27 @@ param deployDefaultStorageQueue bool = false
 param resourceExists bool = true
 
 
-module internalApiManagedIdentity 'managed-identity-with-rbac.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-InternalApiManagedIdentity'
-  params: {
-    managedIdentityName: managedIdentityName
-    location: location
-    rbacRoleIds: [
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-      '8a0f0c08-91a1-4084-bc3d-661d67233fed' // Storage Queue Data Message Processor
-      'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
-    ]
-  }
+resource internalApiManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: managedIdentityName
+  location: location
 }
+
+var internalApiRoleAssignments = [
+  { resourceId: keyVaultResourceId, roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6', roleName: 'Key Vault Secrets User' }
+  { resourceId: storageAccount.id, roleDefinitionId: '8a0f0c08-91a1-4084-bc3d-661d67233fed', roleName: 'Storage Queue Data Message Processor' }
+  { resourceId: pbiReportStorageAccountResourceId, roleDefinitionId: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe', roleName: 'Storage Blob Data Contributor' }
+]
+
+module internalApiPermissions 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = [for (roleAssignment, index) in internalApiRoleAssignments: {
+  name: '${uniqueString(deployment().name, location)}-InternalApiPermission-${index}'
+  params: {
+    principalId: internalApiManagedIdentity.properties.principalId
+    resourceId: roleAssignment.resourceId
+    roleDefinitionId: roleAssignment.roleDefinitionId
+    roleName: roleAssignment.roleName
+    principalType: 'ServicePrincipal'
+  }
+}]
 
 var requiredAppsettings = {
   AzureWebJobsFeatureFlags: 'EnableHttpProxying'
@@ -70,7 +85,7 @@ module functionApp 'br/public:avm/res/web/site:0.2.0' = {
     managedIdentities: {
       systemAssigned: false
       userAssignedResourceIds: [
-        internalApiManagedIdentity.outputs.resourceId
+        internalApiManagedIdentity.id
       ]
     }
     appInsightResourceId: appInsightsResourceId
@@ -162,4 +177,4 @@ resource storageAccountName_default_default_queue_poison 'Microsoft.Storage/stor
 }
 
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
-output internalApiManagedIdentityClientId string = internalApiManagedIdentity.outputs.clientId
+output internalApiManagedIdentityClientId string = internalApiManagedIdentity.properties.clientId
