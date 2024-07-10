@@ -2,15 +2,16 @@ function Get-ResourceConvention {
     param(
         [Parameter(Mandatory)]
         [string] $ProductName,
-        
-        [string] $ProductFullName,
-        
+        [string] $ProductAbbreviation,
         [string] $ProductSubDomainName,
         
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
 
-        [string] $CompanyName = 'mri',
+        [Parameter(Mandatory)]
+        [string] $CompanyName,
+        [string] $CompanyAbbreviation,
+        [string] $CompanyDomain,
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
 
@@ -32,29 +33,52 @@ function Get-ResourceConvention {
     $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
     $hasFailover = if ($EnvironmentName -in $failoverEnvironmnets) { $true } else { $false }
 
-    $productNameLower = $ProductName.ToLower()
-    if(-not($ProductFullName)) { $ProductFullName = $ProductName.ToUpper() }
-    if(-not($ProductSubDomainName)) { $ProductSubDomainName = '{0}{1}' -f $CompanyName.ToLower(), $productNameLower }
+    if(-not($ProductAbbreviation)) {
+        $ProductAbbreviation = -join ($ProductName -split ' ' | ForEach-Object { $_[0].ToString().ToLower() })
+    } else {
+        $ProductAbbreviation = $ProductAbbreviation.ToLower()
+    }
+    if(-not($ProductSubDomainName)) { 
+        $ProductSubDomainName = $ProductAbbreviation
+    } else {
+        $ProductSubDomainName = $ProductSubDomainName.ToLower()
+    }
+    if(-not($CompanyAbbreviation)) {
+        $CompanyAbbreviation = ($CompanyName -split ' ')[0].ToLower()
+    } else {
+        $CompanyAbbreviation = $CompanyAbbreviation.ToLower()
+    }
+    if(-not($CompanyDomain)) {
+        $CompanyDomain = $CompanyName.Replace(' ', '').ToLower()
+    } else {
+        $CompanyDomain = $CompanyDomain.ToLower()
+    }
 
+    # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
     $azureRegions = switch ($EnvironmentName) {
         'prod-emea' {
-            'uksouth', 'ukwest'
+            @{ Name = 'uksouth'; Abbreviation = 'uks' }, @{ Name = 'ukwest'; Abbreviation = 'ukw' }
         }
         'prod-apac' {
-            'australiaeast', 'australiasoutheast'
+            @{ Name = 'australiaeast'; Abbreviation = 'ae' }, @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
         }
         Default {
-            'eastus', 'westus'
+            @{ Name = 'eastus'; Abbreviation = 'eus' }, @{ Name = 'westus'; Abbreviation = 'wus' }
         }
     }
 
-    $teamGroupNames = Get-TeamGroupNames $ProductName $EnvironmentName
+    $teamGroupNames = Get-TeamGroupNames $ProductAbbreviation $EnvironmentName
 
     $azurePrimaryRegion = $azureRegions[0]
     $azureSecondaryRegion = $azureRegions[1]
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
     $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
+    $isScaleToZeroEnv = $EnvironmentName -in 'ff', 'dev', 'staging'
+    
+    if ($isScaleToZeroEnv -and $hasFailover) {
+        throw 'Scale to zero environments cannot have failover. This is because the primary has to be tested for availability before the failover can be promoted, and therefore will need at least one container to serve traffic.'
+    }
 
     $resourceGroupRbac = @(
         @{
@@ -71,11 +95,11 @@ function Get-ResourceConvention {
         }
     )
 
-    $appInstance = '{0}-{1}' -f $productNameLower, $EnvironmentName
-    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
+    $appInstance = '{0}-{1}' -f $ProductAbbreviation, $EnvironmentName
+    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $ProductAbbreviation, $azurePrimaryRegion.Name
     $appReourceGroup = @{
         ResourceName        =   $appResourceGroupName
-        ResourceLocation    =   $azurePrimaryRegion
+        ResourceLocation    =   $azurePrimaryRegion.Name
         UniqueString        =   Get-UniqueString $appResourceGroupName
         RbacAssignment      =   $resourceGroupRbac
     }
@@ -83,80 +107,16 @@ function Get-ResourceConvention {
     $dataResourceGroup = if ($SeperateDataResourceGroup) {
         @{
             RbacAssignment      =   $resourceGroupRbac
-            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
-            ResourceLocation    =   $azurePrimaryRegion
+            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $ProductAbbreviation, $azurePrimaryRegion.Name
+            ResourceLocation    =   $azurePrimaryRegion.Name
         }
     } else {
         $appReourceGroup
     }
 
     $managedIdentityNamePrefix = "id-$appInstance"
-    
-    $aksNamespaceSuffix = if ($EnvironmentName -in 'qa', 'rel', 'release') {
-        # we use the same AKS cluser for qa and release environment; good practice is a seperate namespace for each
-        "-$EnvironmentName"
-    } else {
-        ''
-    }
-    $aksNamespace = 'app-{0}{1}' -f $productNameLower, $aksNamespaceSuffix
-    $helmReleaseName = $productNameLower
-    
-    $aksClusterPrefix = switch ($EnvironmentName) {
-        { $_ -like 'prod-*' } { 
-            'prod' 
-        }
-        'ff' {
-            'dev'
-        }
-        { $_ -in 'rel', 'release'} { 
-            'qa' 
-        }
-        Default { 
-            $EnvironmentName
-        }
-    }
 
-    $rootDomain = Get-RootDomain $EnvironmentName
-    switch ($EnvironmentName) {
-        { $_ -in 'ff', 'dev', 'demo'} {
-            $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
-            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-        }
-        'staging' {
-            $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
-            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-        }
-        Default {
-            $aksClusterNameTemplate = "$aksClusterPrefix-aks-{0}"
-            $aksResourceGroupNameTemplate = "$aksClusterPrefix-aks-{0}"
-        }
-    }
-    # todo: delete the above switch statement and uncomment the next 2 lines once switched from old aks clusters to new
-    #    $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
-    #    $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-
-    switch ($EnvironmentName) {
-        'staging' {
-            $aksRootDomain = "cloud.$rootDomain"
-        }
-        Default {
-            $aksRootDomain = $rootDomain
-        }
-    }
-
-    $aksPrimaryClusterName = $aksClusterNameTemplate -f $azurePrimaryRegion
-    $aksPrimaryCluster = @{
-        ResourceName        =   $aksPrimaryClusterName
-        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azurePrimaryRegion
-        TrafficManagerHost  =   '{0}.{1}' -f $aksPrimaryClusterName, $aksRootDomain
-    }
-
-    $aksSecondaryClusterName = $aksClusterNameTemplate -f $azureSecondaryRegion
-    $aksSecondaryCluster = @{
-        ResourceName        =   $aksSecondaryClusterName
-        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azureSecondaryRegion
-        TrafficManagerHost  =   '{0}.{1}' -f $aksSecondaryClusterName, $aksRootDomain
-    }
+    $rootDomain = Get-RootDomain $EnvironmentName $CompanyDomain
 
     $subProductsConventions = @{}
     $SubProducts.Keys | ForEach-Object -Process {
@@ -217,8 +177,8 @@ function Get-ResourceConvention {
                 }
             }
             { $_ -in 'SqlServer', 'SqlDatabase' } {
-                $sqlDbName = ('{0}{1}{2}01' -f $CompanyName, $EnvironmentName, $productNameLower).Replace('-', '')
-                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $azurePrimaryRegion
+                $sqlDbName = ('{0}{1}{2}01' -f $CompanyAbbreviation, $EnvironmentName, $ProductAbbreviation).Replace('-', '')
+                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $azurePrimaryRegion.Name
                 $adSqlGroupNamePrefix = "sg.arm.sql.$sqlDbName"
                 $sqlAdAdminGroupName = "$adSqlGroupNamePrefix.admin"
 
@@ -226,12 +186,12 @@ function Get-ResourceConvention {
                     'SqlServer' {
                         $sqlPrimaryServer = @{
                             ResourceName        =   $sqlPrimaryName
-                            ResourceLocation    =   $azurePrimaryRegion
+                            ResourceLocation    =   $azurePrimaryRegion.Name
                             DataSource          =   $hasFailover ? "tcp:$sqlDbName-fg.database.windows.net,1433" : "tcp:$sqlPrimaryName.database.windows.net,1433"
                         }
                         $sqlFailoverServer = @{
-                            ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion
-                            ResourceLocation    =   $azureSecondaryRegion
+                            ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion.Name
+                            ResourceLocation    =   $azureSecondaryRegion.Name
                         }
                         $sqlFirewallRule = @(
                             @{
@@ -333,16 +293,16 @@ function Get-ResourceConvention {
                         @{
                             AadSecurityGroup        =   $dbGroup
                             ResourceName            =   $sqlDbName
-                            ResourceLocation        =   $azurePrimaryRegion
+                            ResourceLocation        =   $azurePrimaryRegion.Name
                             Type                    =   $spInput.Type
                         }
                     }
                 }
             }
             'FunctionApp' {
-                $funcResourceName = 'func-{0}-{1}-{2}' -f $CompanyName, $appInstance, $componentName.ToLower()
-                $funcHostName = $spInput.HasMriDomain ? `
-                    (Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName) : `
+                $funcResourceName = 'func-{0}-{1}-{2}' -f $CompanyAbbreviation, $appInstance, $componentName.ToLower()
+                $funcHostName = $spInput.HasCustomDomain ? `
+                    (Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName) : `
                     "$funcResourceName.azurewebsites.net"
                 
                 $storageUsage = $spInput.StorageUsage
@@ -399,20 +359,83 @@ function Get-ResourceConvention {
                     Type                =   $spInput.Type
                 }
             }
-            'AksPod' {
+            'AcaEnvironment' {
+                $acaEnvNameTemplate = 'cae-{0}-{1}'
+                $acaEnvPrimary = @{
+                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation
+                }
+                $acaEnvFailover = @{
+                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation
+                }
+                @{
+                    Primary             = $acaEnvPrimary
+                    Failover            = if ($hasFailover) { $acaEnvFailover } else { $null }
+                    Type                =   $spInput.Type
+                }
+            }
+            'AcaApp' {
                 $isMainUI = $spInput.IsMainUI ?? $false
-                $managedId = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
-                $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductFullName
+                $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductName
                 $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : ' API'), $EnvironmentName
+
+                $managedId = @{
+                    Primary     = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
+                }
+                if ($spInput.AdditionalManagedId) {
+                    @($spInput.AdditionalManagedId) | ForEach-Object {
+                        $managedId[$_] = $subProductsConventions.$_.ResourceName
+                    }    
+                }
+                
+                $acaShareSettings = @{
+                    DefaultHealthPath   =   '/health'
+                    MaxReplicas         =   switch ($EnvironmentName) {
+                        'dev' {
+                            2 # optimize for spend
+                        }
+                        Default {
+                            6 # somewhat arbitrary limit here so adjust as needed
+                        }
+                    }
+                }
+
+                $acaAppNameTemplate = 'ca-{0}-{1}-{2}'
+                $acaIngressHostnameTemplate = '{0}.ACA_ENV_DEFAULT_DOMAIN'
+                
+                $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation, $componentName.ToLower()
+                $acaAppPrimary = @{
+                    ResourceName        =   $primaryAcaResourceName
+                    IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
+                    MinReplicas         =   switch ($EnvironmentName) {
+                        { $_ -like 'prod-*' } {
+                            3 # required for zone availability resillency
+                        }
+                        Default {
+                            # for environemnts NOT scaling to zero, then choice of min replicas is based on whether failover is configured:
+                            # - failover configured - 1 replica and use failover cluster to maintain resillency
+                            # - no failover configured - use 2 replicas for resillency (ideally combined with zone redundancy)
+                            $isScaleToZeroEnv ? 0 : $hasFailover ? 1 : 2
+                        }
+                    }
+                } + $acaShareSettings
+
+                $failoverAcaResourceName = $acaAppNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation, $componentName.ToLower()
+                $acaAppFailover = @{
+                    ResourceName        =   $failoverAcaResourceName
+                    IngressHostname     =   $acaIngressHostnameTemplate -f $failoverAcaResourceName
+                    MinReplicas         =   0 # make failover passive node (ie traffic not sent to it unless primary fails)
+                } + $acaShareSettings
                 
                 @{
-                    ManagedIdentity     =   $spInput.EnableManagedIdentity -eq $false ? $null : $managedId
-                    HostName            =   Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName -IsMainUI:$isMainUI
-                    OidcAppName         =   $oidcAppName
-                    ServiceAccountName  =   '{0}-{1}' -f $helmReleaseName, $componentName.ToLower()
-                    TrafficManagerPath  =   '/trafficmanager-health-{0}-{1}' -f $aksNamespace, $componentName.ToLower()
-                    DefaultHealthPath   =   $isMainUI ? '/health/status' : '/health'
-                    Type                =   $spInput.Type
+                    Primary                 =   $acaAppPrimary
+                    Failover                =   if ($hasFailover) { $acaAppFailover } else { $null }
+                    DefaultHealthPath       =   $acaShareSettings.DefaultHealthPath
+                    ManagedIdentity         =   $managedId
+                    HostName                =   Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName -IsMainUI:$isMainUI
+                    OidcAppName             =   $oidcAppName
+                    TrafficManagerPath      =   $acaShareSettings.DefaultHealthPath
+                    TrafficManagerProtocol  =   'HTTPS'
+                    Type                    =   $spInput.Type
                 }
             }
             'AppInsights' {
@@ -482,15 +505,15 @@ function Get-ResourceConvention {
                 $nameQualifier = $spInput.IsExtendedCheck ? 'extended' : 'default'
 
                 $isAvailabilityTestEnabled = $EnvironmentName -ne 'dev' # we want dev to scale to zero therefore don't check availability
-                $availabilityFriendlyName = '{0} {1} - {2} health check' -f $ProductName.ToUpper(), $spInput.Target, $nameQualifier
+                $availabilityFriendlyName = '{0} {1} - {2} health check' -f $ProductAbbreviation.ToUpper(), $spInput.Target, $nameQualifier
 
                 @{
-                    Enabled                     =   $isAvailabilityTestEnabled
+                    Enabled                     =   !$isScaleToZeroEnv
                     Frequency                   =   $availabilityTestFrequency
                     Locations                   =   $testLocations
                     MetricAlert                 =   @{
                         Description             =   'Alert rule for availability test "{0}"' -f $availabilityFriendlyName
-                        Enabled                 =   $isAvailabilityTestEnabled
+                        Enabled                 =   !$isScaleToZeroEnv
                         EvaluationFrequency     =   $availabilityMetricFrequency
                         ResourceName            =   'ima-{0}-{1}-{2}' -f $appInstance, $spInput.Target.ToLower(), $nameQualifier
                         FailedLocationCount     =   2
@@ -503,44 +526,64 @@ function Get-ResourceConvention {
                 }
             }
             'TrafficManager' {
-                $tmEnvQualifier = if ($EnvironmentName -in 'qa', 'rel', 'release') {
-                    # we use the same AKS cluser for qa and release environment; good practice is a seperate namespace for each
-                    "-$EnvironmentName"
-                } else {
-                    ''
-                }
-                $primaryAksTrafficManagerEndpoint = @{
-                    Name                =   '{0}-{1}-{2}' -f $aksPrimaryClusterName, $aksNamespace, $spInput.Target.ToLower()
-                    Target              =   $aksPrimaryCluster.TrafficManagerHost
-                    EndpointLocation    =   $azurePrimaryRegion
-                }
-                $secondaryAksTrafficManagerEndpoint = @{
-                    Name                =   '{0}-{1}-{2}' -f $aksSecondaryClusterName, $aksNamespace, $spInput.Target.ToLower()
-                    Target              =   $aksSecondaryCluster.TrafficManagerHost
-                    EndpointLocation    =   $azureSecondaryRegion
-                }
                 $targetSubProduct = $subProductsConventions[$spInput.Target]
-                if ($targetSubProduct.Type = 'AksPod') {
-                    @{
-                        ResourceName        =   $targetSubProduct.HostName.Replace(".$rootDomain", '').Replace('.', '-')
-                        TrafficManagerPath  =   $targetSubProduct.TrafficManagerPath
-                        Endpoints           =   @($primaryAksTrafficManagerEndpoint) + ($hasFailover ? @($secondaryAksTrafficManagerEndpoint) : @())
-                        Type                =   $spInput.Type
+                
+                $tmEndpoints = switch($targetSubProduct.Type) {
+                    'AcaApp' {
+                        @{
+                            Name                =   $targetSubProduct.Primary.ResourceName
+                            Target              =   $targetSubProduct.Primary.IngressHostname
+                            Priority            =   1
+                        }
+                        if ($hasFailover) {
+                            @{
+                                Name                =   $targetSubProduct.Failover.ResourceName
+                                Target              =   $targetSubProduct.Failover.IngressHostname
+                                Priority            =   2
+                            }
+                        }
                     }
-                } else {
-                    throw 'Traffic manager convention for non-AKS not yet defined'
+                    default {
+                        throw 'Traffic manager convention not yet defined'
+                    }
+                }
+
+                $tmEndpoints | Where-Object Priority -eq 1 | ForEach-Object {
+                    $_.EndpointLocation = $azurePrimaryRegion.Name
+                    # health probe monitoring only makes sense if traffic can be routed to a failover cluster in the event the primary becomes unavailable.
+                    # therefore when there is no failover, disable health probe (AlwaysServe='Enabled').
+                    $_.AlwaysServe =   $hasFailover ? 'Disabled' : 'Enabled'
+                }
+
+                $tmEndpoints | Where-Object Priority -eq 2 | ForEach-Object {
+                    $_.EndpointLocation = $azureSecondaryRegion.Name
+                    # disable health probe (AlwaysServe='Enabled') for a failover endpoint, because:
+                    # 1) to allow failover to scale to zero / idle (when this is an option)
+                    # 2) it doesn't really make sense to test for availability of the failover cluster: if the primary, which is monitored, is marked as 
+                    #    unavailable, then the failover is the only option to try and serve the traffic regardless of it's state
+                    $_.AlwaysServe = 'Enabled'
+                }
+
+                $tmProtocol = $targetSubProduct.TrafficManagerProtocol ?? 'HTTP'
+                @{
+                    ResourceName        =   $targetSubProduct.HostName.Replace(".$rootDomain", '').Replace('.', '-')
+                    Path                =   $targetSubProduct.TrafficManagerPath
+                    Port                =   $tmProtocol -eq 'HTTP' ? 80 : 443
+                    Protocol            =   $tmProtocol
+                    Endpoints           =   @() + $tmEndpoints
+                    Type                =   $spInput.Type
                 }
             }
             'Pbi' {
-                $pbiTeamGroupNames = Get-TeamGroupNames -ProductName "$ProductName-Pbi" -EnvironmentName $EnvironmentName
+                $pbiTeamGroupNames = Get-TeamGroupNames -ProductName "$ProductAbbreviation-Pbi" -EnvironmentName $EnvironmentName
                 $pbiTeamAadConventionParams = @{
-                    ProductName         =   $ProductName
+                    ProductName         =   $ProductAbbreviation
                     EnvironmentName     =   $EnvironmentName
                     TeamGroupNames      =   $pbiTeamGroupNames
                     TeamGroupMemberOnly =   $true
                 }
                 $pbiTeamGroupMembership = Get-PbiAadSecurityGroupConvention @pbiTeamAadConventionParams | ForEach-Object { [PsCustomObject]$_ }
-                $pbiGroups = Get-PbiAadSecurityGroupConvention $ProductName $EnvironmentName $teamGroupNames | ForEach-Object {
+                $pbiGroups = Get-PbiAadSecurityGroupConvention $ProductAbbreviation $EnvironmentName $teamGroupNames | ForEach-Object {
                     $pbiGrp = $_
                     $pbiGrp.Member = @(
                         $pbiTeamGroupMembership | Where-Object Name -like $pbiGrp.Name | Select-Object -Exp Member
@@ -587,23 +630,40 @@ function Get-ResourceConvention {
             $_.RbacAssignment = @()
         }
     }
+    
+    $containerRegistryProd = @{
+        ResourceName        =   "${CompanyDomain}devopsprod"
+        ResourceGroupName   =   'container-registry'
+        SubscriptionId      =   '4c98c256-bc60-40ba-8bcb-81ae94ac52d4'
+    }
+    $containerRegistryDev = @{
+        ResourceName        =   "${CompanyDomain}devops"
+        ResourceGroupName   =   'Container_Registry'
+        SubscriptionId      =   'c398eb55-b057-45f9-8fe3-cfb0034418f5'
+    }
+    $containerRegistries = @{
+        Available   = $isEnvProdLike ? @($containerRegistryProd) : @($containerRegistryProd, $containerRegistryDev)
+        Prod        = $containerRegistryProd
+        Dev         = $containerRegistryDev
+    }
 
     $results = @{
         TeamGroups              =   $teamGroupNames
-        Aks                     =   @{
-            Primary             =   $aksPrimaryCluster
-            Failover            =   if($hasFailover) { $aksSecondaryCluster } else { $null }
-            Namespace           =   $aksNamespace
-            HelmReleaseName     =   $helmReleaseName
-            RegistryName        =   'mrisoftwaredevops'
-            ProdRegistryName    =   'mrisoftwaredevopsprod'
-        }
         AppResourceGroup        =   $appReourceGroup
+        Company                 =   @{
+            Abbreviation    =   $CompanyAbbreviation
+            Domain          =   $CompanyDomain
+            Name            =   $CompanyName
+        }
+        ContainerRegistries     =   $containerRegistries
         DataResourceGroup       =   $dataResourceGroup
-        CompanyName             =   $CompanyName
-        ProductName             =   $productNameLower
         EnvironmentName         =   $EnvironmentName
         IsEnvironmentProdLike   =   $isEnvProdLike
+        Product                 =   @{
+            Abbreviation    =   $ProductAbbreviation
+            Name            =   $ProductName
+            SubDomainName   =   $ProductSubDomainName
+        }
         SubProducts             =   $subProductsConventions
         IsTestEnv               =   $isTestEnv
     }
