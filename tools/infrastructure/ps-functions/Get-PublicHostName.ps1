@@ -5,6 +5,9 @@ function Get-PublicHostName {
         [string] $EnvironmentName,
 
         [Parameter(Mandatory)]
+        [string] $CompanyDomain,
+
+        [Parameter(Mandatory)]
         [string] $ProductName,
 
         [Parameter(Mandatory)]
@@ -18,7 +21,7 @@ function Get-PublicHostName {
     }
     process {
         $isProdLike = Get-IsEnvironmentProdLike $EnvironmentName
-        $rootDomain = Get-RootDomain $EnvironmentName
+        $rootDomain = Get-RootDomain $EnvironmentName $CompanyDomain
         $productUrlSegment = ($isProdLike ? '.' : '-') + $ProductName
         $urlPrefix = $EnvironmentName.Replace('prod-', '')
         $subProductUrlSegment = $IsMainUI ? '' : "-$($SubProductName.ToLower())"
