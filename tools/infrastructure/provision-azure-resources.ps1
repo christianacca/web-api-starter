@@ -275,6 +275,9 @@
 
             #-----------------------------------------------------------------------------------------------
             Write-Information "5. Set Azure RBAC - for teams to scope '$($rg.ResourceId)'..."
+            $wait = 15
+            Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning RBAC"
+            Start-Sleep -Seconds $wait
             $currentUserMember = Get-CurrentUserAsMember
             $kvSecretOfficer = $convention.SubProducts.KeyVault.RbacAssignment | Where-Object Role -eq 'Key Vault Secrets Officer'
             $kvSecretOfficer.Member = @($currentUserMember; $kvSecretOfficer.Member)
