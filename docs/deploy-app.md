@@ -283,6 +283,5 @@ When running `provision-azure-resources.ps1`, you might receive an error with th
 Login failed for user '<token-identified principal>'
 ```
 
-To resolve the problem try re-running the provisioning script again (it's safe to do so). This still may not work if the script
-is provisioning a secondary Azure SQL server as part of a failover group. In this case, try waiting for somewhere between 15-60 minutes and re-run the script.
-It appears that the creation of the replicated database takes sometime and is cause of the problem.
+To resolve the problem try re-running the provisioning script again (it's safe to do so). If this still does not work try 
+waiting for somewhere between 15-60 minutes and re-run the script.

@@ -12,23 +12,24 @@ param settings object
 @description('The Object ID of the SQL AAD Admin security group.')
 param sqlAdAdminGroupObjectId string
 
+
 var kvSettings = settings.SubProducts.KeyVault
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
-  name: kvSettings.ResourceName
-  location: location
-  properties: {
+module keyVault 'br/public:avm/res/key-vault/vault:0.6.2' = {
+  name: '${uniqueString(deployment().name, location)}-KeyVault'
+  params: {
+    name: kvSettings.ResourceName
     enableRbacAuthorization: true
-    enablePurgeProtection: kvSettings.EnablePurgeProtection == false ? null : true
+    enablePurgeProtection: kvSettings.EnablePurgeProtection
     softDeleteRetentionInDays: 90
-    tenantId: subscription().tenantId
-    sku: {
-      name: 'standard'
-      family: 'A'
-    }
+    sku: 'standard'
     networkAcls: {
       defaultAction: 'Allow'
       bypass: 'AzureServices'
     }
+    roleAssignments: [
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+      { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+    ]
   }
 }
 
@@ -53,13 +54,87 @@ module azureMonitor 'azure-monitor.bicep' = {
 }
 
 var reportStorage = settings.SubProducts.PbiReportStorage
-module pbiReportStorage 'storage-account.bicep' = {
+module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.11.0' = {
   name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
   params: {
-    defaultStorageTier: reportStorage.DefaultStorageTier
-    location: location
-    storageAccountName: reportStorage.StorageAccountName
-    storageAccountType: reportStorage.StorageAccountType
+    name: reportStorage.StorageAccountName
+    skuName: reportStorage.StorageAccountType
+    accessTier: reportStorage.DefaultStorageTier
+    allowSharedKeyAccess: false
+    defaultToOAuthAuthentication: true
+    blobServices: {
+      changeFeedEnabled: true
+      changeFeedRetentionInDays: 95
+      restorePolicyEnabled: true
+      restorePolicyDays: 90
+      containerDeleteRetentionPolicyDays: 90
+      deleteRetentionPolicyDays: 95
+      isVersioningEnabled: true
+    }
+    managementPolicyRules: [
+      {
+        definition: {
+          actions: {
+            version: {
+              delete: {
+                daysAfterCreationGreaterThan: 90
+              }
+            }
+          }
+          filters: {
+            blobTypes: [
+              'blockBlob'
+            ]
+          }
+        }
+        enabled: true
+        name: 'retention-lifecyle'
+        type: 'Lifecycle'
+      }
+    ]
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    // note: if you have an old storage account you might need to uncomment this if it's already false:
+//     requireInfrastructureEncryption: false
+    roleAssignments: [
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Blob Data Contributor', principalType: 'ServicePrincipal' }
+    ]
+  }
+}
+
+resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity
+  location: location
+}
+
+resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.InternalApi.ManagedIdentity
+  location: location
+}
+
+module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.11.0' = {
+  name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
+  params: {
+    name: settings.SubProducts.InternalApi.StorageAccountName
+    kind: 'Storage'
+    skuName: 'Standard_LRS'
+    blobServices: {}
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+    }
+    queueServices: {
+      queues: [
+        { name: 'default-queue' }
+        { name: 'default-queue-poison' }
+      ]
+    }
+    roleAssignments: [
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Processor', principalType: 'ServicePrincipal' }
+      { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
+    ]
   }
 }
 
@@ -70,42 +145,13 @@ module internalApi 'internal-api.bicep' = {
     appClientId: internalApiClientId
     appInsightsCloudRoleName: 'Web API Starter Functions'
     appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
-    deployDefaultStorageQueue: true
     functionAppName: internalApiSettings.ResourceName
     managedIdentityName: internalApiSettings.ManagedIdentity
     location: location
-    keyVaultResourceId: keyVault.id
-    pbiReportStorageAccountResourceId: pbiReportStorage.outputs.storageAccountId
     resourceExists: internalApiExists
-    storageAccountName: internalApiSettings.StorageAccountName
+    storageAccountName: internalApiStorageAccount.outputs.name
   }
 }
-
-resource apiManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Api.ManagedIdentity
-  location: location
-}
-
-resource internalApiStorage 'Microsoft.Storage/storageAccounts@2021-02-01' existing = {
-  name: internalApiSettings.StorageAccountName
-}
-var apiRoleAssignments = [
-  { resourceId: keyVault.id, roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6', roleName: 'Key Vault Secrets User' }
-  { resourceId: internalApiStorage.id, roleDefinitionId: 'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a', roleName: 'Storage Queue Data Message Sender' }
-]
-module apiPermissions 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = [for (roleAssignment, index) in apiRoleAssignments: {
-  name: '${uniqueString(deployment().name, location)}-ApiPermission-${index}'
-  params: {
-    principalId: apiManagedIdentity.properties.principalId
-    resourceId: roleAssignment.resourceId
-    roleDefinitionId: roleAssignment.roleDefinitionId
-    roleName: roleAssignment.roleName
-    principalType: 'ServicePrincipal'
-  }
-  dependsOn: [
-    internalApi // need to wait for internalApi module to complete to ensure storage account is already be created
-  ]
-}]
 
 var tmpSettings = [
   settings.SubProducts.ApiTrafficManager
@@ -151,7 +197,7 @@ module azureSqlDb 'azure-sql-server.bicep' = {
 }
 
 @description('The Client ID of the Azure AD application associated with the api managed identity.')
-output apiManagedIdentityClientId string = apiManagedIdentity.properties.clientId
+output apiManagedIdentityClientId string = apiManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
 output internalApiManagedIdentityClientId string = internalApi.outputs.internalApiManagedIdentityClientId
 @description('The Client ID of the Azure AD application associated with the sql managed identity.')
