@@ -17,7 +17,7 @@
         try {
             
             $conventionsParams = @{
-                ProductName             =   'web-api-starter'
+                ProductName             =   'was'
                 ProductFullName         =   'Web API Starter'
                 ProductSubDomainName    =   'mriwebapistarter'
                 EnvironmentName         =   $EnvironmentName
