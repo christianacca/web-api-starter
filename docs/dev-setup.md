@@ -45,8 +45,11 @@ Once up and running, feel free to then switch to running the projects via an IDE
 
 ## API
 
-1. Login to Azure using az-cli using your mri username/password. EG:
-    * `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
+1. Login to Azure using az-cli using your mri username/password:
+   ```pwsh
+   # 'zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
+   az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
+   ```
 2. Restore nuget packages from azure artifacts:
    * `dotnet restore --interactive`
    * follow onscreen prompts to sign-in using the device flow
@@ -68,7 +71,10 @@ Once up and running, feel free to then switch to running the projects via an IDE
 ## Functions App
 
 1. If not already, login to Azure using az-cli using your mri username/password. EG:
-   * `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
+   ```pwsh
+   # 'zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
+   az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
+   ```
 2. Enable API -> function app messaging by modifying appsettings in the _Api project_:
     * run:  `dotnet user-secrets set Api:DevFeatureFlags:EnableQueues true --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 3. Ensure connection string in the _Functions project_ is pointing to the SQL Server instance
@@ -128,7 +134,11 @@ Typically you will want to be running local emulators for any Azure service (see
 to connect your dev machine to Azure cloud services instead.
 
 1. Follow the section "Grant access to Azure environment" above
-2. Establish an authenticated session by login to Azure with Azure CLI. EG: `az login --tenant e04e9f50-006e-4eaa-ab0b-e804b0c7b7d1 --allow-no-subscriptions`
+2. Establish an authenticated session by login to Azure with Azure CLI:
+   ```pwsh
+   # 'zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
+   az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
+   ```
 3. Modify appsettings.Development.json as detailed below using dotnet user-secrets
 
 ### appsettings
@@ -137,11 +147,11 @@ The following values will work for the [dev](https://github.com/MRI-Software/dat
 [deployed to Azure](https://portal.azure.com/#@MRISOFTWARE.onmicrosoft.com/resource/subscriptions/c398eb55-b057-45f9-8fe3-cfb0034418f5/resourceGroups/rg-dev-aig-eastus/overview)
 
 * API + Function app -> Azure SQL:
-    * `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Server=mridevwebapistarter01eastus.database.windows.net; Database=mridevwebapistarter01; Authentication=Active Directory Default;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=mridevwebapistarter01eastus.database.windows.net; Database=mridevwebapistarter01; Authentication=Active Directory Default;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+    * `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Server=clcdevwas01eastus.database.windows.net; Database=clcdevwas01; Authentication=Active Directory Default;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=clcdevwas01eastus.database.windows.net; Database=clcdevwas01; Authentication=Active Directory Default;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
 * API -> Azure function app:
-    * `dotnet user-secrets set Api:FunctionsAppToken:Audience 'api://func-mri-web-api-starter-dev-internalapi/.default' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address 'https://func-mri-web-api-starter-dev-internalapi.azurewebsites.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set Api:FunctionsAppQueue:ServiceUri 'https://funcsadb57f465c2333.queue.core.windows.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set Api:FunctionsAppToken:Audience 'api://func-clc-was-dev-internalapi/.default' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address 'https://func-clc-was-dev-internalapi.azurewebsites.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set Api:FunctionsAppQueue:ServiceUri 'https://funcsa68efed087a1b0.queue.core.windows.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 * Function App -> Blob storage:
-    * `dotnet user-secrets set InternalApi:ReportBlobStorage:ServiceUri 'https://pbireportdb57f465c2333.blob.core.windows.net/' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+    * `dotnet user-secrets set InternalApi:ReportBlobStorage:ServiceUri 'https://pbireport68efed087a1b0.blob.core.windows.net/' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`

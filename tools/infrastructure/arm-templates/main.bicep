@@ -4,6 +4,12 @@ param internalApiClientId string
 @description('Whether the Internal Api function app already exists.')
 param internalApiExists bool = true
 
+@description('Whether the failover intance of the API container app already exists.')
+param apiFailoverExists bool = true
+
+@description('Whether the primary intance of the API container app already exists.')
+param apiPrimaryExists bool = true
+
 param location string = resourceGroup().location
 
 @description('The settings for all resources provisioned by this template.')
@@ -40,7 +46,7 @@ module azureMonitor 'azure-monitor.bicep' = {
     alertEmailCritical: settings.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
     alertEmailNonCritical: settings.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
     appInsightsName: aiSettings.ResourceName
-    appName: settings.ProductName
+    appName: settings.Product.Abbreviation
     defaultAvailabilityTests: [
       settings.SubProducts.ApiAvailabilityTest
       settings.SubProducts.WebAvailabilityTest
@@ -105,8 +111,87 @@ module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.11.0' = {
 }
 
 resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Api.ManagedIdentity
+  name: settings.SubProducts.Api.ManagedIdentity.Primary
   location: location
+}
+
+resource apiAcrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity.AcrPull
+  location: location
+}
+
+// dev and prod container registries can be the same instance, therefore we use union to de-dup references to same registry
+var containerRegistries = union(settings.ContainerRegistries.Available, [])
+module acrPullPermissions 'acr-pull-role-assignment.bicep' = [for (registry, index) in containerRegistries: {
+  name: '${uniqueString(deployment().name, location)}-${index}-AcrPullPermission'
+  scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), (registry.ResourceGroupName ?? resourceGroup().name))
+  params: {
+    principalId: apiAcrPullManagedId.properties.principalId
+    registryName: registry.ResourceName
+  }
+}]
+
+module acaEnvPrimary 'br/public:avm/res/app/managed-environment:0.5.2' = {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvPrimary'
+  params: {
+    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    name: settings.SubProducts.Aca.Primary.ResourceName
+    workloadProfiles: [
+      {
+        name: 'Consumption'
+        workloadProfileType: 'Consumption'
+      }
+    ]
+    zoneRedundant: false
+  }
+}
+
+var acaContainerRegistries = map(containerRegistries, registry => ({
+  server: '${registry.ResourceName}.azurecr.io'
+  identity: apiAcrPullManagedId.id
+}))
+
+module apiPrimary 'api.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AcaApiPrimary'
+  params: {
+    acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
+    apiSettings: settings.SubProducts.Api.Primary
+    appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+    exists: apiPrimaryExists
+    primaryManagedIdentityClientId: apiManagedId.properties.clientId
+    registries: acaContainerRegistries
+    subProductsSettings: settings.SubProducts
+    userAssignedResourceIds: [
+      apiManagedId.id
+      apiAcrPullManagedId.id
+    ]
+  }
+}
+
+module acaEnvFailover 'br/public:avm/res/app/managed-environment:0.5.2' = if (!empty(settings.SubProducts.Aca.Failover ?? {})) {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
+  params: {
+    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    name: settings.SubProducts.Aca.Failover.ResourceName
+    zoneRedundant: false
+  }
+}
+
+module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
+  name: '${uniqueString(deployment().name, location)}-AcaApiFailover'
+  params: {
+    acaEnvironmentResourceId: !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.resourceId : ''
+    apiSettings: settings.SubProducts.Api.Failover
+    appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+    exists: apiFailoverExists
+    primaryManagedIdentityClientId: apiManagedId.properties.clientId
+    registries: acaContainerRegistries
+    subProductsSettings: settings.SubProducts
+    userAssignedResourceIds: [
+      apiManagedId.id
+      apiAcrPullManagedId.id
+    ]
+  }
 }
 
 resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -153,25 +238,29 @@ module internalApi 'internal-api.bicep' = {
   }
 }
 
-var tmpSettings = [
-  settings.SubProducts.ApiTrafficManager
-  settings.SubProducts.WebTrafficManager
-]
-module trafficManagerProfiles 'br/public:network/traffic-manager:2.3.3' = [for (tmProfile, i) in tmpSettings: {
-  name: '${uniqueString(deployment().name, location)}-${i}-TrafficManager'
+var apiPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
+var apiFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
+var apiTmEndpoints = map(settings.SubProducts.ApiTrafficManager.Endpoints, endpoint => ({ 
+  ...endpoint
+  Target: replace(endpoint.Target, 'ACA_ENV_DEFAULT_DOMAIN', endpoint.Name == settings.SubProducts.Api.Primary.ResourceName ? apiPrimaryDomain : apiFailoverDomain )
+}))
+
+module apiTrafficManager 'traffic-manager-profile.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-ApiTrafficManager'
   params: {
-    name: tmProfile.ResourceName
-    trafficManagerDnsName: tmProfile.ResourceName
-    ttl: 60
-    monitorConfig: {
-      protocol: 'HTTP'
-      port: 80
-      path: tmProfile.TrafficManagerPath
-      expectedStatusCodeRanges: null // defaults to 200
+    tmSettings: {
+      ...settings.SubProducts.ApiTrafficManager
+      Endpoints: apiTmEndpoints
     }
-    endpoints: tmProfile.Endpoints
   }
-}]
+}
+
+module webTrafficManager 'traffic-manager-profile.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-WebTrafficManager'
+  params: {
+    tmSettings: settings.SubProducts.WebTrafficManager
+  }
+}
 
 
 var sqlServer = settings.SubProducts.Sql

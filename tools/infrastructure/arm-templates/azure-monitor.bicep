@@ -671,3 +671,9 @@ resource warning_traces_metricAlert 'microsoft.insights/metricAlerts@2018-03-01'
 
 @description('The Application Insights resource id.')
 output appInsightsResourceId string = appInsights.id
+
+@description('The Application Insights connection string.')
+output appInsightsConnectionString string = appInsights.properties.ConnectionString
+
+@description('The Log analytics workspace resource id.')
+output logAnalyticsWorkspaceResourceId string = workspace.id

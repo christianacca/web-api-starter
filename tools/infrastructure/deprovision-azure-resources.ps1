@@ -17,9 +17,6 @@
       Delete the Azure AD groups that were created as security groups?
       Note: a missing group will be reported as an error but NOT cause the script to stop.
 
-      .PARAMETER UninstallAksApp
-      Uninstall the AKS release for the application? This flag only makes sense if your application is deployed to AKS via helm
-
       .PARAMETER Login
       Perform an interactive login to azure
 
@@ -28,11 +25,11 @@
       already set as the current context will used (see az account show)
 
       .EXAMPLE
-      ./deprovision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -DeleteAADGroups -UninstallAksApp
+      ./deprovision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -DeleteAADGroups
    
       Description
       -----------
-      Uninstall and also DELETE every resource and AAD security group and uninstall the AKS release for the application stack
+      Uninstall and also DELETE every resource and AAD security group
     
     #>
 
@@ -44,7 +41,6 @@
         [string] $EnvironmentName,
         
         [switch] $DeleteAADGroups,
-        [switch] $UninstallAksApp,
         [switch] $Login,
         [string] $SubscriptionId
     )
@@ -71,7 +67,6 @@
             
             $uninstallParams = @{
                 DeleteAADGroups                         =   $DeleteAADGroups
-                UninstallAksApp                         =   $UninstallAksApp
             }
             $convention | Uninstall-AzureResourceByConvention @uninstallParams
             
