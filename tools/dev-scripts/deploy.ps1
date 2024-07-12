@@ -39,7 +39,6 @@ process {
         $convention = & "./tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
         $infra = & "./tools/infrastructure/get-infrastructure-info.ps1" $convention -AsHashtable
         
-        $aks = $convention.Aks.Primary
         $api = $convention.SubProducts.Api
         $funcApp = $convention.SubProducts.InternalApi
         $keyVault = $convention.SubProducts.KeyVault
@@ -48,7 +47,6 @@ process {
         
         $sqlServerName = $convention.SubProducts.Sql.Primary.ResourceName
         $sqlServerInstace = "$sqlServerName.database.windows.net"
-        $sqlServerDataSource = "tcp:$sqlServerInstace,1433"
         $databaseName = $convention.SubProducts.Db.ResourceName
         
         $apiSecretValues = Get-DotnetUserSecrets -UserSecretsId d4101dd7-fec4-4011-a0e8-65748f7ee73c
@@ -57,44 +55,20 @@ process {
         # ----------- Deploy Database migrations -----------
         ./tools/dev-scripts/deploy-db.ps1 -SqlServerName $sqlServerName -DatabaseName $databaseName -EA Stop
 
-        # ----------- Deploy API to AKS -----------
-        $apiHostName = $infra.Api.HostName ?? $api.HostName
-        
+        # ----------- Deploy API to Azure container apps -----------
         $apiParams = @{
-            ConfigureAppSettingsJson = { param([Hashtable] $Settings)
-                $Settings.Api.Database.DataSource = $sqlServerDataSource
-                $Settings.Api.Database.InitialCatalog = $databaseName
-                $Settings.Api.Database.UserID = $infra.Api.ManagedIdentityClientId
-                $Settings.Api.DefaultAzureCredentials.ManagedIdentityClientId = $infra.Api.ManagedIdentityClientId
-                $Settings.Api.FunctionsAppToken.Audience = $funcApp.AuthTokenAudience
-                $Settings.Api.FunctionsAppQueue.ServiceUri = "https://$($funcApp.StorageAccountName).queue.core.windows.net"
-                $Settings.Api.KeyVaultName = $keyVault.ResourceName
-                $Settings.Api.ReverseProxy.Clusters.FunctionsApp.Destinations.Primary.Address = "https://$($funcApp.HostName)"
-                $Settings.Api.TokenProvider.Authority = $apiDevAppSettings.Api.TokenProvider.Authority
-                $Settings.ApplicationInsights.AutoCollectActionArgs = $true
-                $Settings.ApplicationInsights.ConnectionString = $infra.AppInsights.ConnectionString
-                if ($apiSecretValues['CentralIdentity_Credentials_Password']) {
-                    $Settings.CentralIdentity.Credentials.Password = $apiSecretValues.CentralIdentity_Credentials_Password
-                }
-                $Settings.CentralIdentity.BaseUri = $apiDevAppSettings.CentralIdentity.BaseUri
+            Name            =   $api.Primary.ResourceName
+            ResourceGroup   =   $appResourceGroup
+            Image           =   ('{0}.azurecr.io/{1}/{2}:{3}' -f $convention.ContainerRegistries.Dev.ResourceName, 'web-api-starter', 'api', $BuildNumber)
+            EnvVarsObject   =   @{
+                'Api__TokenProvider__Authority' = $apiDevAppSettings.Api.TokenProvider.Authority
+                'ApplicationInsights__AutoCollectActionArgs' = $true
+                'CentralIdentity__Credentials__Password' = $apiSecretValues['CentralIdentity_Credentials_Password'] ? $apiSecretValues.CentralIdentity_Credentials_Password : '??'
+                'CentralIdentity__BaseUri' = $apiDevAppSettings.CentralIdentity.BaseUri
+                'EnvironmentInfo__EnvId' = 'local'
             }
-            Values                  =   @{
-                'api.image.registry' = "$($convention.Aks.RegistryName).azurecr.io"
-                'api.image.tag' = $BuildNumber
-                'api.podLabels.releasedate' = Get-Date -Format 'yyyy-MM-ddTHH.mm.ss'
-                'api.serviceAccount.name' = $api.ServiceAccountName
-                'api.ingress.hostname' = $apiHostName
-#                'api.healthIngress.enabled' = 'false'
-            }
-            HelmReleaseName         =   $convention.Aks.HelmReleaseName
-            AksNamespace            =   $convention.Aks.Namespace
         }
-        
-        if ($infra.Api.HostName) {
-#            $apiParams.Values['api.ingress.extraTls'] = 'null'
-            $apiParams.Values['api.ingress.annotations.kubernetes\.io/ingress\.class'] = 'addon-http-application-routing'
-        }
-        ./tools/dev-scripts/deploy-api.ps1 @apiParams -InfA Continue -EA Stop
+        $apiAca = ./tools/dev-scripts/create-aca-revision.ps1 @apiParams -InfA Continue -EA Stop
 
         
         # ----------- Deploy Function app -----------
@@ -104,7 +78,7 @@ process {
                 APPINSIGHTS_INSTRUMENTATIONKEY = $infra.AppInsights.ConnectionString
             }
             ConfigureAppSettingsJson        =   { param([Hashtable] $Settings)
-                $Settings.InternalApi.Database.DataSource = $sqlServerDataSource
+                $Settings.InternalApi.Database.DataSource = $convention.SubProducts.Sql.Primary.DataSource
                 $Settings.InternalApi.Database.InitialCatalog = $databaseName
                 $Settings.InternalApi.Database.UserID = $infra.InternalApi.ManagedIdentityClientId
                 $Settings.InternalApi.DefaultAzureCredentials.ManagedIdentityClientId = $infra.InternalApi.ManagedIdentityClientId
@@ -119,8 +93,8 @@ process {
         
 
         Write-Host '******************* Summary: start ******************************'
-        Write-Host "Api Url: http://$apiHostName" -ForegroundColor Yellow
-        Write-Host "Api Health Url: http://$apiHostName/health" -ForegroundColor Yellow
+        Write-Host "Api Url: https://$($apiAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
+        Write-Host "Api Health Url: https://$($apiAca.configuration.ingress.fqdn)/health" -ForegroundColor Yellow
         Write-Host "Function App Url: https://$($funcApp.HostName)" -ForegroundColor Yellow
         Write-Host "Azure SQL Public Url: https://$($sqlServerInstace):1433" -ForegroundColor Yellow
         Write-Host '******************* Summary: end ********************************'

@@ -1,8 +1,8 @@
-function Invoke-Exe {
+function Invoke-ExeExpression {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ScriptBlock] $ScriptBlock
+        [string] $Command
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -11,12 +11,12 @@ function Invoke-Exe {
     }
     process {
         try {
-            Write-Verbose "Executing: $ScriptBlock"
-            Invoke-Command $ScriptBlock
+            Write-Verbose "Executing: $Command"
+            Invoke-Expression $Command
             if ($LASTEXITCODE -ne 0) {
                 $exitCode = $LASTEXITCODE
                 $global:LASTEXITCODE = $null # reset so that runtimes like github actions doesn't fail the entire script
-                throw "Command failed with exit code $exitCode; Cmd: $ScriptBlock"
+                throw "Command failed with exit code $exitCode; Cmd: $Command"
             }
         }
         catch {
