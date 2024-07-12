@@ -27,7 +27,8 @@ function Uninstall-AzureResourceByConvention {
     
       .EXAMPLE
       $conventionsParams = @{
-          ProductName             =   'myapp'
+          CompanyName             =   'MRI Software'
+          ProductName             =   'Web API Starter'
           EnvironmentName         =   $EnvironmentName
           SubProducts             =   @{
               Sql         =   @{ Type = 'SqlServer' }

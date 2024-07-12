@@ -68,20 +68,14 @@ jobs:
           map: |
             {
               "dev": {
-                "api_autoscaling_minReplicas": "1",
-                "api_autoscaling_maxReplicas": "2",
-                "api_ingress_annotations_kubernetes.io/ingress.class": "addon-http-application-routing",
-                "api_ingress_hostname": "${{ env.Infra_Api_HostName }}",
                 "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
                 "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
               },
               "qa": {
-                "api_ingress_extraTls_0_secretName": "redmz.mrisoftware.com-wildcard-tls",
                 "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
                 "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
               },
               "demo": {
-                "api_ingress_extraTls_0_secretName": "redmz.mrisoftware.com-wildcard-tls",
                 "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
                 "CentralIdentity_BaseUri": "https://welcomeci-demo.saas.mrisoftware.com"
               },
@@ -102,30 +96,10 @@ jobs:
                 "CentralIdentity_BaseUri": "https://apacwelcome-ci.saas.mrisoftware.com"
               },
               ".*": {
-                "api_autoscaling_minReplicas": "2",
-                "api_autoscaling_maxReplicas": "6",
-                "api_healthIngress_hostname": "${{ env.Convention_Aks_Primary_TrafficManagerHost }}",
-                "api_healthIngress_path": "${{ env.Convention_SubProducts_Api_TrafficManagerPath }}",
-                "api_ingress_hostname": "${{ env.Convention_SubProducts_Api_HostName }}",
-                "api_ingress_extraTls_0_hosts_0": "${{ env.Convention_SubProducts_Api_HostName }}",
-                "api_ingress_extraTls_0_secretName": "mrisoftware.com-wildcard-tls",
-                "Api_Database_InitialCatalog": "${{ env.Convention_SubProducts_Db_ResourceName }}",
-                "Api_Database_DataSource": "tcp:${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}.database.windows.net,1433",
-                "Api_Database_UserID": "${{ env.Infra_Api_ManagedIdentityClientId }}",
-                "Api_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_Api_ManagedIdentityClientId }}",
-                "Api_FunctionsAppQueue_ServiceUri": "https://${{ env.Convention_SubProducts_InternalApi_StorageAccountName }}.queue.core.windows.net",
-                "Api_FunctionsAppToken_Audience": "${{ env.Convention_SubProducts_InternalApi_AuthTokenAudience }}",
-                "Api_KeyVaultName": "${{ env.Convention_SubProducts_KeyVault_ResourceName }}",
-                "Api_ReportBlobStorage_ServiceUri": "https://${{ env.Convention_SubProducts_PbiReportStorage_StorageAccountName }}.blob.core.windows.net",
-                "Api_ReverseProxy_Clusters_FunctionsApp_Destinations_Primary_Address": "https://${{ env.Convention_SubProducts_InternalApi_HostName }}",
                 "ApplicationInsights_AutoCollectActionArgs": "${{ env.Convention_IsTestEnv }}",
-                "ApplicationInsights_ConnectionString": "${{ env.Infra_AppInsights_ConnectionString }}",
-                "Docker_DockerRegistry": "${{ inputs.docker-registry }}",
-                "Docker_ImageTag": "${{ inputs.docker-image-tag }}",
                 "EnvironmentInfo_EnvId": "${{ inputs.environment-name }}",
                 "EnvironmentInfo_InfraVersion": "${{ env.Infra_Version }}",
-                "Helm_ReleaseName": "${{ env.Convention_Aks_HelmReleaseName }}",
-                "InternalApi_Database_DataSource": "tcp:${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}.database.windows.net,1433",
+                "InternalApi_Database_DataSource": "${{ env.Convention_SubProducts_Sql_Primary_DataSource }}",
                 "InternalApi_Database_InitialCatalog": "${{ env.Convention_SubProducts_Db_ResourceName }}",
                 "InternalApi_Database_UserID": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",
                 "InternalApi_DefaultAzureCredentials_ManagedIdentityClientId": "${{ env.Infra_InternalApi_ManagedIdentityClientId }}",

@@ -328,10 +328,18 @@
                 $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
             Write-Information "  Gathering existing resource information..."
+            $apiFailoverExists = if ($convention.SubProducts.Api.Failover) {
+                $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Failover.ResourceName -EA SilentlyContinue)    
+            } else {
+                $false
+            }
+            $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
             $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $funcApp.ResourceName -EA SilentlyContinue)
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
+                    apiFailoverExists           =   $apiFailoverExists
+                    apiPrimaryExists            =   $apiPrimaryExists
                     internalApiClientId         =   $funcAdRegistration.AppId
                     internalApiExists           =   $internalApiExists
                     settings                    =   $convention
@@ -357,7 +365,7 @@
             # 9.1. Set AD app role for function app to api managed identity
             $api = $convention.SubProducts.Api
             $appRoleGrants = [PSCustomObject]@{
-                ManagedIdentityDisplayName          =   $api.ManagedIdentity
+                ManagedIdentityDisplayName          =   $api.ManagedIdentity.Primary
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
             }
             $appRoleGrants | Grant-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId

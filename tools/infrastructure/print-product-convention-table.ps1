@@ -227,7 +227,7 @@
                     } -pv convention  |
                     ForEach-Object $SectionSelector |
                     ForEach-Object $projection |
-                    Select-Object @{ n='Env'; e={ $convention.EnvironmentName} }, @{ n='Path'; e={ $path }}, *
+                    Select-Object @{ n='Env'; e={ $convention.EnvironmentName} }, @{ n='SettingPath'; e={ $path }}, *
                 
                 if ($AsArray) {
                     $result

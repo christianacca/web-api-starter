@@ -72,6 +72,9 @@ void ConfigureLogging(IHostBuilder host) {
   // Therefore be VERY careful in changing this logging configuration, otherwise cost of logging in Azure will likely
   // be high at no benefit
   host.UseSerilog((context, services, loggerConfiguration) => {
+    // note: to disable appinsights logging (for example to send logs to stdout only) either:
+    // - change the value ApplicationInsights:Enable directly in appsettings.json OR
+    // - set an environment variable in the host (eg container app): ApplicationInsights__Enable=false
     var appInsights = context.Configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
     if (context.HostingEnvironment.IsDevelopment()) {
       loggerConfiguration.WriteTo.Console();
@@ -89,6 +92,7 @@ void ConfigureLogging(IHostBuilder host) {
 
     loggerConfiguration
       .MinimumLevel.Override("Template.Api", LogEventLevel.Information)
+      .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
       .MinimumLevel.Override(typeof(TokenServiceFactory).Namespace ?? "", LogEventLevel.Information)
       .MinimumLevel.Override(typeof(ProblemDetailsMiddleware).Namespace ?? "", LogEventLevel.Warning)
       .MinimumLevel.Override(typeof(DeveloperExceptionPageMiddleware).Namespace ?? "", LogEventLevel.Warning)

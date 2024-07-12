@@ -3,16 +3,15 @@
 <!-- TOC -->
 * [Deploying the app](#deploying-the-app)
   * [Overview](#overview)
+  * [Shared services](#shared-services)
   * [Infrastructure](#infrastructure)
   * [Deploying infrastructure using CI/CD](#deploying-infrastructure-using-cicd)
-    * [Deploying infra for the FIRST TIME](#deploying-infra-for-the-first-time)
-    * [Deploying infra from CI/CD](#deploying-infra-from-cicd)
   * [Deploying app from CI/CD](#deploying-app-from-cicd)
   * [Granting access to Azure resources](#granting-access-to-azure-resources)
     * [Steps](#steps)
     * [Revoking access to Azure resources](#revoking-access-to-azure-resources)
     * [Azure environment Access levels](#azure-environment-access-levels)
-  * [Deploying (infrastructure + app) locally from dev machine](#deploying--infrastructure--app--locally-from-dev-machine)
+  * [Deploying (infrastructure + app) locally from dev machine](#deploying-infrastructure--app-locally-from-dev-machine)
     * [Prerequisites](#prerequisites)
     * [Permissions to run infrastructure scripts](#permissions-to-run-infrastructure-scripts)
     * [Steps](#steps-1)
@@ -26,18 +25,27 @@
 
 At a high level deployment consists of:
 
-1. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-2. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
-3. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+1. Ensure shared services have been created and RBAC permissions assigned to allow for role assignments to be made
+2. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
+3. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+4. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
 
 This repo contains various powershell scripts (see [tools directory](../tools)) that can be run from the command-line to automate the deployment tasks above 
 and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
 
 For more information on how these github workflows for the project were set up: [create-github-actions-infrastructure-pipeline](create-github-actions-infrastructure-pipeline.md)
 
+## Shared services
+
+The shared services required for the app are:
+* Azure container registry (ACR)
+
+To install the shared services, run the following script github workflow: [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
+
 ## Infrastructure
 
-> Note: Image represents deployment to the dev environment. 
+> [!Note]
+> Image represents deployment to the dev environment. 
 > Other environments will have the same resources but with different names, plus production and qa environments will also have failover instances for SQL and AKS pods
 
 **TODO: Add image describing infrastructure deployment**
@@ -46,33 +54,7 @@ For more information on how these github workflows for the project were set up: 
 
 ## Deploying infrastructure using CI/CD
 
-> **TIP**: to discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
-
-### Deploying infra for the FIRST TIME
-
-1. Deploy to dev and qa environment:
-   1. Touch any file in tools/infrastructure on the `master` (via a PR), *or* manually run [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow
-   2. Deploy to dev: [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow will trigger *automatically* to deploy infrastructure to dev (ie you don't need to do anything)
-   3. Deploy to qa: once deployed to the dev environment, the [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow will queue up a deployment for the infrastructure to the qa environment.
-      ![queued deployment](./assets/infra-ci-queued.png)
-      This deployment will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
-2. Deploy to demo, staging, prod-xxx environments:
-   1. Go to the [Releases list](https://github.com/MRI-Software/web-api-starter/releases) in the github repo
-   2. Find the pre-release that you want to deploy, it will start with 'infra-master-' or 'infra-release-'
-      ![infra release](./assets/infra-release.png)
-   3. To deploy the release, select the 'Edit' option, **_uncheck_** 'Set as pre-release', and then select 'Update release'. This will start the execution of the deployment
-
-      ![infra edit release](./assets/infra-edit-option.png)
-
-      ![infra prerelease option](./assets/infra-prerelease-option.png)
-
-   4. Approve the deployment to demo and/or staging, and then to production:
-      1. Open the [Infrastructure Deploy Production Release](../.github/workflows/infra-deploy-release.yml) workflow run just started that has the name of the release you're just published above
-      2. [Approve](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments) the environment(s) listed in the UI to allow the deployment to continue for each of those respective environments
-         ![queued deployment](./assets/infra-release-queued.png)
-         **IMPORTNT**: the option to deploy to staging and prod environments will be enabled only when the branch that triggered the initial workflow is a release branch (eg release/2022.01)
-
-### Deploying infra from CI/CD
+> [!Tip] to discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
 
 1. Trigger build by _either_:
    * Touching any file in tools/infrastructure on the `master` branch (via a PR)
@@ -101,7 +83,7 @@ For more information on how these github workflows for the project were set up: 
 
 ## Deploying app from CI/CD
 
-> **TIP**: to discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
+> [!Tip] to discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
 
 1. Trigger build by _either_:
    * Touching any file in tools/infrastructure on the `master` branch (via a PR)
@@ -196,7 +178,8 @@ specifically, the example with the description "Returns tables describing all Az
 
 ## Deploying (infrastructure + app) locally from dev machine
 
-> **CRITICAL**: creating the infrastructure from your local dev machine using the provision script below (./tools/infrastructure/provision-azure-resources.ps1)
+> [!CAUTION]
+> creating the infrastructure from your local dev machine using the provision script below (./tools/infrastructure/provision-azure-resources.ps1)
 > will likely cause the Infrastructure CI/CD pipeline to fail for the environment that you deployed to locally. 
 > This is because the AAD groups will be created with your identity as the owner, and NOT the service principal that the
 > pipeline uses. This will cause the pipeline to fail when it tries to add a group member
@@ -205,7 +188,7 @@ specifically, the example with the description "Returns tables describing all Az
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
     * run dev scripts
-* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.24.24**)
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.28.1**)
 * powershell core (tested on v7.2)
 * docker engine to run the dev script with the flag `-DockerPush`
 
@@ -215,7 +198,7 @@ You are unlikely to have permissions to run the infrastructure provisioning scri
 In practice the only way to run these scripts from a dev machine is:
 
 1. To have your own Azure subscription where you are the owner, AND
-2. The Azure subscription is linked to a developer Azure AD tenant created using the Microsoft 365 developer program. See the following on how to get this setup:
+2. The Azure subscription is linked to a developer Azure Entra-ID tenant created using the Microsoft 365 developer program. See the following on how to get this setup:
     1. sign-up for the MS 365 developer program: <https://developer.microsoft.com/en-us/microsoft-365/dev-program>
     2. linking your VS subscription to your office365 dev tenant: <https://laurakokkarinen.com/how-to-use-the-complimentary-azure-credits-in-a-microsoft-365-developer-tenant-step-by-step/>
     3. things to be aware of when moving your VS subscription to another AD tenant: <https://docs.microsoft.com/en-us/azure/role-based-access-control/transfer-subscription>
@@ -223,33 +206,39 @@ In practice the only way to run these scripts from a dev machine is:
 
 ### Steps
 
-1. (Once-only) Modify product conventions to avoid conflicts for those azure resource whose names are globally unique:
+> [!NOTE]
+> The steps below assume you are deploying to your own Azure subscription and Azure Entra-ID tenant
+
+1. Modify product conventions to avoid conflicts for those azure resource whose names are globally unique:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
-   2. set `ProductName` (line 20) to make it globally unique (adding your initials eg `-cc` as a prefix should be sufficient)
+   2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
    4. comment-in the block of code that starts `# If you need to override conventions, ...`
-   5. set the `RegistryName` to make it globally unique (adding your initials eg `cc` as a prefix should be sufficient)
-2. (Once-only) Setup shared infrastructure:
-   1. Provision AKS. See "Permissions to run infrastructure scripts" above for reason this is necessary
-      ```pwsh
-      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-      ./tools/infrastructure/add-aks-cluster.ps1 -InfA Continue -EnvironmentName dev -CreateAzureContainerRegistry -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
-      ````
-3. (When changed) Provision Azure resources:
+2. Setup shared infrastructure:
    ```pwsh
-      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-      ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
-      ````
-    * NOTE: if this script fails try running it again (script is idempotent)
-    * **IMPORTANT**: If a secondary (failover) Azure SQL server is provisioned - see troubleshooting section below
-4. Build App: `./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue`
+   # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+    ````
+3. Provision Azure resources:
+   ```pwsh
+   # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+   ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ````
+   * NOTE: if this script fails try running it again (script is idempotent). For more details see troubleshooting section below
+4. Build App: 
+   ```pwsh
+   az login
+   # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+   az account set --subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue
+   ```
     * **IMPORTANT**: You will need to have docker engine installed and running on your machine in order to build and push the images
 5. Deploy App: 
    ```pwsh
-      # IMPORTANT: You will likely need to connected to the office VPN in order to satisfy the firewall rules configured in the Azure SQL db
-      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-      ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
-      ````
+   # IMPORTANT: You will likely need to connected to the office VPN in order to satisfy the firewall rules configured in the Azure SQL db
+   # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+   ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ````
 6. Test that it worked:
     * browse to the "Api health Url" printed to the console
     * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-dev.postman_environment.json)
