@@ -1,4 +1,4 @@
-name: Infrastructure Add AKS Cluster
+name: Infrastructure Deploy Shared Services
 
 on:
   workflow_dispatch:
@@ -34,6 +34,6 @@ jobs:
         with:
           github-environment: ${{ github.event.inputs.environment-name }}
 
-      - name: 'Add AKS Cluster'
+      - name: 'Provision infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/add-aks-cluster.ps1 -InfA Continue -EnvironmentName ${{ github.event.inputs.environment-name }}
+        run: ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName ${{ github.event.inputs.environment-name }}

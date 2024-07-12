@@ -15,28 +15,30 @@
       Return the output as an array of objects rather than a formatted table?
 
       .EXAMPLE
-      ./tools/infrastructure/print-product-convention-table.ps1 { $_.Aks.Primary }
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Api.Primary }
     
       Description
       -----------
-      Returns the setting values of the Aks.Primary section as a table. EG:
+      Returns the setting values of the SubProducts.Api.Primary section as a table. EG:
       
-      Env       Path        TrafficManagerHost                                       ResourceName                       ResourceGroupName
-      ---       ----        ------------------                                       ------------                       -----------------
-      dev       Aks.Primary aks-sharedservices-dev-eastus-001.redmz.mrisoftware.com  aks-sharedservices-dev-eastus-001  rg-sharedservices-dev-eastus-001
-      qa        Aks.Primary qa-aks-eastus.redmz.mrisoftware.com                      qa-aks-eastus                      qa-aks-eastus
-      demo      Aks.Primary aks-sharedservices-demo-eastus-001.redmz.mrisoftware.com aks-sharedservices-demo-eastus-001 rg-sharedservices-demo-eastus-001
-      staging   Aks.Primary staging-aks-eastus.aig.mrisoftware.com                   staging-aks-eastus                 staging-aks-eastus
-      prod-na   Aks.Primary prod-aks-eastus.aig.mrisoftware.com                      prod-aks-eastus                    prod-aks-eastus
-      prod-emea Aks.Primary prod-aks-uksouth.aig.mrisoftware.com                     prod-aks-uksouth                   prod-aks-uksouth
-      prod-apac Aks.Primary prod-aks-australiaeast.aig.mrisoftware.com               prod-aks-australiaeast             prod-aks-australiaeast
+      Env       SettingPath             IngressHostname                                 MinReplicas MaxReplicas ResourceName             DefaultHealthPath
+      ---       -----------             ---------------                                 ----------- ----------- ------------             -----------------
+      dev       SubProducts.Api.Primary ca-was-dev-eus-api.ACA_ENV_DEFAULT_DOMAIN                 0           2 ca-was-dev-eus-api       /health
+      qa        SubProducts.Api.Primary ca-was-qa-eus-api.ACA_ENV_DEFAULT_DOMAIN                  1           6 ca-was-qa-eus-api        /health
+      rel       SubProducts.Api.Primary ca-was-rel-eus-api.ACA_ENV_DEFAULT_DOMAIN                 1           6 ca-was-rel-eus-api       /health
+      demo      SubProducts.Api.Primary ca-was-demo-eus-api.ACA_ENV_DEFAULT_DOMAIN                2           6 ca-was-demo-eus-api      /health
+      staging   SubProducts.Api.Primary ca-was-staging-eus-api.ACA_ENV_DEFAULT_DOMAIN             0           6 ca-was-staging-eus-api   /health
+      prod-na   SubProducts.Api.Primary ca-was-prod-na-eus-api.ACA_ENV_DEFAULT_DOMAIN             3           6 ca-was-prod-na-eus-api   /health
+      prod-emea SubProducts.Api.Primary ca-was-prod-emea-uks-api.ACA_ENV_DEFAULT_DOMAIN           3           6 ca-was-prod-emea-uks-api /health
+      prod-apac SubProducts.Api.Primary ca-was-prod-apac-ae-api.ACA_ENV_DEFAULT_DOMAIN            3           6 ca-was-prod-apac-ae-api  /health
+
 
       .EXAMPLE
-      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Pbi.AadSecurityGroup } -AsArray | Select-Object -ExcludeProperty Path, Member
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Pbi.AadSecurityGroup } -AsArray | Select-Object -ExcludeProperty SettingPath, Member
     
       Description
       -----------
-      Returns the setting values of the SubProducts.Pbi.AadSecurityGroup section as an array which is then projected to exclude Path and Member from the resulting table. EG:
+      Returns the setting values of the SubProducts.Pbi.AadSecurityGroup section as an array which is then projected to exclude SettingPath and Member from the resulting table. EG:
       
       Env       PbiRole     Name
       ---       -------     ----
@@ -62,7 +64,7 @@
       demo      sg.365.pbi.dataset.aig.demo.admin          sg.role.supporttier2.aig.demo
 
       .EXAMPLE
-      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values.RbacAssignment } -AsArray | Select-Object -ExcludeProperty Path, Member
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values.RbacAssignment } -AsArray | Select-Object -ExcludeProperty SettingPath, Member
     
       Description
       -----------
@@ -104,33 +106,35 @@
       Type
 
       .EXAMPLE
-      ./tools/infrastructure/print-product-convention-table { $_.Aks.Primary } TrafficManagerHost
+      ./tools/infrastructure/print-product-convention-table { $_.SubProducts.Api } Hostname
     
       Description
       -----------
-      Returns the TrafficManagerHost setting value of the Aks.Primary as a table. EG:
+      Returns the Hostname setting value of the SubProducts.Api as a table. EG:
       
-      Env       Path        Value                                                    Key
-      ---       ----        -----                                                    ---
-      dev       Aks.Primary aks-sharedservices-dev-eastus-001.redmz.mrisoftware.com  TrafficManagerHost
-      qa        Aks.Primary qa-aks-eastus.redmz.mrisoftware.com                      TrafficManagerHost
-      demo      Aks.Primary aks-sharedservices-demo-eastus-001.redmz.mrisoftware.com TrafficManagerHost
-      staging   Aks.Primary staging-aks-eastus.aig.mrisoftware.com                   TrafficManagerHost
-      prod-na   Aks.Primary prod-aks-eastus.aig.mrisoftware.com                      TrafficManagerHost
-      prod-emea Aks.Primary prod-aks-uksouth.aig.mrisoftware.com                     TrafficManagerHost
-      prod-apac Aks.Primary prod-aks-australiaeast.aig.mrisoftware.com               TrafficManagerHost
+      Env       SettingPath     Key      Value
+      ---       -----------     ---      -----
+      dev       SubProducts.Api Hostname dev-api-was.redmz.clcsoftware.com
+      qa        SubProducts.Api Hostname qa-api-was.redmz.clcsoftware.com
+      rel       SubProducts.Api Hostname rel-api-was.redmz.clcsoftware.com
+      demo      SubProducts.Api Hostname demo-api-was.redmz.clcsoftware.com
+      staging   SubProducts.Api Hostname staging-api.was.clcsoftware.com
+      prod-na   SubProducts.Api Hostname na-api.was.clcsoftware.com
+      prod-emea SubProducts.Api Hostname emea-api.was.clcsoftware.com
+      prod-apac SubProducts.Api Hostname apac-api.was.clcsoftware.com
+
 
       .EXAMPLE
       @(`
         ./tools/infrastructure/print-product-convention-table { $_.SubProducts.Web } HostName -AsArray; `
         ./tools/infrastructure/print-product-convention-table { $_.SubProducts.Api } HostName, ManagedIdentity -AsArray `
-      ) | Where-Object Env -like 'prod-*' | Sort-Object Env, Key, Path
+      ) | Where-Object Env -like 'prod-*' | Sort-Object Env, Key, SettingPath
     
       Description
       -----------
       Returns keys from multiple sections as an array that is then filtered and sorted
       
-      Env       Path            Value                        Key
+      Env       SettingPath     Value                        Key
       ---       ----            -----                        ---
       prod-apac SubProducts.Api apac-api.aig.mrisoftware.com HostName
       prod-apac SubProducts.Web apac.aig.mrisoftware.com     HostName
@@ -144,9 +148,9 @@
 
       .EXAMPLE
       @(
-        ./tools/infrastructure/print-product-convention-table.ps1 { $_.Aks.Primary } -AsArray
-        ./tools/infrastructure/print-product-convention-table.ps1 { $_.Aks.Failover } -AsArray
-      ) | select @{ n='Type'; e={$_.Path} }, ResourceName, ResourceGroupName, TrafficManagerHost | ? ResourceName | ConvertTo-Csv > ./out/cluster-info.csv
+        ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Api.Primary } -AsArray
+        ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Api.Failover } -AsArray
+      ) | select @{ n='Type'; e={$_.SettingPath} }, ResourceName, IngressHostName | ? ResourceName -like '*api' | ConvertTo-Csv > ./out/cluster-info.csv
     
       Description
       -----------
@@ -227,7 +231,7 @@
                     } -pv convention  |
                     ForEach-Object $SectionSelector |
                     ForEach-Object $projection |
-                    Select-Object @{ n='Env'; e={ $convention.EnvironmentName} }, @{ n='Path'; e={ $path }}, *
+                    Select-Object @{ n='Env'; e={ $convention.EnvironmentName} }, @{ n='SettingPath'; e={ $path }}, *
                 
                 if ($AsArray) {
                     $result

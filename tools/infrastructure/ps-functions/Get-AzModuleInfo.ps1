@@ -1,6 +1,6 @@
 function Get-AzModuleInfo {
     @{
         Name            = 'Az'
-        MinimumVersion  = '9.3.0'
+        MinimumVersion  = '11.4.0'
     }
 }
