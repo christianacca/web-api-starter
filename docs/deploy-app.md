@@ -3,10 +3,11 @@
 <!-- TOC -->
 * [Deploying the app](#deploying-the-app)
   * [Overview](#overview)
+  * [Shared services](#shared-services)
   * [Infrastructure](#infrastructure)
   * [Deploying infrastructure using CI/CD](#deploying-infrastructure-using-cicd)
   * [Deploying app from CI/CD](#deploying-app-from-cicd)
-  * [Granting access to Azure resources](#granting-access-to-azure-resources)
+  * [Granting access to Azure or Power-BI resources](#granting-access-to-azure-or-power-bi-resources)
     * [Steps](#steps)
     * [Revoking access to Azure resources](#revoking-access-to-azure-resources)
     * [Azure environment Access levels](#azure-environment-access-levels)
@@ -24,19 +25,28 @@
 
 At a high level deployment consists of:
 
-1. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-2. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
-3. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+1. Ensure shared services have been created and RBAC permissions assigned to allow for role assignments to be made
+2. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
+3. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+4. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
 
 This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line 
 to automate the deployment tasks above and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
 
 For more information on how these github workflows for the project were set up: [create-github-actions-infrastructure-pipeline](create-github-actions-infrastructure-pipeline.md)
 
+## Shared services
+
+The shared services required for the app are:
+* Azure container registry (ACR)
+
+To install the shared services, run the following script github workflow: [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
+
 ## Infrastructure
 
-> Note: Image represents deployment to the dev environment. 
-> Other environments will have the same resources but with different names, plus production and qa environments will also have failover instances for SQL and AKS pods
+> [!Note]
+> Image represents deployment to the dev environment. 
+> Other environments will have the same resources but with different names, plus production and qa environments will also have failover instances for SQL and ACA pods
 
 **TODO: Add image describing infrastructure deployment**
 
@@ -99,7 +109,7 @@ For more information on how these github workflows for the project were set up: 
          ![queued deployment](./assets/app-release-queued.png)
          **IMPORTNT**: the option to deploy to staging and prod environments will be enabled only when the branch that triggered the initial workflow is a release branch (eg release/2022.01)
 
-## Granting access to Azure resources
+## Granting access to Azure or Power-BI resources
 
 ### Steps
 
@@ -108,10 +118,13 @@ For more information on how these github workflows for the project were set up: 
 3. Select the "Run workflow" button
    ![run workflow](./assets/infra-grant-access-run-workflow.png)
 4. In the dialog:
-   1. Select the Environment to which to grant access (select 'all' to expedite the process considerably)
-   2. Select the Access level that is appropriate for the person (see below for description of each access level)
-   3. In 'A comma delimited list of User principal names to grant' add the email address of the person(s) to grant access
-   4. Select 'Run workflow' button
+    1. Select the Environment to which to grant access (select 'all' to expedite the process considerably)
+    2. Select the Access level that is appropriate for the person (see below for description of each access level)
+    3. Select the Scope that is appropriate for the person:
+        * 'global' for access to all resources in the environment
+        * 'pbi' for access to only pbi resources in the environment
+    4. In 'A comma delimited list of User principal names to grant' add the email address of the person(s) to grant access
+    5. Select 'Run workflow' button
 5. For all environments except dev, the workflow run will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
    * See example workflow run screenshots below
    * Those members of the [Web API Starter - Production approver](https://github.com/orgs/MRI-Software/teams/web-api-starter-production-approver/members) will be able to approve
@@ -140,32 +153,59 @@ _Example workflow run:_
 2. Select the "Run workflow" button\
    ![run workflow](./assets/infra-revoke-access-run-workflow.png)
 3. In the dialog:
-   1. Select the Environment to which to revoke access
-   2. Select the Access level that's to be revoked for the person
-   3. In 'User to revoke' add the email address of the person to revoke access
-   4. Select 'Run workflow' button
+    1. Select the Environment to which to revoke access
+    2. Select the Access level that's to be revoked for the person
+    3. Select the Scope to be revoked for the person:
+        * 'global' for access to all resources in the environment
+        * 'pbi' for access to only pbi resources in the environment
+    4. In 'User to revoke' add the email address of the person to revoke access
+    5. Select 'Run workflow' button
 4. For all environments except dev, the workflow run will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
 
 ### Azure environment Access levels
 
+***global* access:**
+
 1. development
-   * dev, qa: 
-     * admin access to Azure SQL db
-     * contributor access to Azure resources (_including_ access to keyvault)
-   * demo:
-      * data read/write access to AIG Azure SQL db
-      * contributor access to Azure resources (no access to keyvault)
-   * staging and prod: 
-     * data read access to Azure SQL db
-     * read access to Azure resources (no access to keyvault)
+    * dev, qa, rel:
+        * admin access to AIG Azure SQL db
+        * contributor access to Azure resources (_including_ access to keyvault)
+        * admin access to power-bi client workspaces
+    * demo:
+        * data read/write access to AIG Azure SQL db
+        * contributor access to Azure resources (no access to keyvault)
+        * contributor access to power-bi client workspaces
+    * staging and prod:
+        * data read access to AIG Azure SQL db
+        * contributor access to Azure monitor, read access to all other Azure resources (no access to keyvault)
+        * no access to power-bi client workspace
 2. GPS / support-tier-1
-   * demo, staging and prod environments: 
-     * data read access to Azure SQL db
-     * read access to Azure (no access to keyvault)
+    * demo, staging and prod environments:
+        * data read access to AIG Azure SQL db
+        * read access to Azure (no access to keyvault)
+        * contributor rights to power-bi client _report_ workspaces
+        * viewer rights to power-bi client _dataset_ workspaces
 3. App Admin / support-tier-2
-   * demo, staging and prod environments:
-      * contributor access to Azure SQL db
-      * contributor access to Azure (_including_ access to keyvault)
+    * demo, staging and prod environments:
+        * contributor access to AIG Azure SQL db
+        * contributor access to Azure (_including_ access to keyvault)
+        * admin rights to power-bi client _report_ workspaces
+        * admin rights to power-bi client _dataset_ workspaces
+
+***pbi* only access:**
+
+1. development
+    * dev, qa, rel: admin access to power-bi client workspaces
+    * demo: contributor access to power-bi client workspaces
+    * staging and prod: no access to power-bi client workspace
+2. GPS / support-tier-1
+    * demo, staging and prod environments:
+        * contributor rights to power-bi client _report_ workspaces
+        * viewer rights to power-bi client _dataset_ workspaces
+3. App Admin / support-tier-2
+    * demo, staging and prod environments:
+        * admin rights to power-bi client _report_ workspaces
+        * admin rights to power-bi client _dataset_ workspaces
 
 To provide a comprehensive list of permissions per environment execute [print-product-convention-table.ps1](../tools/infrastructure/print-product-convention-table.ps1),
 specifically, the example with the description "Returns tables describing all Azure RBAC and Azure ADD security group membership"
@@ -182,7 +222,7 @@ specifically, the example with the description "Returns tables describing all Az
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
     * run dev scripts
-* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.24.24**)
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.28.1**)
 * powershell core (tested on v7.2)
 * docker engine to run the dev script with the flag `-DockerPush`
 
@@ -205,17 +245,15 @@ In practice the only way to run these scripts from a dev machine is:
 
 1. Modify product conventions to avoid conflicts for those azure resource whose names are globally unique:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
-   2. set `ProductName` (line 20) to make it globally unique (adding your initials eg `-cc` as a prefix should be sufficient)
+   2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
    4. comment-in the block of code that starts `# If you need to override conventions, ...`
-   5. set the `RegistryName` to make it globally unique (adding your initials eg `cc` as a prefix should be sufficient)
-2. (Once-only) Setup shared infrastructure:
-   1. Provision AKS. See "Permissions to run infrastructure scripts" above for reason this is necessary
-      ```pwsh
-      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-      ./tools/infrastructure/add-aks-cluster.ps1 -InfA Continue -EnvironmentName dev -CreateAzureContainerRegistry -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
-      ````
-3. (When changed) Provision Azure resources:
+2. Setup shared infrastructure:
+   ```pwsh
+   # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+    ````
+3. Provision Azure resources:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
    ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
@@ -251,7 +289,7 @@ or running the github workflow [Infrastructure Uninstall](../.github/workflows/i
 
 ```pwsh
 # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-./tools/infrastructure/deprovision-azure-resources.ps1 -InfA Continue -Environment xxx -UninstallAksApp -DeleteAADGroups -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+./tools/infrastructure/deprovision-azure-resources.ps1 -InfA Continue -Environment xxx -DeleteAADGroups -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
 ```
 
 ### From the github workflow

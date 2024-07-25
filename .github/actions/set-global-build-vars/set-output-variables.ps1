@@ -71,10 +71,10 @@ process {
     $convention = & "./tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
     if ($vars.buildType -eq $prodReleaseType) {
         $vars.acrEnvironment = 'prod-artifacts'
-        $vars.acrName = '{0}.azurecr.io' -f $convention.Aks.ProdRegistryName
+        $vars.acrName = '{0}.azurecr.io' -f $convention.ContainerRegistries.Prod.ResourceName
     } else {
         $vars.acrEnvironment = 'dev'
-        $vars.acrName = '{0}.azurecr.io' -f $convention.Aks.RegistryName
+        $vars.acrName = '{0}.azurecr.io' -f $convention.ContainerRegistries.Dev.ResourceName
     }
     $vars
     $vars.Keys | ForEach-Object {
