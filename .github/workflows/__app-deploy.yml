@@ -97,6 +97,8 @@ jobs:
               },
               ".*": {
                 "ApplicationInsights_AutoCollectActionArgs": "${{ env.Convention_IsTestEnv }}",
+                "gha_step_deploy_api_envVarsSelector": "Env:Api_*,Env:ApplicationInsights_*,Env:CentralIdentity_*,Env:EnvironmentInfo_*"
+                "gha_step_deploy_api_imageToDeploy": "${{ inputs.docker-registry }}/web-api-starter/api:${{ inputs.docker-image-tag }}"
                 "EnvironmentInfo_EnvId": "${{ inputs.environment-name }}",
                 "EnvironmentInfo_InfraVersion": "${{ env.Infra_Version }}",
                 "InternalApi_Database_DataSource": "${{ env.Convention_SubProducts_Sql_Primary_DataSource }}",
@@ -121,41 +123,24 @@ jobs:
           server-name: ${{ env.Convention_SubProducts_Sql_Primary_ResourceName }}
           sql-file: ./out/migrate-db.sql
 
-      - name: Set AKS context (primary region)
-        uses: azure/aks-set-context@v3
+      - name: Deploy API (primary region)
+        uses: ./.github/actions/container-apps-create-revision # <- replace with MRI-Software/container-apps-create-revision@v1
         with:
-          resource-group: ${{ env.Convention_Aks_Primary_ResourceGroupName }}
-          cluster-name: ${{ env.Convention_Aks_Primary_ResourceName }}
+          containerAppName: ${{ env.Convention_SubProducts_Api_Primary_ResourceName }}
+          envVarsSelector: ${{ env.gha_step_deploy_api_envVarsSelector }}
+          envVarKeyTransform: _=>__
+          imageToDeploy: ${{ env.gha_step_deploy_api_imageToDeploy }}
+          resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
 
-      - name: Helm Umbrella Chart Deploy (primary region)
-        uses: ./.github/actions/helm-umbrella-chart-deploy # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
+      - name: Deploy API (failover region)
+        if: ${{ env.Convention_SubProducts_Api_Failover_ResourceName != null }}
+        uses: ./.github/actions/container-apps-create-revision # <- replace with MRI-Software/container-apps-create-revision@v1
         with:
-          release: ${{ env.Convention_Aks_HelmReleaseName }}
-          namespace: ${{ env.Convention_Aks_Namespace }}
-          chart: ./out/helm-chart
-          app-version: ${{ inputs.docker-image-tag }}
-          config-maps: |
-            api=Template.Api/appsettings.json
-
-      - name: Set AKS context (failover region)
-        if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
-        uses: azure/aks-set-context@v3
-        with:
-          resource-group: ${{ env.Convention_Aks_Failover_ResourceGroupName }}
-          cluster-name: ${{ env.Convention_Aks_Failover_ResourceName }}
-
-      - name: Helm Umbrella Chart Deploy (failover region)
-        if: ${{ env.Convention_Aks_Failover_ResourceName != null }}
-        uses: ./.github/actions/helm-umbrella-chart-deploy # <- replace with MRI-Software/helm-umbrella-chart-deploy@v1
-        with:
-          release: ${{ env.Convention_Aks_HelmReleaseName }}
-          namespace: ${{ env.Convention_Aks_Namespace }}
-          chart: ./out/helm-chart
-          app-version: ${{ inputs.docker-image-tag }}
-          values: |
-            api.healthIngress.hostname=${{ env.Convention_Aks_Failover_TrafficManagerHost }}
-          config-maps: |
-            api=Template.Api/appsettings.json
+          containerAppName: ${{ env.Convention_SubProducts_Api_Failover_ResourceName }}
+          envVarsSelector: ${{ env.gha_step_deploy_api_envVarsSelector }}
+          envVarKeyTransform: _=>__
+          imageToDeploy: ${{ env.gha_step_deploy_api_imageToDeploy }}
+          resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
 
       - name: Azure Function App (internalapi) - Deploy
         uses: Azure/functions-action@v1
