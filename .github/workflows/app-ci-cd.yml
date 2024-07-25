@@ -1,48 +1,48 @@
 name: Application CI/CD
 
 on:
-  # trigger when branch is created
-  create:
-
-  # Triggers the workflow on push or pull request events but only for the master or release branch
-  push:
-    paths-ignore:
-      - docs/**
-      - .idea/**
-      - .run/**
-      - .vscode/**
-      - .github/workflows/__infra-*
-      - .github/workflows/infra-*
-      - .github/workflows/__github-*
-      - .github/workflows/github-*
-      - .github/workflows/__okta-*
-      - .github/workflows/okta-*
-      - tools/db-scripts/**
-      - tools/dev-scripts/**
-      - tools/infrastructure/**
-      - tools/okta/**
-    branches:
-      - master
-      - release/**
-  pull_request:
-    paths-ignore:
-      - docs/**
-      - .idea/**
-      - .run/**
-      - .vscode/**
-      - .github/workflows/__infra-*
-      - .github/workflows/infra-*
-      - .github/workflows/__github-*
-      - .github/workflows/github-*
-      - .github/workflows/__okta-*
-      - .github/workflows/okta-*
-      - tools/db-scripts/**
-      - tools/dev-scripts/**
-      - tools/infrastructure/**
-      - tools/okta/**
-    branches:
-      - master
-      - release/**
+#  # trigger when branch is created
+#  create:
+#
+#  # Triggers the workflow on push or pull request events but only for the master or release branch
+#  push:
+#    paths-ignore:
+#      - docs/**
+#      - .idea/**
+#      - .run/**
+#      - .vscode/**
+#      - .github/workflows/__infra-*
+#      - .github/workflows/infra-*
+#      - .github/workflows/__github-*
+#      - .github/workflows/github-*
+#      - .github/workflows/__okta-*
+#      - .github/workflows/okta-*
+#      - tools/db-scripts/**
+#      - tools/dev-scripts/**
+#      - tools/infrastructure/**
+#      - tools/okta/**
+#    branches:
+#      - master
+#      - release/**
+#  pull_request:
+#    paths-ignore:
+#      - docs/**
+#      - .idea/**
+#      - .run/**
+#      - .vscode/**
+#      - .github/workflows/__infra-*
+#      - .github/workflows/infra-*
+#      - .github/workflows/__github-*
+#      - .github/workflows/github-*
+#      - .github/workflows/__okta-*
+#      - .github/workflows/okta-*
+#      - tools/db-scripts/**
+#      - tools/dev-scripts/**
+#      - tools/infrastructure/**
+#      - tools/okta/**
+#    branches:
+#      - master
+#      - release/**
     
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -104,16 +104,16 @@ jobs:
       contents: read
       id-token: write
 
-  deploy-qa:
-    needs: [globalvars, deploy-dev]
-    uses: ./.github/workflows/__app-deploy.yml
-    with:
-      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
-      docker-registry: ${{ needs.globalvars.outputs.acrName }}
-      environment-name: qa
-      git-tag: ${{ needs.globalvars.outputs.gitTag }}
-    secrets: inherit
-    permissions:
-      actions: read
-      contents: read
-      id-token: write
+#  deploy-qa:
+#    needs: [globalvars, deploy-dev]
+#    uses: ./.github/workflows/__app-deploy.yml
+#    with:
+#      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+#      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+#      environment-name: qa
+#      git-tag: ${{ needs.globalvars.outputs.gitTag }}
+#    secrets: inherit
+#    permissions:
+#      actions: read
+#      contents: read
+#      id-token: write
