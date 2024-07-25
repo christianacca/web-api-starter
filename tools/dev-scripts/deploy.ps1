@@ -68,7 +68,7 @@ process {
                 'EnvironmentInfo__EnvId' = 'local'
             }
         }
-        $apiAca = ./tools/dev-scripts/deploy-api.ps1 @apiParams -InfA Continue -EA Stop
+        $apiAca = ./tools/dev-scripts/deploy-container-app.ps1 @apiParams -InfA Continue -EA Stop
 
         
         # ----------- Deploy Function app -----------
