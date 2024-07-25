@@ -45,22 +45,22 @@
                 }
             }
             
-            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
+#            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
 
             # If you need to override conventions, comment out the above line, and follow the example below...
 
-#            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
-#
-#            $convention.ContainerRegistries.Dev.ResourceGroupName = "rg-dev-$($convention.Company.Abbreviation)-sharedservices"
-#            $convention.ContainerRegistries.Prod.ResourceGroupName = "rg-prod-$($convention.Company.Abbreviation)-sharedservices"
-#            $convention.ContainerRegistries.Dev.SubscriptionId = $null
-#            $convention.ContainerRegistries.Prod.SubscriptionId = $null
-#
-#            if ($AsHashtable) {
-#                $convention
-#            } else {
-#                $convention | ConvertTo-Json -Depth 100
-#            }
+            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
+
+            $convention.ContainerRegistries.Dev.ResourceGroupName = "rg-dev-$($convention.Company.Abbreviation)-sharedservices"
+            $convention.ContainerRegistries.Prod.ResourceGroupName = "rg-prod-$($convention.Company.Abbreviation)-sharedservices"
+            $convention.ContainerRegistries.Dev.SubscriptionId = $null
+            $convention.ContainerRegistries.Prod.SubscriptionId = $null
+
+            if ($AsHashtable) {
+                $convention
+            } else {
+                $convention | ConvertTo-Json -Depth 100
+            }
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
