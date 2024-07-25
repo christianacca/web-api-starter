@@ -10,8 +10,11 @@ function Revoke-AzureEnvironmentAccess {
       The name(s) of the user principal in azure to revoke permissions.
 
       .PARAMETER AccessLevel
-      The access level to grant (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
+      The access level to revoke (eg development). Note: 'GPS / support-tier-1' is an alias of 'support-tier-1'
       and 'App Admin / support-tier-2' is an alias of 'support-tier-2'
+
+      .PARAMETER $SubProductName
+      The name of the sub product to revoke access
     #>
     [CmdletBinding()]
     param(
@@ -25,7 +28,9 @@ function Revoke-AzureEnvironmentAccess {
 
         [Parameter(Mandatory)]
         [ValidateSet('development', 'support-tier-1', 'support-tier-2', 'GPS / support-tier-1', 'App Admin / support-tier-2')]
-        [string] $AccessLevel
+        [string] $AccessLevel,
+        
+        [string] $SubProductName
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -47,7 +52,7 @@ function Revoke-AzureEnvironmentAccess {
                 throw "Cannot revoke permissions, the following user principal names supplied were not found in Azure AD tenant: $notFound"
             }
 
-            $groupToRevoke = $InputObject | Resolve-TeamGroupName -AccessLevel $AccessLevel
+            $groupToRevoke = $InputObject | Resolve-TeamGroupName -AccessLevel $AccessLevel -SubProductName $SubProductName
             $group = Get-AzAdGroup -DisplayName $groupToRevoke -EA Stop
             $resourceGroupName = $InputObject.AppResourceGroup.ResourceName
 

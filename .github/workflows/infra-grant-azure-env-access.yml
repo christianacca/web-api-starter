@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       environment-name:
-        description: Environment
+        description: Target environment to grant access
         required: true
         default: 'dev'
         type: choice
@@ -19,7 +19,7 @@ on:
           - 'prod + staging'
           - all
       access-level:
-        description: Access Level
+        description: Access Level to grant
         required: true
         default: development
         type: choice
@@ -27,6 +27,14 @@ on:
           - development
           - 'GPS / support-tier-1'
           - 'App Admin / support-tier-2'
+      scope:
+        description: Scope of the access to grant. Select 'global' to grant global access ie. access to all resources in that environment. Select 'pbi' to grant access to Power BI resources only
+        required: false
+        default: 'global'
+        type: choice
+        options:
+          - pbi
+          - global
       user-principal-name:
         description: 'A comma delimited list of User principal names to grant (via group membership). Leave blank to apply the current desired permissions to existing Azure resources'
         required: false
@@ -47,6 +55,7 @@ jobs:
     with:
       environment-name: dev
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read
@@ -60,6 +69,7 @@ jobs:
     with:
       environment-name: qa
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read
@@ -73,6 +83,7 @@ jobs:
     with:
       environment-name: demo
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read
@@ -86,6 +97,7 @@ jobs:
     with:
       environment-name: staging
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read
@@ -99,6 +111,7 @@ jobs:
     with:
       environment-name: prod-na
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read
@@ -112,6 +125,7 @@ jobs:
     with:
       environment-name: prod-emea
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read
@@ -125,6 +139,7 @@ jobs:
     with:
       environment-name: prod-apac
       access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
       user-principal-name: ${{ github.event.inputs.user-principal-name }}
     permissions:
       actions: read

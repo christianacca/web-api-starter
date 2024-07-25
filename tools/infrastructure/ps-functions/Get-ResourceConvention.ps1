@@ -2,15 +2,16 @@ function Get-ResourceConvention {
     param(
         [Parameter(Mandatory)]
         [string] $ProductName,
-        
-        [string] $ProductFullName,
-        
+        [string] $ProductAbbreviation,
         [string] $ProductSubDomainName,
         
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
 
-        [string] $CompanyName = 'mri',
+        [Parameter(Mandatory)]
+        [string] $CompanyName,
+        [string] $CompanyAbbreviation,
+        [string] $CompanyDomain,
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
 
@@ -23,61 +24,82 @@ function Get-ResourceConvention {
 
     . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
     . "$PSScriptRoot/Get-PublicHostName.ps1"
+    . "$PSScriptRoot/Get-PbiAadSecurityGroupConvention.ps1"
     . "$PSScriptRoot/Get-RootDomain.ps1"
     . "$PSScriptRoot/Get-StorageRbacAccess.ps1"
+    . "$PSScriptRoot/Get-TeamGroupNames.ps1"
     . "$PSScriptRoot/Get-UniqueString.ps1"
 
     $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
     $hasFailover = if ($EnvironmentName -in $failoverEnvironmnets) { $true } else { $false }
 
-    $productNameLower = $ProductName.ToLower()
-    if(-not($ProductFullName)) { $ProductFullName = $ProductName.ToUpper() }
-    if(-not($ProductSubDomainName)) { $ProductSubDomainName = '{0}{1}' -f $CompanyName.ToLower(), $productNameLower }
+    if(-not($ProductAbbreviation)) {
+        $ProductAbbreviation = -join ($ProductName -split ' ' | ForEach-Object { $_[0].ToString().ToLower() })
+    } else {
+        $ProductAbbreviation = $ProductAbbreviation.ToLower()
+    }
+    if(-not($ProductSubDomainName)) { 
+        $ProductSubDomainName = $ProductAbbreviation
+    } else {
+        $ProductSubDomainName = $ProductSubDomainName.ToLower()
+    }
+    if(-not($CompanyAbbreviation)) {
+        $CompanyAbbreviation = ($CompanyName -split ' ')[0].ToLower()
+    } else {
+        $CompanyAbbreviation = $CompanyAbbreviation.ToLower()
+    }
+    if(-not($CompanyDomain)) {
+        $CompanyDomain = $CompanyName.Replace(' ', '').ToLower()
+    } else {
+        $CompanyDomain = $CompanyDomain.ToLower()
+    }
 
+    # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
     $azureRegions = switch ($EnvironmentName) {
         'prod-emea' {
-            'uksouth', 'ukwest'
+            @{ Name = 'uksouth'; Abbreviation = 'uks' }, @{ Name = 'ukwest'; Abbreviation = 'ukw' }
         }
         'prod-apac' {
-            'australiaeast', 'australiasoutheast'
+            @{ Name = 'australiaeast'; Abbreviation = 'ae' }, @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
         }
         Default {
-            'eastus', 'westus'
+            @{ Name = 'eastus'; Abbreviation = 'eus' }, @{ Name = 'westus'; Abbreviation = 'wus' }
         }
     }
 
-    $addGlobalGroupNames = @{
-        DevelopmentGroup    =   "sg.role.development.$productNameLower.$EnvironmentName".Replace('-', '')
-        Tier1SupportGroup   =   "sg.role.supporttier1.$productNameLower.$EnvironmentName".Replace('-', '')
-        Tier2SupportGroup   =   "sg.role.supporttier2.$productNameLower.$EnvironmentName".Replace('-', '')
-    }
+    $teamGroupNames = Get-TeamGroupNames $ProductAbbreviation $EnvironmentName
 
     $azurePrimaryRegion = $azureRegions[0]
     $azureSecondaryRegion = $azureRegions[1]
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
     $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
+    $isScaleToZeroEnv = $EnvironmentName -in 'ff', 'dev', 'staging'
+    
+    if ($isScaleToZeroEnv -and $hasFailover) {
+        throw 'Scale to zero environments cannot have failover. This is because the primary has to be tested for availability before the failover can be promoted, and therefore will need at least one container to serve traffic.'
+    }
 
     $resourceGroupRbac = @(
         @{
             Role    =   $isTestEnv -or ($EnvironmentName -eq 'demo') ? 'Contributor' : 'Reader'
-            Member  =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+            Member  =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
         }
         @{
             Role    =   'Reader'
-            Member  =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+            Member  =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
         }
         @{
             Role    =   $isTestEnv ? 'Reader' : 'Contributor'
-            Member  =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+            Member  =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
         }
     )
 
-    $appInstance = '{0}-{1}' -f $productNameLower, $EnvironmentName
-    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
+    $appInstance = '{0}-{1}' -f $ProductAbbreviation, $EnvironmentName
+    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $ProductAbbreviation, $azurePrimaryRegion.Name
     $appReourceGroup = @{
         ResourceName        =   $appResourceGroupName
-        ResourceLocation    =   $azurePrimaryRegion
+        ResourceLocation    =   $azurePrimaryRegion.Name
         UniqueString        =   Get-UniqueString $appResourceGroupName
         RbacAssignment      =   $resourceGroupRbac
     }
@@ -85,81 +107,16 @@ function Get-ResourceConvention {
     $dataResourceGroup = if ($SeperateDataResourceGroup) {
         @{
             RbacAssignment      =   $resourceGroupRbac
-            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $productNameLower, $azurePrimaryRegion
-            ResourceLocation    =   $azurePrimaryRegion
+            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $ProductAbbreviation, $azurePrimaryRegion.Name
+            ResourceLocation    =   $azurePrimaryRegion.Name
         }
     } else {
         $appReourceGroup
     }
 
     $managedIdentityNamePrefix = "id-$appInstance"
-    
-    $aksNamespaceSuffix = if ($EnvironmentName -in 'qa', 'rel', 'release') {
-        # we use the same AKS cluser for qa and release environment; good practice is a seperate namespace for each
-        "-$EnvironmentName"
-    } else {
-        ''
-    }
-    $aksNamespace = 'app-{0}{1}' -f $productNameLower, $aksNamespaceSuffix
-    $helmReleaseName = $productNameLower
-    
-    $aksClusterPrefix = switch ($EnvironmentName) {
-        { $_ -like 'prod-*' } { 
-            'prod' 
-        }
-        'ff' {
-            'dev'
-        }
-        { $_ -in 'rel', 'release'} { 
-            'qa' 
-        }
-        Default { 
-            $EnvironmentName
-        }
-    }
 
-    $rootDomain = Get-RootDomain $EnvironmentName
-
-    switch ($EnvironmentName) {
-        { $_ -in 'ff', 'dev', 'demo'} {
-            $aksClusterNameTemplate = "aks-sharedservices-$aksClusterPrefix-{0}-001"
-            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-        }
-        { $_ -in 'staging'} {
-            $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
-            $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-        }
-        Default {
-            $aksClusterNameTemplate = "$aksClusterPrefix-aks-{0}"
-            $aksResourceGroupNameTemplate = "$aksClusterPrefix-aks-{0}"
-        }
-    }
-    # todo: delete the above switch statement and uncomment the next 2 lines once switched from old aks clusters to new
-#    $aksClusterNameTemplate = "aks-shared-$aksClusterPrefix-{0}-001"
-#    $aksResourceGroupNameTemplate = $aksClusterNameTemplate.Replace('aks-', 'rg-')
-    
-    switch ($EnvironmentName) {
-        'staging' {
-            $aksRootDomain = "cloud.$rootDomain"
-        }
-        Default {
-            $aksRootDomain = $rootDomain
-        }
-    }
-
-    $aksPrimaryClusterName = $aksClusterNameTemplate -f $azurePrimaryRegion
-    $aksPrimaryCluster = @{
-        ResourceName        =   $aksPrimaryClusterName
-        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azurePrimaryRegion
-        TrafficManagerHost  =   '{0}.{1}' -f $aksPrimaryClusterName, $aksRootDomain
-    }
-
-    $aksSecondaryClusterName = $aksClusterNameTemplate -f $azureSecondaryRegion
-    $aksSecondaryCluster = @{
-        ResourceName        =   $aksSecondaryClusterName
-        ResourceGroupName   =   $aksResourceGroupNameTemplate -f $azureSecondaryRegion
-        TrafficManagerHost  =   '{0}.{1}' -f $aksSecondaryClusterName, $aksRootDomain
-    }
+    $rootDomain = Get-RootDomain $EnvironmentName $CompanyDomain
 
     $subProductsConventions = @{}
     $SubProducts.Keys | ForEach-Object -Process {
@@ -178,19 +135,19 @@ function Get-ResourceConvention {
                     { $isTestEnv } {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                            Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         }
                     }
                     'demo' {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
-                            Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                         }
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
                             Member          =   @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                             )
                         }
                     }
@@ -198,13 +155,13 @@ function Get-ResourceConvention {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
                             Member          =   @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                             )
                         }
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                            Member          =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                         }
                     }
                     Default {
@@ -220,8 +177,8 @@ function Get-ResourceConvention {
                 }
             }
             { $_ -in 'SqlServer', 'SqlDatabase' } {
-                $sqlDbName = ('{0}{1}{2}01' -f $CompanyName, $EnvironmentName, $productNameLower).Replace('-', '')
-                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $azurePrimaryRegion
+                $sqlDbName = ('{0}{1}{2}01' -f $CompanyAbbreviation, $EnvironmentName, $ProductAbbreviation).Replace('-', '')
+                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $azurePrimaryRegion.Name
                 $adSqlGroupNamePrefix = "sg.arm.sql.$sqlDbName"
                 $sqlAdAdminGroupName = "$adSqlGroupNamePrefix.admin"
 
@@ -229,12 +186,12 @@ function Get-ResourceConvention {
                     'SqlServer' {
                         $sqlPrimaryServer = @{
                             ResourceName        =   $sqlPrimaryName
-                            ResourceLocation    =   $azurePrimaryRegion
-                            DataSource          =   "tcp:$sqlPrimaryName.database.windows.net,1433"
+                            ResourceLocation    =   $azurePrimaryRegion.Name
+                            DataSource          =   $hasFailover ? "tcp:$sqlDbName-fg.database.windows.net,1433" : "tcp:$sqlPrimaryName.database.windows.net,1433"
                         }
                         $sqlFailoverServer = @{
-                            ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion
-                            ResourceLocation    =   $azureSecondaryRegion
+                            ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion.Name
+                            ResourceLocation    =   $azureSecondaryRegion.Name
                         }
                         $sqlFirewallRule = @(
                             @{
@@ -288,11 +245,11 @@ function Get-ResourceConvention {
                                 DatabaseRole    = 'db_datareader'
                                 Member          = switch ($EnvironmentName) {
                                     { $_ -like 'prod-*' -or $_ -eq 'staging' } {
-                                        @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                        @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                     }
                                     'demo' {
-                                        @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                     }
                                     Default {
                                         Write-Output @() -NoEnumerate
@@ -304,7 +261,7 @@ function Get-ResourceConvention {
                                 DatabaseRole    = 'db_datareader', 'db_datawriter'
                                 Member          = switch ($EnvironmentName) {
                                     'demo' {
-                                        @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                                     }
                                     Default {
                                         Write-Output @() -NoEnumerate
@@ -316,7 +273,7 @@ function Get-ResourceConvention {
                                 DatabaseRole    = 'db_datareader', 'db_datawriter', 'db_ddladmin'
                                 Member          = switch ($EnvironmentName) {
                                     { $_ -like 'prod-*' -or $_ -eq 'staging' -or $_ -eq 'demo' } {
-                                        @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                        @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                                     }
                                     Default {
                                         Write-Output @() -NoEnumerate
@@ -326,7 +283,7 @@ function Get-ResourceConvention {
                             @{
                                 Name            =   $sqlAdAdminGroupName
                                 Member          = if ($isTestEnv) {
-                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                                 }
                                 else {
                                     Write-Output @() -NoEnumerate
@@ -336,16 +293,16 @@ function Get-ResourceConvention {
                         @{
                             AadSecurityGroup        =   $dbGroup
                             ResourceName            =   $sqlDbName
-                            ResourceLocation        =   $azurePrimaryRegion
+                            ResourceLocation        =   $azurePrimaryRegion.Name
                             Type                    =   $spInput.Type
                         }
                     }
                 }
             }
             'FunctionApp' {
-                $funcResourceName = 'func-{0}-{1}-{2}' -f $CompanyName, $appInstance, $componentName.ToLower()
-                $funcHostName = $spInput.HasMriDomain ? `
-                    (Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName) : `
+                $funcResourceName = 'func-{0}-{1}-{2}' -f $CompanyAbbreviation, $appInstance, $componentName.ToLower()
+                $funcHostName = $spInput.HasCustomDomain ? `
+                    (Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName) : `
                     "$funcResourceName.azurewebsites.net"
                 
                 $storageUsage = $spInput.StorageUsage
@@ -354,19 +311,19 @@ function Get-ResourceConvention {
                         { $isTestEnv } {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                                Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                                Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                             }
                         }
                         'demo' {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
-                                Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                             }
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
                                 Member          =   @(
-                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                    @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                                 )
                             }
                         }
@@ -374,13 +331,13 @@ function Get-ResourceConvention {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
                                 Member          =   @(
-                                    @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                    @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                 )
                             }
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
-                                Member          =   @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                Member          =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                             }
                         }
                         Default {
@@ -402,19 +359,83 @@ function Get-ResourceConvention {
                     Type                =   $spInput.Type
                 }
             }
-            'AksPod' {
+            'AcaEnvironment' {
+                $acaEnvNameTemplate = 'cae-{0}-{1}'
+                $acaEnvPrimary = @{
+                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation
+                }
+                $acaEnvFailover = @{
+                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation
+                }
+                @{
+                    Primary             = $acaEnvPrimary
+                    Failover            = if ($hasFailover) { $acaEnvFailover } else { $null }
+                    Type                =   $spInput.Type
+                }
+            }
+            'AcaApp' {
                 $isMainUI = $spInput.IsMainUI ?? $false
-                $managedId = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
-                $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductFullName
+                $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductName
                 $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : ' API'), $EnvironmentName
+
+                $managedId = @{
+                    Primary     = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
+                }
+                if ($spInput.AdditionalManagedId) {
+                    @($spInput.AdditionalManagedId) | ForEach-Object {
+                        $managedId[$_] = $subProductsConventions.$_.ResourceName
+                    }    
+                }
+                
+                $acaShareSettings = @{
+                    DefaultHealthPath   =   '/health'
+                    MaxReplicas         =   switch ($EnvironmentName) {
+                        'dev' {
+                            2 # optimize for spend
+                        }
+                        Default {
+                            6 # somewhat arbitrary limit here so adjust as needed
+                        }
+                    }
+                }
+
+                $acaAppNameTemplate = 'ca-{0}-{1}-{2}'
+                $acaIngressHostnameTemplate = '{0}.ACA_ENV_DEFAULT_DOMAIN'
+                
+                $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation, $componentName.ToLower()
+                $acaAppPrimary = @{
+                    ResourceName        =   $primaryAcaResourceName
+                    IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
+                    MinReplicas         =   switch ($EnvironmentName) {
+                        { $_ -like 'prod-*' } {
+                            3 # required for zone availability resillency
+                        }
+                        Default {
+                            # for environemnts NOT scaling to zero, then choice of min replicas is based on whether failover is configured:
+                            # - failover configured - 1 replica and use failover cluster to maintain resillency
+                            # - no failover configured - use 2 replicas for resillency (ideally combined with zone redundancy)
+                            $isScaleToZeroEnv ? 0 : $hasFailover ? 1 : 2
+                        }
+                    }
+                } + $acaShareSettings
+
+                $failoverAcaResourceName = $acaAppNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation, $componentName.ToLower()
+                $acaAppFailover = @{
+                    ResourceName        =   $failoverAcaResourceName
+                    IngressHostname     =   $acaIngressHostnameTemplate -f $failoverAcaResourceName
+                    MinReplicas         =   0 # make failover passive node (ie traffic not sent to it unless primary fails)
+                } + $acaShareSettings
                 
                 @{
-                    ManagedIdentity     =   $spInput.EnableManagedIdentity -eq $false ? $null : $managedId
-                    HostName            =   Get-PublicHostName $EnvironmentName $ProductSubDomainName $componentName -IsMainUI:$isMainUI
-                    OidcAppName         =   $oidcAppName
-                    ServiceAccountName  =   '{0}-{1}' -f $helmReleaseName, $componentName.ToLower()
-                    TrafficManagerPath  =   '/trafficmanager-health-{0}-{1}' -f $aksNamespace, $componentName.ToLower()
-                    Type                =   $spInput.Type
+                    Primary                 =   $acaAppPrimary
+                    Failover                =   if ($hasFailover) { $acaAppFailover } else { $null }
+                    DefaultHealthPath       =   $acaShareSettings.DefaultHealthPath
+                    ManagedIdentity         =   $managedId
+                    HostName                =   Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName -IsMainUI:$isMainUI
+                    OidcAppName             =   $oidcAppName
+                    TrafficManagerPath      =   $acaShareSettings.DefaultHealthPath
+                    TrafficManagerProtocol  =   'HTTPS'
+                    Type                    =   $spInput.Type
                 }
             }
             'AppInsights' {
@@ -437,21 +458,21 @@ function Get-ResourceConvention {
                     { $isTestEnv } {
                         @{
                             Role            =   'Monitoring Contributor'
-                            Member          =   @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         }
                     }
                     { $isEnvProdLike -or $_ -eq 'demo' } {
                         @{
                             Role            =   'Monitoring Contributor'
                             Member          =   @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                             )
 
                         }
                         @{
                             Role            =   'Monitoring Reader'
-                            Member          =   @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
+                            Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                         }
                     }
                     Default {
@@ -469,125 +490,111 @@ function Get-ResourceConvention {
                     WorkspaceName           =   "log-$appInstance"
                 }
             }
-            'TrafficManager' {
-                $tmEnvQualifier = if ($EnvironmentName -in 'qa', 'rel', 'release') {
-                    # we use the same AKS cluser for qa and release environment; good practice is a seperate namespace for each
-                    "-$EnvironmentName"
-                } else {
-                    ''
-                }
-                $primaryAksTrafficManagerEndpoint = @{
-                    Name                =   '{0}-{1}-{2}' -f $aksPrimaryClusterName, $aksNamespace, $spInput.Target.ToLower()
-                    Target              =   $aksPrimaryCluster.TrafficManagerHost
-                    EndpointLocation    =   $azurePrimaryRegion
-                }
-                $secondaryAksTrafficManagerEndpoint = @{
-                    Name                =   '{0}-{1}-{2}' -f $aksSecondaryClusterName, $aksNamespace, $spInput.Target.ToLower()
-                    Target              =   $aksSecondaryCluster.TrafficManagerHost
-                    EndpointLocation    =   $azureSecondaryRegion
-                }
+            'AvailabilityTest' {
                 $targetSubProduct = $subProductsConventions[$spInput.Target]
-                if ($targetSubProduct.Type = 'AksPod') {
-                    @{
-                        ResourceName        =   '{0}-{1}{2}-{3}' -f $aksPrimaryClusterName, $productNameLower, $tmEnvQualifier, $spInput.Target.ToLower()
-                        TrafficManagerPath  =   $targetSubProduct.TrafficManagerPath
-                        Endpoints           =   @($primaryAksTrafficManagerEndpoint) + ($hasFailover ? @($secondaryAksTrafficManagerEndpoint) : @())
-                        Type                =   $spInput.Type
+
+                $fifteenMinutes = 900
+                $availabilityTestFrequency = $spInput.IsExtendedCheck -or $isTestEnv ? $fifteenMinutes : 300
+                $availabilityMetricFrequency = $availabilityTestFrequency -eq $fifteenMinutes ? 'PT5M' : 'PT1M'
+                $availabilityMetricQueryWindow = $availabilityTestFrequency -eq $fifteenMinutes ? 'PT15M' : 'PT5M'
+
+                # for a list of locations, see https://learn.microsoft.com/en-us/azure/azure-monitor/app/availability-standard-tests#azure
+                # for a default health check, use the default set of (5) locations from which to run availability tests
+                # for an extended health check, use fewer locations (Central US and West Europe) so as to not tax our service endpoint
+                $testLocations = $spInput.IsExtendedCheck ? @('us-fl-mia-edge', 'emea-nl-ams-azr') : $null
+                $nameQualifier = $spInput.IsExtendedCheck ? 'extended' : 'default'
+
+                $isAvailabilityTestEnabled = $EnvironmentName -ne 'dev' # we want dev to scale to zero therefore don't check availability
+                $availabilityFriendlyName = '{0} {1} - {2} health check' -f $ProductAbbreviation.ToUpper(), $spInput.Target, $nameQualifier
+
+                @{
+                    Enabled                     =   !$isScaleToZeroEnv
+                    Frequency                   =   $availabilityTestFrequency
+                    Locations                   =   $testLocations
+                    MetricAlert                 =   @{
+                        Description             =   'Alert rule for availability test "{0}"' -f $availabilityFriendlyName
+                        Enabled                 =   !$isScaleToZeroEnv
+                        EvaluationFrequency     =   $availabilityMetricFrequency
+                        ResourceName            =   'ima-{0}-{1}-{2}' -f $appInstance, $spInput.Target.ToLower(), $nameQualifier
+                        FailedLocationCount     =   2
+                        WindowSize              =   $availabilityMetricQueryWindow
                     }
-                } else {
-                    throw 'Traffic manager convention for non-AKS not yet defined'
+                    Name                        =   $availabilityFriendlyName
+                    RequestUrl                  =   'https://{0}{1}' -f $targetSubProduct.HostName, ($spInput.Path ?? $targetSubProduct.DefaultHealthPath)
+                    ResourceName                =   'iwt-{0}-{1}-{2}' -f $appInstance, $spInput.Target.ToLower(), $nameQualifier
+                    Type                        =   $spInput.Type
+                }
+            }
+            'TrafficManager' {
+                $targetSubProduct = $subProductsConventions[$spInput.Target]
+                
+                $tmEndpoints = switch($targetSubProduct.Type) {
+                    'AcaApp' {
+                        @{
+                            Name                =   $targetSubProduct.Primary.ResourceName
+                            Target              =   $targetSubProduct.Primary.IngressHostname
+                            Priority            =   1
+                        }
+                        if ($hasFailover) {
+                            @{
+                                Name                =   $targetSubProduct.Failover.ResourceName
+                                Target              =   $targetSubProduct.Failover.IngressHostname
+                                Priority            =   2
+                            }
+                        }
+                    }
+                    default {
+                        throw 'Traffic manager convention not yet defined'
+                    }
+                }
+
+                $tmEndpoints | Where-Object Priority -eq 1 | ForEach-Object {
+                    $_.EndpointLocation = $azurePrimaryRegion.Name
+                    # health probe monitoring only makes sense if traffic can be routed to a failover cluster in the event the primary becomes unavailable.
+                    # therefore when there is no failover, disable health probe (AlwaysServe='Enabled').
+                    $_.AlwaysServe =   $hasFailover ? 'Disabled' : 'Enabled'
+                }
+
+                $tmEndpoints | Where-Object Priority -eq 2 | ForEach-Object {
+                    $_.EndpointLocation = $azureSecondaryRegion.Name
+                    # disable health probe (AlwaysServe='Enabled') for a failover endpoint, because:
+                    # 1) to allow failover to scale to zero / idle (when this is an option)
+                    # 2) it doesn't really make sense to test for availability of the failover cluster: if the primary, which is monitored, is marked as 
+                    #    unavailable, then the failover is the only option to try and serve the traffic regardless of it's state
+                    $_.AlwaysServe = 'Enabled'
+                }
+
+                $tmProtocol = $targetSubProduct.TrafficManagerProtocol ?? 'HTTP'
+                @{
+                    ResourceName        =   $targetSubProduct.HostName.Replace(".$rootDomain", '').Replace('.', '-')
+                    Path                =   $targetSubProduct.TrafficManagerPath
+                    Port                =   $tmProtocol -eq 'HTTP' ? 80 : 443
+                    Protocol            =   $tmProtocol
+                    Endpoints           =   @() + $tmEndpoints
+                    Type                =   $spInput.Type
                 }
             }
             'Pbi' {
-                $adPbiGroupNamePrefix = 'sg.365.pbi'
-                $adPbiWksGroupNamePrefix = $('{0}.workspace.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-                $adPbiReportGroupNamePrefix = $('{0}.report.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-                $adPbiDatasetGroupNamePrefix = $('{0}.dataset.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-                $pbiGroup = @(switch ($EnvironmentName) {
-                    { $isTestEnv } {
-                        @{
-                            Name            = "$adPbiWksGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                        }
-                    }
-                    'demo' {
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.contributor";
-                            PbiRole         = 'Contributor'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiReportGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.contributor";
-                            PbiRole         = 'Contributor'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
-                                @{ Name = "$adPbiDatasetGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.viewer";
-                            PbiRole         = 'Viewer'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiDatasetGroupNamePrefix.contributor"; Type = 'Group' }
-                            )
-                        }
-                    }
-                    { $isEnvProdLike } {
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.admin";
-                            PbiRole         = 'Admin'
-                            Member          = @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
-                        }
-                        @{
-                            Name            = "$adPbiReportGroupNamePrefix.contributor";
-                            PbiRole         = 'Contributor'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiReportGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                        @{
-                            Name            = "$adPbiDatasetGroupNamePrefix.viewer";
-                            PbiRole         = 'Viewer'
-                            Member          = @(
-                                @{ Name = $addGlobalGroupNames.Tier1SupportGroup; Type = 'Group' }
-                                @{ Name = "$adPbiDatasetGroupNamePrefix.admin"; Type = 'Group' }
-                            )
-                        }
-                    }
-                    Default {
-                        Write-Output @() -NoEnumerate
-                    }
-                }) + @{
-                    Name            = "$adPbiWksGroupNamePrefix.app";
-                    PbiRole         = 'Admin'
-                    Member          = @()
+                $pbiTeamGroupNames = Get-TeamGroupNames -ProductName "$ProductAbbreviation-Pbi" -EnvironmentName $EnvironmentName
+                $pbiTeamAadConventionParams = @{
+                    ProductName         =   $ProductAbbreviation
+                    EnvironmentName     =   $EnvironmentName
+                    TeamGroupNames      =   $pbiTeamGroupNames
+                    TeamGroupMemberOnly =   $true
                 }
-
+                $pbiTeamGroupMembership = Get-PbiAadSecurityGroupConvention @pbiTeamAadConventionParams | ForEach-Object { [PsCustomObject]$_ }
+                $pbiGroups = Get-PbiAadSecurityGroupConvention $ProductAbbreviation $EnvironmentName $teamGroupNames | ForEach-Object {
+                    $pbiGrp = $_
+                    $pbiGrp.Member = @(
+                        $pbiTeamGroupMembership | Where-Object Name -like $pbiGrp.Name | Select-Object -Exp Member
+                        $pbiGrp.Member
+                    )
+                    $pbiGrp
+                }
                 @{
-                    AadGroupNamePrefix  =   $adPbiGroupNamePrefix
-                    AadSecurityGroup    =   $pbiGroup
+                    AadGroupNamePrefix  =   'sg.365.pbi'
+                    AadSecurityGroup    =   $pbiGroups
+                    TeamGroups          =   $pbiTeamGroupNames
                     Type                =   $spInput.Type
                 }
             }
@@ -596,9 +603,9 @@ function Get-ResourceConvention {
                     @{
                         Role            =   'Key Vault Secrets Officer'
                         Member          =   if ($isTestEnv) {
-                            @{ Name = $addGlobalGroupNames.DevelopmentGroup; Type = 'Group' }
+                            @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         } else {
-                            @{ Name = $addGlobalGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                         }
                     }
                 )
@@ -624,26 +631,39 @@ function Get-ResourceConvention {
         }
     }
     
-    $ad = @{
-        AadSecurityGroup    =   $addGlobalGroupNames.Values | ForEach-Object { @{ Name = $_ } }
+    $containerRegistryProd = @{
+        ResourceName        =   "${CompanyDomain}devopsprod"
+        ResourceGroupName   =   'container-registry'
+        SubscriptionId      =   '4c98c256-bc60-40ba-8bcb-81ae94ac52d4'
+    }
+    $containerRegistryDev = @{
+        ResourceName        =   "${CompanyDomain}devops"
+        ResourceGroupName   =   'Container_Registry'
+        SubscriptionId      =   'c398eb55-b057-45f9-8fe3-cfb0034418f5'
+    }
+    $containerRegistries = @{
+        Available   = $isEnvProdLike ? @($containerRegistryProd) : @($containerRegistryProd, $containerRegistryDev)
+        Prod        = $containerRegistryProd
+        Dev         = $containerRegistryDev
     }
 
     $results = @{
-        Ad                      =   $ad
-        Aks                     =   @{
-            Primary             =   $aksPrimaryCluster
-            Failover            =   if($hasFailover) { $aksSecondaryCluster } else { $null }
-            Namespace           =   $aksNamespace
-            HelmReleaseName     =   $helmReleaseName
-            RegistryName        =   'mrisoftwaredevops'
-            ProdRegistryName    =   'mrisoftwaredevopsprod'
-        }
+        TeamGroups              =   $teamGroupNames
         AppResourceGroup        =   $appReourceGroup
+        Company                 =   @{
+            Abbreviation    =   $CompanyAbbreviation
+            Domain          =   $CompanyDomain
+            Name            =   $CompanyName
+        }
+        ContainerRegistries     =   $containerRegistries
         DataResourceGroup       =   $dataResourceGroup
-        CompanyName             =   $CompanyName
-        ProductName             =   $productNameLower
         EnvironmentName         =   $EnvironmentName
         IsEnvironmentProdLike   =   $isEnvProdLike
+        Product                 =   @{
+            Abbreviation    =   $ProductAbbreviation
+            Name            =   $ProductName
+            SubDomainName   =   $ProductSubDomainName
+        }
         SubProducts             =   $subProductsConventions
         IsTestEnv               =   $isTestEnv
     }

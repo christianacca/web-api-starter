@@ -17,9 +17,8 @@
         try {
             
             $conventionsParams = @{
-                ProductName             =   'web-api-starter'
-                ProductFullName         =   'Web API Starter'
-                ProductSubDomainName    =   'mriwebapistarter'
+                CompanyName             =   'CLC Software'
+                ProductName             =   'Web API Starter'
                 EnvironmentName         =   $EnvironmentName
                 SubProducts             =   [ordered]@{
                     PbiReportStorage    =   @{ 
@@ -28,15 +27,19 @@
                         DefaultStorageTier  =   'Cool'
                         Usage               =   'Blob'
                     }
+                    Aca                 =   @{ Type = 'AcaEnvironment' }
+                    AcrPull             =   @{ Type = 'ManagedIdentity' }
                     AppInsights         =   @{ Type = 'AppInsights' }
                     Sql                 =   @{ Type = 'SqlServer' }
                     Db                  =   @{ Type = 'SqlDatabase' }
                     InternalApi         =   @{ Type = 'FunctionApp'; StorageUsage = 'Queue' }
-                    Api                 =   @{ Type = 'AksPod' }
+                    Api                 =   @{ Type = 'AcaApp'; AdditionalManagedId = 'AcrPull' }
                     ApiTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'Api' }
-                    Web                 =   @{ Type = 'AksPod'; IsMainUI = $true; EnableManagedIdentity = $false }
-                    WebTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'Web' }
+                    ApiAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'Api' }
+                    # example of an extended health check:
+#                    ApiExtendedAvailabilityTest =   @{ Type = 'AvailabilityTest'; IsExtendedCheck = $true; Path = '/health-extended'; Target = 'Api' }
                     KeyVault            =   @{ Type = 'KeyVault' }
+#                    Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }
             }
             
@@ -46,7 +49,10 @@
 
             $convention = Get-ResourceConvention @conventionsParams -AsHashtable
 
-            $convention.Aks.RegistryName = 'mrisoftwaredevopslocal'
+            $convention.ContainerRegistries.Dev.ResourceGroupName = "rg-dev-$($convention.Company.Abbreviation)-sharedservices"
+            $convention.ContainerRegistries.Prod.ResourceGroupName = "rg-prod-$($convention.Company.Abbreviation)-sharedservices"
+            $convention.ContainerRegistries.Dev.SubscriptionId = $null
+            $convention.ContainerRegistries.Prod.SubscriptionId = $null
 
             if ($AsHashtable) {
                 $convention

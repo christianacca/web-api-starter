@@ -29,6 +29,9 @@ param retentionInDays int = 30
 @description('Specify the name of the log analytics workspace.')
 param workspaceName string = 'log-${appName}${environmentName}'
 
+@description('Default availability health checks to create.')
+param defaultAvailabilityTests array = []
+
 @description('Specify the pricing tier: PerGB2018 or legacy tiers (Free, Standalone, PerNode, Standard or Premium) which are not available to all customers.')
 @allowed([
   'CapacityReservation'
@@ -80,6 +83,57 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
     publicNetworkAccessForQuery: 'Enabled'
   }
 }
+
+module webTests 'br/public:avm/res/insights/webtest:0.1.3' = [for (webTest, i) in defaultAvailabilityTests: {
+  name: '${uniqueString(deployment().name, location)}-${i}-WebTest'
+  params: {
+    appInsightResourceId: appInsights.id
+    enabled: webTest.Enabled
+    frequency: webTest.Frequency
+    name: webTest.ResourceName
+    locations: webTest.Locations == null ? null : map(webTest.Locations, testLocation => {
+      Id: testLocation
+    })
+    request: {
+      HttpVerb: 'GET'
+      RequestUrl: webTest.RequestUrl
+    }
+    validationRules: {
+      ExpectedHttpStatusCode: 200
+      IgnoreHttpStatusCode: false
+      ContentValidation: {
+        ContentMatch: 'Healthy'
+        IgnoreCase: true
+        PassIfTextFound: true
+      }
+      SSLCheck: true
+      SSLCertRemainingLifetimeCheck: 7
+    }
+    webTestName: webTest.Name
+  }
+}]
+
+resource webTestAlerts 'Microsoft.Insights/metricAlerts@2018-03-01' = [for (webTest, i) in defaultAvailabilityTests: {
+  name: webTest.MetricAlert.ResourceName
+  location: 'global'
+  properties: {
+    criteria: {
+      webTestId: webTests[i].outputs.resourceId
+      componentId: appInsights.id
+      failedLocationCount: webTest.MetricAlert.FailedLocationCount
+      'odata.type': 'Microsoft.Azure.Monitor.WebtestLocationAvailabilityCriteria'
+    }
+    description: webTest.MetricAlert.Description
+    enabled: webTest.MetricAlert.Enabled && enableMetricAlerts
+    evaluationFrequency: webTest.MetricAlert.EvaluationFrequency
+    scopes: [
+      webTests[i].outputs.resourceId
+      appInsights.id
+    ]
+    severity: 1
+    windowSize: webTest.MetricAlert.WindowSize
+  }
+}]
 
 resource requestPerformanceDegradationDetectorRule 'Microsoft.AlertsManagement/smartdetectoralertrules@2021-04-01' = {
   name: 'Response Latency Degradation - ${appInsightsName}'
@@ -617,3 +671,9 @@ resource warning_traces_metricAlert 'microsoft.insights/metricAlerts@2018-03-01'
 
 @description('The Application Insights resource id.')
 output appInsightsResourceId string = appInsights.id
+
+@description('The Application Insights connection string.')
+output appInsightsConnectionString string = appInsights.properties.ConnectionString
+
+@description('The Log analytics workspace resource id.')
+output logAnalyticsWorkspaceResourceId string = workspace.id

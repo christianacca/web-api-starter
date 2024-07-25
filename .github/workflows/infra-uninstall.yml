@@ -25,11 +25,6 @@ on:
         default: false
         required: false
         type: boolean
-      uninstall-aks-app:
-        description: 'Uninstall app in AKS?'
-        default: false
-        required: false
-        type: boolean
 
 permissions:
   actions: read
@@ -51,4 +46,4 @@ jobs:
 
       - name: 'Uninstall infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -UninstallAksApp:$${{ github.event.inputs.uninstall-aks-app }} -DeleteSqlAADGroups:$${{ github.event.inputs.delete-sql-aad-groups }}  -InfA Continue
+        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -DeleteSqlAADGroups:$${{ github.event.inputs.delete-sql-aad-groups }}  -InfA Continue

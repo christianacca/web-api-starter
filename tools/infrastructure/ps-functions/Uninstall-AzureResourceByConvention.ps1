@@ -21,24 +21,22 @@ function Uninstall-AzureResourceByConvention {
       .PARAMETER DeleteAADGroups
       Delete the Azure AD groups that were created as security groups?
       Note: a missing group will be reported as an error but NOT cause the script to stop.
-
-      .PARAMETER UninstallAksApp
-      Uninstall the AKS release for the application? This flag only makes sense if your application is deployed to AKS via helm
     
       .EXAMPLE
       $conventionsParams = @{
-          ProductName             =   'myapp'
+          CompanyName             =   'MRI Software'
+          ProductName             =   'Web API Starter'
           EnvironmentName         =   $EnvironmentName
           SubProducts             =   @{
               Sql         =   @{ Type = 'SqlServer' }
               Db          =   @{ Type = 'SqlDatabase' }
               Func        =   @{ Type = 'FunctionApp' }
-              Api         =   @{ Type = 'AksPod' }
+              Api         =   @{ Type = 'AcaApp' }
           }
       }
       $convention = Get-ResourceConvention @conventionsParams -AsHashtable
  
-      $convention | Uninstall-AzureResourceByConvention -DeleteAADGroups -UninstallAksApp
+      $convention | Uninstall-AzureResourceByConvention -DeleteAADGroups
     
     #>
     [CmdletBinding()]
@@ -48,8 +46,7 @@ function Uninstall-AzureResourceByConvention {
         [Alias('Convention')]
         [Hashtable] $InputObject,
 
-        [switch] $DeleteAADGroups,
-        [switch] $UninstallAksApp
+        [switch] $DeleteAADGroups
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -58,7 +55,6 @@ function Uninstall-AzureResourceByConvention {
 
         . "$PSScriptRoot/Invoke-Exe.ps1"
         . "$PSScriptRoot/Remove-ADAppRegistration.ps1"
-        . "$PSScriptRoot/Remove-AksAppByConvention.ps1"
     }
     process {
         try {
@@ -69,15 +65,12 @@ function Uninstall-AzureResourceByConvention {
                 Select-Object -Exp ResourceName
 
             $functionAppName | Remove-ADAppRegistration
-            
-            if ($UninstallAksApp) {
-                $InputObject | Remove-AksAppByConvention   
-            }
 
             if ($DeleteAADGroups) {
                 $groups = @(
-                    $InputObject.SubProducts.Values | ForEach-Object { $_['AadSecurityGroup'] } | Select-Object -ExpandProperty Name
-                    $InputObject.Ad.AadSecurityGroup.Name
+                $InputObject.SubProducts.Values | ForEach-Object { $_['AadSecurityGroup'] } | Select-Object -ExpandProperty Name
+                $convention.SubProducts.Values | ForEach-Object { $_['TeamGroups'] } | Select-Object -ExpandProperty Values
+                    $InputObject.TeamGroups.Values
                 )
                 $groups | ForEach-Object {
                     $groupName = $_

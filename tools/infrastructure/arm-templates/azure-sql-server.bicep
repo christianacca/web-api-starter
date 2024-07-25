@@ -29,7 +29,7 @@ param firewallRules array = []
 @description('Optional. The failover server to configure.')
 param failoverInfo serverType?
 
-resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2018-11-30' = {
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: managedIdentityName
   location: location
 }
