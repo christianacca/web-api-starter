@@ -1,6 +1,35 @@
 <#
     .SYNOPSIS
     Deploys API to Azure container apps
+    
+    .PARAMETER Name
+    The name of the Container App to create a revision for
+    
+    .PARAMETER Image
+    The full image name to deploy, including the registry and tag
+    
+    .PARAMETER ResourceGroup
+    The name of the resource group that contains the container app
+    
+    .PARAMETER EnvVarsObject
+    A hashtable specifying the environment variables to include in the deployment of the new revision. The keys of 
+    the hashtable are the environment variable names and the values are the environment variable values
+    
+    .PARAMETER EnvVarsSelector
+    A list of one or more strings that identity the environment variables to include in the deployment of the new revision.
+    Each string, a comma separated list of environment variables. Use the format Env:VariableName to include an 
+    environment variable. Use the wildcard character (*) to match environment variables that start with a 
+    specific string. For example, Env:Api_* will match all environment variables that start with Api_
+    
+    .PARAMETER EnvVarKeyTransform
+    A script block to apply to the environment variable keys. Use the format { $_-replace "search", "replace" } to 
+    replace all instances of search with replace in the environment variable keys. For example, { $_ -replace "_", "__" } 
+    will replace all underscores with double underscores in the environment variable keys
+    
+    .PARAMETER EnvVarKeyTransformString
+    A string transformation to apply to the environment variable keys. Use the format "search=>replace" to replace all 
+    instances of search with replace in the environment variable keys. For example, _=>__ will replace all underscores
+    with double underscores in the environment variable keys
 
     .EXAMPLE
     $apiParams = @{
@@ -97,11 +126,23 @@
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
 
-        . "$PSScriptRoot/../infrastructure/ps-functions/ConvertTo-StringData.ps1"
-        . "$PSScriptRoot/../infrastructure/ps-functions/Invoke-Exe.ps1"
-        . "$PSScriptRoot/../infrastructure/ps-functions/Invoke-ExeExpression.ps1"
+        . "$PSScriptRoot/Invoke-Exe.ps1"
+        . "$PSScriptRoot/Invoke-ExeExpression.ps1"
 
-        function Union-Hashtable {
+        function ConvertTo-StringData {
+            [CmdletBinding()]
+            param(
+                [Parameter(Mandatory, ValueFromPipeline)]
+                [HashTable]$InputObject,
+                [switch] $SortKeys
+            )
+            process {
+                $keys = $SortKeys ? ($InputObject.Keys | Sort-Object) : $InputObject.Keys
+                $keys | ForEach-Object { ('"{0}={1}"' -f  $_, $InputObject[$_].ToString().Replace('"', '""')) }
+            }
+        }
+
+        function Join-Hashtable {
             param(
                 [Parameter(Mandatory, ValueFromPipeline)]
                 [Hashtable[]] $InputObject
@@ -166,7 +207,7 @@
             
             $metadataEnvVars = $requiredEnvVarKeys ? @{ $metadataKeyName = ($requiredEnvVarKeys -join ',') } : @{}
 
-            $desiredEnvVars = $EnvVarsObject,$metadataEnvVars,$existingEnvVars | Union-Hashtable |
+            $desiredEnvVars = $EnvVarsObject,$metadataEnvVars,$existingEnvVars | Join-Hashtable |
                 Select-Hashtable { $_ -notin $obsoleteEnvKeys }
             
             $envVarsString = $desiredEnvVars | ConvertTo-StringData -SortKeys | Join-String -Separator ' '
@@ -174,7 +215,7 @@
             
             $copyRevision = "az containerapp revision copy -n $Name -g $ResourceGroup --image $Image $replaceEnvVarsString"
             $copyRevision
-#            Invoke-ExeExpression $copyRevision | ConvertFrom-Json | Select-Object -Exp properties
+            Invoke-ExeExpression $copyRevision | ConvertFrom-Json | Select-Object -Exp properties
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
