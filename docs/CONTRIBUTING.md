@@ -7,7 +7,6 @@
   * [API design conventions](#api-design-conventions)
   * [Typical tasks](#typical-tasks)
     * [Working with EF Core migrations](#working-with-ef-core-migrations)
-    * [Generating server-side breeze metadata](#generating-server-side-breeze-metadata)
 <!-- TOC -->
 
 This document is the a contribution guide for the AIG backend stack project. _It is a work in progress._
