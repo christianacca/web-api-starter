@@ -2,13 +2,11 @@
 
 1. Create Azure AD app registrations to allow github actions to authenticate to Azure AD.
 
-   For each environment being deployed:
-
-      `./tools/infrastructure/add-github-federated-credential.ps1 -InfA Continue -Login -EnvironmentName xxx -SubscriptionId xxx-xxx`
+   Run the two scripts as described in this repo [service-principal-automate](https://github.com/MRI-Software/service-principal-automate)
 
 2. Create github environments:
 
-   1. (optional) Adjust the environments setup in [setup-environments.yml](../.github/workflows/setup-environments.yml)
+   1. (optional) Adjust the environments setup in [github-setup-environments.yml](../.github/workflows/github-setup-environments.yml)
    2. Go to the Actions tab in the github repo
    3. Manually run the workflow 'Create Github environments'
 
@@ -22,10 +20,7 @@
      * require approval
      * only allowed to run for release branches and the default (eg master) branch
 
-4. (optional) Enable source code trigger
+4. Create a convenience azure-login github action
 
-   By default, only a manual trigger for running the github workflow to deploy the infrastructure is enabled. The triggers on source code push is disabled.
-
-   To enable the CI/CD triggers:
-   1. open [deploy-infrastructure.yml](../.github/workflows/deploy-infrastructure.yml)
-   2. uncomment the `on.push` section
+   For any action in the github workflow to be able to perform any operation against Azure, the github workflow must sign-in to azure first.
+   As a convenience, create a custom github action like you see in this repo: [azure-login](../.github/actions/azure-login)
