@@ -39,6 +39,6 @@ process {
         $vars.subscriptionId = $SubscriptionId
     }
     $vars.Keys | ForEach-Object {
-        '::set-output name={0}::{1}' -f $_, $vars[$_]
+        ('{0}={1}' -f $_, $vars[$_]) >> $env:GITHUB_OUTPUT
     }
 }

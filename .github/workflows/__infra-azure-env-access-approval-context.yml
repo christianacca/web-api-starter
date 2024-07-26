@@ -7,7 +7,7 @@ jobs:
   run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3 # need to checkout so that our custom action is available
+      - uses: actions/checkout@v4 # need to checkout so that our custom action is available
       - name: Access level description
         run: |
           '## Access levels' >> $Env:GITHUB_STEP_SUMMARY
