@@ -242,12 +242,12 @@
                 Get-ServicePrincipalAccessToken $AADSqlAdminServicePrincipalCredential $sqlTokenResourceUrl -EA Stop
             } else {
                 Write-Information "Acquiring access token for $sqlTokenResourceUrl using current signed in context..."
-                Get-AzAccessToken -ResourceUrl $sqlTokenResourceUrl -EA Stop
+                Get-AzAccessToken -ResourceUrl $sqlTokenResourceUrl -AsSecureString -EA Stop
             }
             Write-Information "  INFO | Token ExpiresOn: $($sqlAccessToken.ExpiresOn)"
             Write-Information "  INFO | Token TenantId: $($sqlAccessToken.TenantId)"
             Write-Information "  INFO | Token UserId: $($sqlAccessToken.UserId)"
-            $sqlAccessTokenString = $sqlAccessToken.Token
+            $sqlAccessTokenCreds = [PSCredential]::new("token", $sqlAccessToken.Token)
 
 
             #-----------------------------------------------------------------------------------------------
@@ -432,7 +432,7 @@
             $dbConnectionParams = @{
                 SqlServerName               =   $sqlServer.Primary.ResourceName
                 DatabaseName                =   $sqlDatabase.ResourceName
-                AccessToken                 =   $sqlAccessTokenString
+                AccessTokenCredential       =   $sqlAccessTokenCreds
             }
             $dbUsers | Set-AzureSqlAADUser @dbConnectionParams
         }
