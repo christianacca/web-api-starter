@@ -142,7 +142,7 @@
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
 
-        . "$PSScriptRoot/hash-table-functions.ps1"
+        . "$PSScriptRoot/hashtable-functions.ps1"
         . "$PSScriptRoot/Invoke-Exe.ps1"
         . "$PSScriptRoot/Invoke-ExeExpression.ps1"
     }
