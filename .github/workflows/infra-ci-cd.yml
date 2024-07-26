@@ -48,7 +48,7 @@ jobs:
     steps:
       - name: Create github release
         if: needs.globalvars.outputs.createRelease == 'true'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
         with:
           tag_name: ${{ needs.globalvars.outputs.gitTag }}
           target_commitish: ${{ github.sha }}

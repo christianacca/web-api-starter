@@ -71,7 +71,7 @@ jobs:
 
       - name: Create github release
         if: inputs.create-release == true
-        uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5 # <- 0.1.14
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
         with:
           tag_name: ${{ inputs.git-tag }}
           files: ./publish/release.tar.gz
