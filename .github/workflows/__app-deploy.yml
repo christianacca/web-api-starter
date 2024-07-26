@@ -42,24 +42,13 @@ jobs:
         with:
           github-environment: ${{ inputs.environment-name }}
 
-      - name: Collect variables as json
-        id: infravars
-        shell: pwsh
-        run: |
-          ./tools/infrastructure/get-infrastructure-info.ps1 -EnvironmentName ${{ inputs.environment-name }} >> ./obj/infra.json
-          ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName ${{ inputs.environment-name }} >> ./obj/conventions.json
-
-      - name: Convert conventions json to vars
-        uses: antifree/json-to-variables@8de3c6b94715a24fe65f29640b4e292a4add22a3 # <- v1.2.0
+      - uses: ./.github/actions/export-convention-vars
         with:
-          filename: ./obj/conventions.json
-          prefix: Convention
+          environment-name: ${{ inputs.environment-name }}
 
-      - name: Convert infrastructure json to vars
-        uses: antifree/json-to-variables@8de3c6b94715a24fe65f29640b4e292a4add22a3 # <- v1.2.0
+      - uses: ./.github/actions/export-infra-vars
         with:
-          filename: ./obj/infra.json
-          prefix: Infra
+          environment-name: ${{ inputs.environment-name }}
 
       - uses: kanga333/variable-mapper@3681b75f5c6c00162721168fb91ab74925eaebcb # <- v0.3.0
         with:
