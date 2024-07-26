@@ -50,13 +50,13 @@ jobs:
           ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName ${{ inputs.environment-name }} >> ./obj/conventions.json
 
       - name: Convert conventions json to vars
-        uses: antifree/json-to-variables@cc8c6394031e145c90f7f9ec909d83df92431fb8 # <- v1.0.1
+        uses: antifree/json-to-variables@8de3c6b94715a24fe65f29640b4e292a4add22a3 # <- v1.2.0
         with:
           filename: ./obj/conventions.json
           prefix: Convention
 
       - name: Convert infrastructure json to vars
-        uses: antifree/json-to-variables@v1.0.1
+        uses: antifree/json-to-variables@8de3c6b94715a24fe65f29640b4e292a4add22a3 # <- v1.2.0
         with:
           filename: ./obj/infra.json
           prefix: Infra
