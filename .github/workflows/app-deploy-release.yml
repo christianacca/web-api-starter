@@ -10,7 +10,7 @@ jobs:
     if:  ${{ startsWith(github.event.release.tag_name, 'app-') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3 # need to checkout so that custom action is available!
+      - uses: actions/checkout@v4 # need to checkout so that custom action is available!
       - uses: ./.github/actions/set-global-build-vars
         id: vars
     outputs:

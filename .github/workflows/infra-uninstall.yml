@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment-name }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Azure login
         uses: ./.github/actions/azure-login
