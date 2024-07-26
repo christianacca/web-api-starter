@@ -23,19 +23,20 @@ function Set-AzureSqlAADUser {
       .PARAMETER DatabaseName
       The name of the Azure SQL server database to add the user to   
       
-      .PARAMETER AccessToken
-      The access token used to authenticate to SQL Server
+      .PARAMETER AccessTokenCredential
+      The access token, wrapped in a PSCredential, used to authenticate to SQL Server
       
       .EXAMPLE
-      $accessToken = (Get-AzAccessToken -ResourceUrl https://database.windows.net -EA Stop).Token
-      Set-AzureSqlAADUser 'kc.mriazure_gmail.com#EXT#@kcmriazuregmail.onmicrosoft.com' -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessToken $accessToken
+      $accessToken = Get-AzAccessToken -ResourceUrl https://database.windows.net -AsSecureString -EA Stop
+      $accessTokenCreds = [PSCredential]::new("token", $accessToken.Token)
+      Set-AzureSqlAADUser 'kc.mriazure_gmail.com#EXT#@kcmriazuregmail.onmicrosoft.com' -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessTokenCredential $accessTokenCreds
     
       Description
       -----------
       Ensures there is a datbaase user that is associated with the User in Azure AD
 
       .EXAMPLE
-      Set-AzureSqlAADUser grp-my-app-sql-admin -DatabaseRole db_datareader,db_datawriter -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessToken $accessToken
+      Set-AzureSqlAADUser grp-my-app-sql-admin -DatabaseRole db_datareader,db_datawriter -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessTokenCredential $accessTokenCreds
     
       Description
       -----------
@@ -43,7 +44,7 @@ function Set-AzureSqlAADUser {
       Ensure this datbaase user is assigned the db_datareader and db_datawriter database roles
       
       .EXAMPLE
-      Set-AzureSqlAADUser web-api-identity -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessToken $accessToken
+      Set-AzureSqlAADUser web-api-identity -SqlServerName my-app-sql -DatabaseName my-app-sql-db -AccessTokenCredential $accessTokenCreds
     
       Description
       -----------
@@ -65,7 +66,7 @@ function Set-AzureSqlAADUser {
         [string] $DatabaseName,
 
         [Parameter(Mandatory)]
-        [string] $AccessToken
+        [PsCredential] $AccessTokenCredential
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -94,7 +95,7 @@ END
             $setDbUserSql = $sqlStatements | Out-String
 
             $setDbUserParams = @{
-                AccessToken         =   $AccessToken
+                AccessToken         =   $AccessTokenCredential.GetNetworkCredential().Password
                 ServerInstance      =   "$SqlServerName.database.windows.net"
                 Database            =   $DatabaseName
                 Query               =   $setDbUserSql

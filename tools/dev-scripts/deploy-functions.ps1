@@ -40,7 +40,7 @@ begin {
     $callerEA = $ErrorActionPreference
     $ErrorActionPreference = 'Stop'
     
-    . "./tools/infrastructure/ps-functions/ConvertTo-StringData.ps1"
+    . "./tools/infrastructure/ps-functions/hashtable-functions.ps1"
     . "./tools/infrastructure/ps-functions/Invoke-Exe.ps1"
     . "./tools/infrastructure/ps-functions/Invoke-ExeExpression.ps1"
     . "./tools/dev-scripts/Set-AppSettings.ps1"
