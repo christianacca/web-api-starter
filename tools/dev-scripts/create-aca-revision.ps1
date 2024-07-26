@@ -148,42 +148,9 @@
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
 
-        . "$PSScriptRoot/../infrastructure/ps-functions/ConvertTo-StringData.ps1"
+        . "$PSScriptRoot/../infrastructure/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/../infrastructure/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/../infrastructure/ps-functions/Invoke-ExeExpression.ps1"
-
-        function Join-Hashtable {
-            param(
-                [Parameter(Mandatory, ValueFromPipeline)]
-                [Hashtable[]] $InputObject
-            )
-            begin {
-                $result = @{}
-            }
-            process {
-                foreach ($hashtable in $InputObject) {
-                    foreach ($key in $hashtable.Keys) {
-                        if (-not $result.ContainsKey($key)) {
-                            $result[$key] = $hashtable[$key]
-                        }
-                    }
-                }
-            }
-            end {
-                $result
-            }
-        }
-        function Select-Hashtable {
-            param(
-                [Parameter(Mandatory, ValueFromPipeline)]
-                [Hashtable] $InputObject,
-                
-                [Parameter(Mandatory, Position = 0)]
-                [ScriptBlock] $Selector
-            )
-            $InputObject.Keys | Where-Object $Selector |
-                ForEach-Object -Begin { $tmp = @{} } -Process { $tmp[$_] = $InputObject[$_] } -End { $tmp }
-        }
     }
     process {
         try {
