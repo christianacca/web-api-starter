@@ -39,7 +39,7 @@ function Get-ServicePrincipalAccessToken {
 
             $azContextInfo = Get-AzContext -EA Stop | Select-Object -ExpandProperty Account | Select-Object Id, Type
             Write-Information "Acquiring access token for $ResourceUrl using context ($azContextInfo)..."
-            Get-AzAccessToken -ResourceUrl $ResourceUrl -EA Stop
+            Get-AzAccessToken -ResourceUrl $ResourceUrl -AsSecureString -EA Stop
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
