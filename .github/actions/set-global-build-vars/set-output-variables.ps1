@@ -29,6 +29,7 @@ process {
             buildNumber     =   $buildNumber
             buildTag        =   $buildTag
             buildType       =   $buildType
+            buildFullVersion    =   '{0}-{1}+{2}' -f $releaseNumber, $buildNumber, ($env:GITHUB_SHA[0..7] -Join '')
             buildVersion    =   "$releaseNumber.0.$buildNumber"
             createRelease   =   'false'
             gitTag          =   $env:GITHUB_REF_NAME
