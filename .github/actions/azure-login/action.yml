@@ -24,7 +24,7 @@ runs:
     # Logs in with federated github credential
     # (for more info see: https://docs.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#use-the-azure-login-action-with-openid-connect)
     - name: Azure login
-      uses: azure/login@v1
+      uses: azure/login@v2
       with:
         enable-AzPSSession: ${{ inputs.enable-AzPSSession }}
         client-id: ${{ steps.vars.outputs.clientId }}
