@@ -24,10 +24,10 @@ jobs:
     environment: ${{ inputs.environment-name }}
 
     steps:
-      - uses: actions/checkout@v3 # need to checkout (again) so that our custom action and deployment script is available
+      - uses: actions/checkout@v4 # need to checkout (again) so that our custom action and deployment script is available
 
       - name: Download release artifacts
-        uses: dsaltares/fetch-gh-release-asset@d9376dacd30fd38f49238586cd2e9295a8307f4c # <- current master (2022-07-12)
+        uses: dsaltares/fetch-gh-release-asset@aa2ab1243d6e0d5b405b973c89fa4d06a2d0fff7 # <- 1.1.2
         with:
           version: 'tags/${{ inputs.git-tag }}'
           file: release.tar.gz
@@ -50,18 +50,18 @@ jobs:
           ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName ${{ inputs.environment-name }} >> ./obj/conventions.json
 
       - name: Convert conventions json to vars
-        uses: antifree/json-to-variables@cc8c6394031e145c90f7f9ec909d83df92431fb8 # <- v1.0.1
+        uses: antifree/json-to-variables@8de3c6b94715a24fe65f29640b4e292a4add22a3 # <- v1.2.0
         with:
           filename: ./obj/conventions.json
           prefix: Convention
 
       - name: Convert infrastructure json to vars
-        uses: antifree/json-to-variables@v1.0.1
+        uses: antifree/json-to-variables@8de3c6b94715a24fe65f29640b4e292a4add22a3 # <- v1.2.0
         with:
           filename: ./obj/infra.json
           prefix: Infra
 
-      - uses: kanga333/variable-mapper@bc402faa459bac3069f595be0dd9d635373f5e6c # <- current master (2022-07-12)
+      - uses: kanga333/variable-mapper@3681b75f5c6c00162721168fb91ab74925eaebcb # <- v0.3.0
         with:
           mode: fill
           key: "${{ inputs.environment-name }}"
