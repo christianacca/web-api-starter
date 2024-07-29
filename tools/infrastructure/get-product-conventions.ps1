@@ -19,6 +19,7 @@
             $conventionsParams = @{
                 CompanyName             =   'CLC Software'
                 ProductName             =   'Web API Starter'
+#                ProductAbbreviation     =   'was-cc'
                 EnvironmentName         =   $EnvironmentName
                 SubProducts             =   [ordered]@{
                     PbiReportStorage    =   @{ 
