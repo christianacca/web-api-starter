@@ -222,15 +222,14 @@ specifically, the example with the description "Returns tables describing all Az
 
 ### Prerequisites
 
-* [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to:
-    * run dev scripts
+* [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to run dev scripts
 * [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.28.1**)
 * powershell core (tested on v7.2)
-* docker engine to run the dev script with the flag `-DockerPush`
+* docker engine to run the [build.ps1](../tools/dev-scripts/build.ps1)) script with the flag `-DockerPush`
 
 ### Permissions to run infrastructure scripts
 
-You are unlikely to have permissions to run the infrastructure provisioning scrips (steps 1-3 below) from your dev machine :-(
+You are unlikely to have permissions to run the infrastructure provisioning scrips (step 3 below) from your dev machine :-(
 In practice the only way to run these scripts from a dev machine is:
 
 1. To have your own Azure subscription where you are the owner, AND
@@ -248,8 +247,9 @@ In practice the only way to run these scripts from a dev machine is:
 1. Modify product conventions to avoid conflicts for those azure resource whose names are globally unique:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
    2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
-   3. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
-   4. comment-in the block of code that starts `# If you need to override conventions, ...`
+   3. uncomment `ProductAbbreviation` (line 22) and make it globally unique (eg replace `-cc` with your initials)
+   4. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
+   5. comment-in the block of code that starts `# If you need to override conventions, ...`
 2. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
@@ -258,7 +258,7 @@ In practice the only way to run these scripts from a dev machine is:
 3. Provision Azure resources:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-   ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
    ````
    * NOTE: if this script fails try running it again (script is idempotent). For more details see troubleshooting section below
 4. Build App: 
