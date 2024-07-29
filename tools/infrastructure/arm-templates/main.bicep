@@ -150,20 +150,26 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
   identity: apiAcrPullManagedId.id
 }))
 
+var apiSharedSettings = {
+  acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
+  appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+  managedIdentityClientIds: {
+    default: apiManagedId.properties.clientId
+  }
+  managedIdentityResourceIds: [
+    apiManagedId.id
+    apiAcrPullManagedId.id
+  ]
+  registries: acaContainerRegistries
+  subProductsSettings: settings.SubProducts
+}
+
 module apiPrimary 'api.bicep' = {
   name: '${uniqueString(deployment().name, location)}-AcaApiPrimary'
   params: {
-    acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
-    apiSettings: settings.SubProducts.Api.Primary
-    appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
     exists: apiPrimaryExists
-    primaryManagedIdentityClientId: apiManagedId.properties.clientId
-    registries: acaContainerRegistries
-    subProductsSettings: settings.SubProducts
-    userAssignedResourceIds: [
-      apiManagedId.id
-      apiAcrPullManagedId.id
-    ]
+    instanceSettings: settings.SubProducts.Api.Primary
+    sharedSettings: apiSharedSettings
   }
 }
 
@@ -179,17 +185,9 @@ module acaEnvFailover 'br/public:avm/res/app/managed-environment:0.5.2' = if (!e
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
   name: '${uniqueString(deployment().name, location)}-AcaApiFailover'
   params: {
-    acaEnvironmentResourceId: !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.resourceId : ''
-    apiSettings: settings.SubProducts.Api.Failover
-    appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+    instanceSettings: settings.SubProducts.Api.Failover
     exists: apiFailoverExists
-    primaryManagedIdentityClientId: apiManagedId.properties.clientId
-    registries: acaContainerRegistries
-    subProductsSettings: settings.SubProducts
-    userAssignedResourceIds: [
-      apiManagedId.id
-      apiAcrPullManagedId.id
-    ]
+    sharedSettings: apiSharedSettings
   }
 }
 

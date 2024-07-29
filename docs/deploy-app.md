@@ -27,8 +27,9 @@ At a high level deployment consists of:
 
 1. Ensure shared services have been created and RBAC permissions assigned to allow for role assignments to be made
 2. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-3. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
-4. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+3. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+4. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+
 
 This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line 
 to automate the deployment tasks above and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
@@ -40,7 +41,8 @@ For more information on how these github workflows for the project were set up: 
 The shared services required for the app are:
 * Azure container registry (ACR)
 
-To install the shared services, run the following script github workflow: [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
+These services maybe maintained by other teams and are not part of the deployment process for the app. However,
+if you do need to deploy the shared services, you can do so by running the following github workflow: [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
 
 ## Infrastructure
 

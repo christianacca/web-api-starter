@@ -504,7 +504,6 @@ function Get-ResourceConvention {
                 $testLocations = $spInput.IsExtendedCheck ? @('us-fl-mia-edge', 'emea-nl-ams-azr') : $null
                 $nameQualifier = $spInput.IsExtendedCheck ? 'extended' : 'default'
 
-                $isAvailabilityTestEnabled = $EnvironmentName -ne 'dev' # we want dev to scale to zero therefore don't check availability
                 $availabilityFriendlyName = '{0} {1} - {2} health check' -f $ProductAbbreviation.ToUpper(), $spInput.Target, $nameQualifier
 
                 @{

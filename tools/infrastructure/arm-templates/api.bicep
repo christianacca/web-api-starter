@@ -1,11 +1,6 @@
-param acaEnvironmentResourceId string
-param apiSettings object
-param appInsightsConnectionString string
+param instanceSettings object
 param exists bool
-param primaryManagedIdentityClientId string
-param subProductsSettings object
-param userAssignedResourceIds array
-param registries array
+param sharedSettings sharedSettingsType
 
 var location = resourceGroup().location
 
@@ -23,44 +18,44 @@ module appEnvVars 'desired-env-vars.bicep' = {
   params: {
     envVars: [
       {
-        name: 'Api__Database__UserID'
-        value: primaryManagedIdentityClientId
-      }
-      {
         name: 'Api__Database__DataSource'
-        value: subProductsSettings.Sql.Primary.DataSource
+        value: sharedSettings.subProductsSettings.Sql.Primary.DataSource
       }
       {
         name: 'Api__Database__InitialCatalog'
-        value: subProductsSettings.Db.ResourceName
+        value: sharedSettings.subProductsSettings.Db.ResourceName
+      }
+      {
+        name: 'Api__Database__UserID'
+        value: sharedSettings.managedIdentityClientIds.default
       }
       {
         name: 'Api__DefaultAzureCredentials__ManagedIdentityClientId'
-        value: primaryManagedIdentityClientId
+        value: sharedSettings.managedIdentityClientIds.default
       }
       {
         name: 'Api__FunctionsAppQueue__ServiceUri'
-        value: 'https://${subProductsSettings.InternalApi.StorageAccountName}.queue.${environment().suffixes.storage}'
+        value: 'https://${sharedSettings.subProductsSettings.InternalApi.StorageAccountName}.queue.${environment().suffixes.storage}'
       }
       {
         name: 'Api__FunctionsAppToken__Audience'
-        value: subProductsSettings.InternalApi.AuthTokenAudience
+        value: sharedSettings.subProductsSettings.InternalApi.AuthTokenAudience
       }
       {
         name: 'Api__KeyVaultName'
-        value: subProductsSettings.KeyVault.ResourceName
-      }
-      {
-        name: 'Api__ReverseProxy__Clusters__FunctionsApp__Destinations__Primary__Address'
-        value: 'https://${subProductsSettings.InternalApi.HostName}'
+        value: sharedSettings.subProductsSettings.KeyVault.ResourceName
       }
       {
         name: 'Api__ReportBlobStorage__ServiceUri'
-        value: 'https://${subProductsSettings.PbiReportStorage.StorageAccountName}.blob.${environment().suffixes.storage}'
+        value: 'https://${sharedSettings.subProductsSettings.PbiReportStorage.StorageAccountName}.blob.${environment().suffixes.storage}'
+      }
+      {
+        name: 'Api__ReverseProxy__Clusters__FunctionsApp__Destinations__Primary__Address'
+        value: 'https://${sharedSettings.subProductsSettings.InternalApi.HostName}'
       }
       {
         name: 'ApplicationInsights__ConnectionString'
-        value: appInsightsConnectionString
+        value: sharedSettings.appInsightsConnectionString
       }
     ]
     existingEnvVars: exists ? existingApp.properties.template.containers[0].?env ?? [] : []
@@ -74,7 +69,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
       {
         env: appEnvVars.outputs.desiredEnvVars
         image: appImage
-        name: apiSettings.ResourceName
+        name: instanceSettings.ResourceName
         probes: isInitialContainerImage ? [] : [
           { 
             type: 'Startup'
@@ -89,7 +84,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
             initialDelaySeconds: 3
             httpGet: {
               port: exposedContainerPort
-              path: apiSettings.DefaultHealthPath
+              path: instanceSettings.DefaultHealthPath
             }
           }
         ]
@@ -100,16 +95,16 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
         }
       }
     ]
-    environmentId: acaEnvironmentResourceId
+    environmentId: sharedSettings.acaEnvironmentResourceId
     managedIdentities: {
-      userAssignedResourceIds: userAssignedResourceIds
+      userAssignedResourceIds: sharedSettings.managedIdentityResourceIds
     }
     ingressAllowInsecure: false
     ingressTargetPort: exposedContainerPort
-    name: apiSettings.ResourceName
-    registries: registries
-    scaleMaxReplicas: apiSettings.MaxReplicas
-    scaleMinReplicas: apiSettings.MinReplicas
+    name: instanceSettings.ResourceName
+    registries: sharedSettings.registries
+    scaleMaxReplicas: instanceSettings.MaxReplicas
+    scaleMinReplicas: instanceSettings.MinReplicas
     scaleRules : [{
       http: {
         metadata: {
@@ -131,5 +126,24 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
 }
 
 resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
-  name: apiSettings.ResourceName
+  name: instanceSettings.ResourceName
+}
+
+// =============== //
+//   Definitions   //
+// =============== //
+
+type managedIdentyClientIdsType = {
+  @description('Required. The client id of the managed identity used as the default/primary identity for the container app.')
+  default: string
+}
+
+
+type sharedSettingsType = {
+  acaEnvironmentResourceId: string
+  appInsightsConnectionString: string
+  managedIdentityResourceIds: array
+  managedIdentityClientIds: managedIdentyClientIdsType
+  subProductsSettings: object
+  registries: array
 }
