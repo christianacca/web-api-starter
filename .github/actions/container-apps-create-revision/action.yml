@@ -17,6 +17,9 @@ inputs:
   imageToDeploy:
     description: 'The full image name to deploy, including the registry and tag'
     required: true
+  logAppRevisionCommand:
+    description: 'Log the command used to create the new revision?'
+    required: false
   resourceGroup:
     description: 'The name of the resource group that contains the container app'
     required: true
@@ -30,5 +33,14 @@ runs:
     - name: Create Azure container app revision
       shell: pwsh
       run: |
-        $testRevision = '${{ inputs.testRevision }}' -eq 'true'
-        ${{ github.action_path }}/create-aca-revision.ps1 -Name '${{ inputs.containerAppName }}' -Image '${{ inputs.imageToDeploy }}' -ResourceGroup '${{ inputs.resourceGroup }}' -EnvVarsSelector '${{ inputs.envVarsSelector }}' -EnvVarKeyTransformString '${{ inputs.envVarKeyTransform }}' -HealthRequestPath '${{ inputs.healthRequestPath }}' -TestRevision:$testRevision -InfA Continue
+        $params = @{
+          Name = '${{ inputs.containerAppName }}'
+          ResourceGroup = '${{ inputs.resourceGroup }}'
+          Image = '${{ inputs.imageToDeploy }}'
+          EnvVarsSelector = '${{ inputs.envVarsSelector }}'
+          EnvVarKeyTransformString = '${{ inputs.envVarKeyTransform }}'
+          HealthRequestPath = '${{ inputs.healthRequestPath }}'
+          ShowAppRevisionCommand = '${{ inputs.logAppRevisionCommand }}' -eq 'true'
+          TestRevision = '${{ inputs.testRevision }}' -eq 'true'
+        }
+        ${{ github.action_path }}/create-aca-revision.ps1 @params -InfA Continue

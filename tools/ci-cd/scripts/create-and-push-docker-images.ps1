@@ -1,16 +1,20 @@
 [CmdletBinding()]
 param(
-    [string] $ImageRepo = 'mrisoftwaredevops.azurecr.io',
+    [Parameter(Mandatory)]
+    [string] $ImageRegistry,
+    
+    [Parameter(Mandatory)]
+    [string] $ImageRepositoryPrefix,
+    
     [Parameter(Mandatory)] 
     [string] $BuildNumber,
+    
     [switch] $PushImages
 )
 begin {
     Set-StrictMode -Version 'Latest'
     $callerEA = $ErrorActionPreference
     $ErrorActionPreference = 'Stop'
-
-    $imagePrefix = 'web-api-starter'
 
     function Invoke-Exe {
         [CmdletBinding(SupportsShouldProcess)]
@@ -41,7 +45,7 @@ process {
             Select-Object -Expand Name |
             ForEach-Object {
                 # typically the first part of a project name is either MRI or the name of the solution;
-                # either is redundant given the image prefix provides sufficient qualification
+                # either is redundant given the $ImageRepositoryPrefix provides sufficient qualification
                 $parts = $_.ToLower() -split '\.'
                 $skip = if ($parts.Length -eq 1) { 0 } else { 1 }
                 $service = ($parts | Select-Object -Skip $skip)  -join '-'
@@ -49,8 +53,8 @@ process {
                     DockerFile  =   "./publish/$_/Dockerfile"
                     Context     =   "./publish/$_"
                     Tags        =   @(
-                        ('{0}/{1}/{2}:{3}' -f $ImageRepo, $imagePrefix, $service, $BuildNumber)
-                        ('{0}/{1}/{2}:{3}' -f $ImageRepo, $imagePrefix, $service, 'latest')
+                        ('{0}/{1}/{2}:{3}' -f $ImageRegistry, $ImageRepositoryPrefix, $service, $BuildNumber)
+                        ('{0}/{1}/{2}:{3}' -f $ImageRegistry, $ImageRepositoryPrefix, $service, 'latest')
                     )
                 }
             } | 

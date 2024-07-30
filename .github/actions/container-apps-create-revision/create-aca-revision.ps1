@@ -37,6 +37,9 @@
     .PARAMETER HealthRequestTimeoutSec
     The timeout in seconds to use when testing the new revision
     
+    .PARAMETER ShowAppRevisionCommand
+    Write as information, the command used to create the new revision?
+    
     .PARAMETER TestRevision
     A switch to indicate that the script should wait for the new revision to successfully respond to a GET request to
     the configured health endpoint
@@ -135,6 +138,7 @@
 
         [string] $HealthRequestPath = '/health',        
         [string] $HealthRequestTimeoutSec = 90,        
+        [switch] $ShowAppRevisionCommand,
         [switch] $TestRevision
     )
     begin {
@@ -148,6 +152,9 @@
     }
     process {
         try {
+            if ($TestRevision -and -not($HealthRequestPath)) {
+                throw 'HealthEndpoint is required when TestRevision switch is used'
+            }
             if ($EnvVarsSelector) {
                 $selectedEnvVars = Get-Item -Path ($EnvVarsSelector -split ',') -EA SilentlyContinue |
                     ForEach-Object -Begin { $tmp = @{} } -Process { $tmp[$_.name] = $_.value } -End { $tmp }
@@ -185,6 +192,10 @@
             $replaceEnvVarsString = if ($envVarsString) { '--replace-env-vars ' + $envVarsString } else { '' }
             
             $copyRevision = "az containerapp revision copy -n $Name -g $ResourceGroup --image $Image $replaceEnvVarsString"
+            Write-Information 'Creating a new Azure container app revision...'
+            if ($ShowAppRevisionCommand) {
+                Write-Information "  Command: $copyRevision"
+            }
             $result = Invoke-ExeExpression $copyRevision | ConvertFrom-Json | Select-Object -Exp properties
             
             if ($TestRevision) {

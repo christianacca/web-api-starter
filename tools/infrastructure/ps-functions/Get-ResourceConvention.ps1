@@ -425,11 +425,14 @@ function Get-ResourceConvention {
                     IngressHostname     =   $acaIngressHostnameTemplate -f $failoverAcaResourceName
                     MinReplicas         =   0 # make failover passive node (ie traffic not sent to it unless primary fails)
                 } + $acaShareSettings
-                
+
+                $imageRepositoryPrefix = $ProductName.ToLower().Replace(' ', '-')
                 @{
                     Primary                 =   $acaAppPrimary
                     Failover                =   if ($hasFailover) { $acaAppFailover } else { $null }
                     DefaultHealthPath       =   $acaShareSettings.DefaultHealthPath
+                    ImageName               =   '{0}/{1}' -f $imageRepositoryPrefix, $componentName.ToLower()
+                    ImageRepositoryPrefix   =   $imageRepositoryPrefix
                     ManagedIdentity         =   $managedId
                     HostName                =   Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName -IsMainUI:$isMainUI
                     OidcAppName             =   $oidcAppName
