@@ -8,7 +8,7 @@ var initialAppImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:late
 var appImage = exists ? existingApp.properties.template.containers[0].image : initialAppImage
 // initial image does not define a http health endpoint at the path we want for our image, therefore for a reasonable
 // default exerience when creating the container app for the first time fallback to defaults that container-apps will configure
-var isInitialContainerImage = exists ? existingApp.properties.template.containers[0].image == initialAppImage : false
+var isInitialContainerImage = exists ? existingApp.properties.template.containers[0].image == initialAppImage : true
 
 // 8080 which is the default for all .net 8 apps now
 var exposedContainerPort = 8080
@@ -76,7 +76,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
             initialDelaySeconds: 10
             httpGet: {
               port: exposedContainerPort
-              path: '/health'
+              path: instanceSettings.DefaultHealthPath
             }
           }
           { 

@@ -35,7 +35,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 6.0.x
       - name: Set nuget package credentials
         run: dotnet nuget update source mrisoftware --username az --password "${{ secrets.PACKAGE_FEED_TOKEN }}" --store-password-in-clear-text
       - name: Restore dependencies
@@ -43,7 +43,12 @@ jobs:
       - name: Build
         run: dotnet build -c ${{ env.BUILD_CONFIGURATION }} --no-restore -p:Version=${{ inputs.build-version }}
       - name: Test
-        run: dotnet test -c ${{ env.BUILD_CONFIGURATION }} --no-build --verbosity normal
+        run: dotnet test -c ${{ env.BUILD_CONFIGURATION }} --no-build --logger:trx --verbosity normal
+      - name: Publish Test Results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@ca89ad036b5fcd524c1017287fb01b5139908408 # <- v2.11.0
+        with:
+          files: '**/*.trx'
       - name: Publish
         run: dotnet publish -c ${{ env.BUILD_CONFIGURATION }} --no-build
       - name: Dotnet tool restore
@@ -59,15 +64,26 @@ jobs:
         run: tar -zcvf ./publish/release.tar.gz -C ./out .
 
       - name: Azure login
+        if: inputs.create-release == true
         uses: ./.github/actions/azure-login
         with:
           github-environment: ${{ inputs.environment-name }}
       - name: ACR login
+        if: inputs.create-release == true
         run: az acr login -n ${{ inputs.azure-container-registry }}
+      - uses: ./.github/actions/export-convention-vars
+        with:
+          environment-name: ${{ inputs.environment-name }}  
       - name: Build and push docker images
         shell: pwsh
         run: |
-          ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 -ImageRepo ${{ inputs.azure-container-registry }} -BuildNumber '${{ inputs.build-tag }}' -PushImages:$${{inputs.create-release}}
+          $params = @{
+            ImageRegistry           = '${{ inputs.azure-container-registry }}'
+            ImageRepositoryPrefix   = '${{ env.Convention_SubProducts_Api_ImageRepositoryPrefix }}'
+            BuildNumber             = '${{ inputs.build-tag }}'
+            PushImages              = '${{ inputs.create-release }}' -eq 'true'
+          }
+          ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 @params
 
       - name: Create github release
         if: inputs.create-release == true
