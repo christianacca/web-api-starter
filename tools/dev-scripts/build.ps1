@@ -26,7 +26,13 @@
                 $registryInstance = "$registryName.azurecr.io"
                 Write-Information "Conect to Azure Container Registry '$registryInstance'"
                 Invoke-Exe { az acr login -n $registryName }
-                ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 -ImageRepo $registryInstance -BuildNumber $BuildNumber -PushImages -EA Stop   
+                $params = @{
+                    ImageRegistry           = $registryInstance
+                    ImageRepositoryPrefix   = $convention.SubProducts.Api.ImageRepositoryPrefix
+                    BuildNumber             = $BuildNumber
+                    PushImages              = $true
+                }
+                ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 @params -EA Stop
             }
         }
         catch {

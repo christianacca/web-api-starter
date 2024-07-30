@@ -87,7 +87,7 @@ jobs:
               ".*": {
                 "ApplicationInsights_AutoCollectActionArgs": "${{ env.Convention_IsTestEnv }}",
                 "gha_step_deploy_api_envVarsSelector": "Env:Api_*,Env:ApplicationInsights_*,Env:CentralIdentity_*,Env:EnvironmentInfo_*",
-                "gha_step_deploy_api_imageToDeploy": "${{ inputs.docker-registry }}/web-api-starter/api:${{ inputs.docker-image-tag }}",
+                "gha_step_deploy_api_imageToDeploy": "${{ inputs.docker-registry }}/${{ env.Convention_SubProducts_Api_ImageName }}:${{ inputs.docker-image-tag }}",
                 "EnvironmentInfo_EnvId": "${{ inputs.environment-name }}",
                 "EnvironmentInfo_InfraVersion": "${{ env.Infra_Version }}",
                 "InternalApi_Database_DataSource": "${{ env.Convention_SubProducts_Sql_Primary_DataSource }}",

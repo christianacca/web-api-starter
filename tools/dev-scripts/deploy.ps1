@@ -59,13 +59,13 @@ process {
         $apiParams = @{
             Name                =   $api.Primary.ResourceName
             ResourceGroup       =   $appResourceGroup
-            Image               =   ('{0}.azurecr.io/{1}/{2}:{3}' -f $convention.ContainerRegistries.Dev.ResourceName, 'web-api-starter', 'api', $BuildNumber)
+            Image               =   '{0}.azurecr.io/{1}:{2}' -f $convention.ContainerRegistries.Dev.ResourceName, $api.ImageName, $BuildNumber
             EnvVarsObject       =   @{
                 'Api__TokenProvider__Authority' = $apiDevAppSettings.Api.TokenProvider.Authority
                 'ApplicationInsights__AutoCollectActionArgs' = $true
                 'CentralIdentity__Credentials__Password' = $apiSecretValues['CentralIdentity_Credentials_Password'] ? $apiSecretValues.CentralIdentity_Credentials_Password : '??'
                 'CentralIdentity__BaseUri' = $apiDevAppSettings.CentralIdentity.BaseUri
-                'EnvironmentInfo__EnvId' = 'local'
+                'EnvironmentInfo__EnvId' = $environment
             }
             HealthRequestPath   =   $api.DefaultHealthPath
             TestRevision        =   $true
