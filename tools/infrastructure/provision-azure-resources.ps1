@@ -172,6 +172,7 @@
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Set-ADApplication.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
+        . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureResourceGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureSqlAADUser.ps1"
         
@@ -197,22 +198,7 @@
                 return
             }
 
-            if ($Login) {
-                Write-Information 'Connecting to Azure AD Account...'
-
-                if ($SubscriptionId) {
-                    Connect-AzAccount -Subscription $SubscriptionId -EA Stop | Out-Null
-                } else {
-                    Connect-AzAccount -EA Stop | Out-Null
-                }
-            } elseif ($SubscriptionId) {
-                Select-AzSubscription -SubscriptionId $SubscriptionId -EA Stop | Out-Null
-            }
-            
-            $currentAzContext = Get-AzContext -EA Stop
-            if (-not($currentAzContext)) {
-                throw 'There is no Azure Account context set. Please make sure to login using Connect-AzAccount'
-            }
+            Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
 
