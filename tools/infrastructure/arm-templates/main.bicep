@@ -121,12 +121,13 @@ resource apiAcrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2
 
 // dev and prod container registries can be the same instance, therefore we use union to de-dup references to same registry
 var containerRegistries = union(settings.ContainerRegistries.Available, [])
-module acrPullPermissions 'acr-pull-role-assignment.bicep' = [for (registry, index) in containerRegistries: {
+module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) in containerRegistries: {
   name: '${uniqueString(deployment().name, location)}-${index}-AcrPullPermission'
-  scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), (registry.ResourceGroupName ?? resourceGroup().name))
+  scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), registry.ResourceGroupName)
   params: {
     principalId: apiAcrPullManagedId.properties.principalId
     registryName: registry.ResourceName
+    roleDefinitionId: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // 'AcrPull'
   }
 }]
 

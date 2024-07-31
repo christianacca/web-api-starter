@@ -4,17 +4,20 @@ param registryName string
 @description('The id of the principal to assign the ACR Pull permission.')
 param principalId string
 
+@description('The role definition ID for the role assignment.')
+param roleDefinitionId string
+
 param location string = resourceGroup().location
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: registryName
 }
-module acrPullPermission 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = {
-  name: '${uniqueString(deployment().name, location)}-AcrPullPermission'
+module acrPermission 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = {
+  name: '${uniqueString(deployment().name, location)}-AcrPermission'
   params: {
     principalId: principalId
     resourceId: acr.id
-    roleDefinitionId: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // 'AcrPull'
+    roleDefinitionId: roleDefinitionId
     principalType: 'ServicePrincipal'
   }
 }

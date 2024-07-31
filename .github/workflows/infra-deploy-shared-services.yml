@@ -16,6 +16,11 @@ on:
           - prod-na
           - prod-emea
           - prod-apac
+      grant-acr-rbac-management-only:
+        description: 'Grant ACR RBAC management only? Note: environment selected must be prod-na'
+        default: false
+        required: false
+        type: boolean
 
 permissions:
   actions: read
@@ -24,16 +29,35 @@ permissions:
 
 jobs:
   run:
+    concurrency: infra-deploy-shared-services_${{ inputs.environment-name }}
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment-name }}
     steps:
       - uses: actions/checkout@v4
+        
+      - name: Set powershell module list
+        shell: pwsh
+        run: |
+          $list = ./tools/infrastructure/provision-shared-services.ps1 -ListModuleRequirementsOnly
+          "PS_MODULE_LIST=$list" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
+
+      - name: 'Install dependent powershell modules'
+        uses: potatoqualitee/psmodulecache@b3b931ae410fa0639756c2dc81d3da545d12a0a0 # <- v6.0
+        with:
+          modules-to-cache: ${{ env.PS_MODULE_LIST }}
 
       - name: Azure login
         uses: ./.github/actions/azure-login
         with:
+          enable-AzPSSession: true
           github-environment: ${{ github.event.inputs.environment-name }}
 
       - name: 'Provision infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName ${{ github.event.inputs.environment-name }}
+        run: |
+          $parmas = @{
+            EnvironmentName             = '${{ github.event.inputs.environment-name }}'
+            GrantAcrRbacManagementOnly  = $${{ github.event.inputs.grant-acr-rbac-management-only }}
+            SkipInstallModules          = $true
+          }
+          ./tools/infrastructure/provision-shared-services.ps1 @parmas -InfA Continue
