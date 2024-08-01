@@ -28,3 +28,12 @@ module acrRbacAssignmentPermissions 'acr-role-assignment.bicep' = [for (id, inde
   }
 }]
 
+// note: this is the least priviledge role in order to grant the Microsoft.Resources/deployments/write permission to the service principals
+module acrTagContirbutorPermissions 'resource-group-role-assignment.bicep' = [for (id, index) in principalsIds: {
+  name: '${uniqueString(deployment().name)}-${index}-TagsContrPermission'
+  scope: resourceGroup((prodRegistry.SubscriptionId ?? subscription().subscriptionId), prodRegistry.ResourceGroupName)
+  params: {
+    principalId: id
+    roleDefinitionId: '4a9ae827-6dc8-4573-8ac7-8239d42aa03f' // <- Tag Contributor
+  }
+}]
