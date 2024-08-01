@@ -26,11 +26,14 @@ function Set-AzureAccountContext {
                 Write-Information 'Connecting to Azure AD Account...'
 
                 if ($SubscriptionId) {
+                    Write-Information "  Setting Subscripton context to $SubscriptionId"
                     Connect-AzAccount -Subscription $SubscriptionId -EA Stop | Out-Null
                 } else {
                     Connect-AzAccount -EA Stop | Out-Null
                 }
             } elseif ($SubscriptionId) {
+                Write-Information "Using existing sign-in context..."
+                Write-Information "  Setting Subscripton context to $SubscriptionId"
                 Select-AzSubscription -SubscriptionId $SubscriptionId -EA Stop | Out-Null
             }
 
@@ -38,6 +41,9 @@ function Set-AzureAccountContext {
             if (-not($currentAzContext)) {
                 throw 'There is no Azure Account context set. Please make sure to login using Connect-AzAccount'
             }
+            Write-Information "Account context established"
+            Write-Information "  INFO | TenantId: $($currentAzContext.Tenant)"
+            Write-Information "  INFO | SubscriptionId: $($currentAzContext.Subscription)"
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
