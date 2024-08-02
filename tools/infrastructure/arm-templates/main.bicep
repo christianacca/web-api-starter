@@ -131,18 +131,11 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   }
 }]
 
-module acaEnvPrimary 'br/public:avm/res/app/managed-environment:0.5.2' = {
+module acaEnvPrimary 'aca-environment.bicep' = {
   name: '${uniqueString(deployment().name, location)}-AcaEnvPrimary'
   params: {
+    instanceSettings: settings.SubProducts.Aca.Primary
     logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
-    name: settings.SubProducts.Aca.Primary.ResourceName
-    workloadProfiles: [
-      {
-        name: 'Consumption'
-        workloadProfileType: 'Consumption'
-      }
-    ]
-    zoneRedundant: false
   }
 }
 
@@ -152,7 +145,6 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
 }))
 
 var apiSharedSettings = {
-  acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   managedIdentityClientIds: {
     default: apiManagedId.properties.clientId
@@ -170,16 +162,19 @@ module apiPrimary 'api.bicep' = {
   params: {
     exists: apiPrimaryExists
     instanceSettings: settings.SubProducts.Api.Primary
-    sharedSettings: apiSharedSettings
+    sharedSettings: { 
+      ...apiSharedSettings
+      acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
+    }
   }
 }
 
-module acaEnvFailover 'br/public:avm/res/app/managed-environment:0.5.2' = if (!empty(settings.SubProducts.Aca.Failover ?? {})) {
+var hasAcaFailover = !empty(settings.SubProducts.Aca.Failover ?? {})
+module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
   name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
   params: {
+    instanceSettings: settings.SubProducts.Aca.Failover
     logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
-    name: settings.SubProducts.Aca.Failover.ResourceName
-    zoneRedundant: false
   }
 }
 
@@ -188,7 +183,10 @@ module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ??
   params: {
     instanceSettings: settings.SubProducts.Api.Failover
     exists: apiFailoverExists
-    sharedSettings: apiSharedSettings
+    sharedSettings: { 
+      ...apiSharedSettings
+      acaEnvironmentResourceId: hasAcaFailover ? acaEnvFailover.outputs.resourceId : ''
+    }
   }
 }
 

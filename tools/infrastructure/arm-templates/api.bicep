@@ -2,7 +2,7 @@ param instanceSettings object
 param exists bool
 param sharedSettings sharedSettingsType
 
-var location = resourceGroup().location
+var location = instanceSettings.ResourceLocation
 
 var initialAppImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 var appImage = exists ? existingApp.properties.template.containers[0].image : initialAppImage
@@ -102,6 +102,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
     ingressAllowInsecure: false
     ingressTargetPort: exposedContainerPort
     name: instanceSettings.ResourceName
+    location: location
     registries: sharedSettings.registries
     scaleMaxReplicas: instanceSettings.MaxReplicas
     scaleMinReplicas: instanceSettings.MinReplicas
