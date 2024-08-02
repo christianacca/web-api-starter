@@ -405,6 +405,7 @@ function Get-ResourceConvention {
                 $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation, $componentName.ToLower()
                 $acaAppPrimary = @{
                     ResourceName        =   $primaryAcaResourceName
+                    ResourceLocation    =   $azurePrimaryRegion.Name
                     IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
                     MinReplicas         =   switch ($EnvironmentName) {
                         { $_ -like 'prod-*' } {
@@ -422,6 +423,7 @@ function Get-ResourceConvention {
                 $failoverAcaResourceName = $acaAppNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation, $componentName.ToLower()
                 $acaAppFailover = @{
                     ResourceName        =   $failoverAcaResourceName
+                    ResourceLocation    =   $azureSecondaryRegion.Name
                     IngressHostname     =   $acaIngressHostnameTemplate -f $failoverAcaResourceName
                     MinReplicas         =   0 # make failover passive node (ie traffic not sent to it unless primary fails)
                 } + $acaShareSettings

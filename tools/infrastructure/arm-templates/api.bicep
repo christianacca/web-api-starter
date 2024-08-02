@@ -2,7 +2,7 @@ param instanceSettings object
 param exists bool
 param sharedSettings sharedSettingsType
 
-var location = resourceGroup().location
+var location = instanceSettings.ResourceLocation
 
 var initialAppImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 var appImage = exists ? existingApp.properties.template.containers[0].image : initialAppImage
