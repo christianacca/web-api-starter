@@ -20,8 +20,8 @@ on:
         description: 'Subscription ID (leave blank to use the default subscription for the Environment)'
         required: false
         type: string
-      delete-sql-aad-groups:
-        description: 'Delete AD Groups for SQL Server?'
+      delete-aad-groups:
+        description: 'Delete MS Entra-ID Groups?'
         default: false
         required: false
         type: boolean
@@ -46,4 +46,4 @@ jobs:
 
       - name: 'Uninstall infrastructure'
         shell: pwsh
-        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -DeleteSqlAADGroups:$${{ github.event.inputs.delete-sql-aad-groups }}  -InfA Continue
+        run: ./tools/infrastructure/deprovision-azure-resources.ps1 -EnvironmentName ${{ github.event.inputs.environment-name }} -DeleteAADGroups:$${{ github.event.inputs.delete-aad-groups }}  -InfA Continue

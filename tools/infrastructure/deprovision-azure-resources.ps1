@@ -14,7 +14,7 @@
       The name of the environment to uninstall. This value will be used to calculate conventions for that environment.
 
       .PARAMETER DeleteAADGroups
-      Delete the Azure AD groups that were created as security groups?
+      Delete the Azure AD / Entra-ID groups that were created as security groups?
       Note: a missing group will be reported as an error but NOT cause the script to stop.
 
       .PARAMETER Login
