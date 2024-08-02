@@ -131,18 +131,11 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   }
 }]
 
-module acaEnvPrimary 'br/public:avm/res/app/managed-environment:0.5.2' = {
+module acaEnvPrimary 'aca-environment.bicep' = {
   name: '${uniqueString(deployment().name, location)}-AcaEnvPrimary'
   params: {
+    instanceSettings: settings.SubProducts.Aca.Primary
     logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
-    name: settings.SubProducts.Aca.Primary.ResourceName
-    workloadProfiles: [
-      {
-        name: 'Consumption'
-        workloadProfileType: 'Consumption'
-      }
-    ]
-    zoneRedundant: false
   }
 }
 
@@ -174,12 +167,11 @@ module apiPrimary 'api.bicep' = {
   }
 }
 
-module acaEnvFailover 'br/public:avm/res/app/managed-environment:0.5.2' = if (!empty(settings.SubProducts.Aca.Failover ?? {})) {
+module acaEnvFailover 'aca-environment.bicep' = if (!empty(settings.SubProducts.Aca.Failover ?? {})) {
   name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
   params: {
+    instanceSettings: settings.SubProducts.Aca.Failover
     logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
-    name: settings.SubProducts.Aca.Failover.ResourceName
-    zoneRedundant: false
   }
 }
 
