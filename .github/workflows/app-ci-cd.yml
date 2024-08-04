@@ -20,6 +20,8 @@ on:
       - tools/db-scripts/**
       - tools/dev-scripts/**
       - tools/infrastructure/**
+      - '!tools/infrastructure/get-product-conventions.ps1'
+      - '!tools/infrastructure/ps-functions/Get-ResourceConvention.ps1'
       - tools/okta/**
     branches:
       - master
