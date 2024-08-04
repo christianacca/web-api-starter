@@ -33,6 +33,13 @@
     instances of search with replace in the environment variable keys. For example, _=>__ will replace all underscores
     with double underscores in the environment variable keys
     
+    .PARAMETER EnvVarMetadataKeyName
+    The name of the environment variable that will be used to store the keys of the environment variables that are
+    included in the deployment of the new revision. This list will be used to diff against the environment variables
+    in the next deployment to determine which are obsolete and should be removed from the deployment of the new revision.
+    This diffing process is used to allow for other environment variables to be added to the container app, for example
+    by infrastructure as code, without needing to include them in the deployment here
+    
     .PARAMETER HealthRequestPath
     The path to the request path to use to test the new revision
     
@@ -131,13 +138,10 @@
         [string] $ResourceGroup,
         
         [Hashtable] $EnvVarsObject = @{},
-        
         [string[]] $EnvVarsSelector = @(),
-    
         [ScriptBlock] $EnvVarKeyTransform,
-
         [string] $EnvVarKeyTransformString,
-
+        [string] $EnvVarMetadataKeyName = '__DeployMetadata__AppVarKeys',
         [string] $HealthRequestPath = '/health',        
         [string] $HealthRequestTimeoutSec = 90,        
         [switch] $ShowAppRevisionCommand,
@@ -179,13 +183,12 @@
             $existingEnvVars = $app.properties.template.containers.env |
                 ForEach-Object -Begin { $tmp = @{} } -Process { $tmp[$_.name] = $_.value } -End { $tmp }
             
-            $metadataKeyName = '__DeployMetadata__AppVarKeys'
-            $previousEnvVarsKeys = $existingEnvVars[$metadataKeyName] -split ','
+            $previousEnvVarsKeys = $existingEnvVars[$EnvVarMetadataKeyName] -split ','
             $requiredEnvVarKeys = $EnvVarsObject.Keys | Sort-Object
             $obsoleteEnvKeys = ($previousEnvVarsKeys | Where-Object { $_ -notin $requiredEnvVarKeys }) +
-                ($requiredEnvVarKeys ? @() : @($metadataKeyName))
+                ($requiredEnvVarKeys ? @() : @($EnvVarMetadataKeyName))
             
-            $metadataEnvVars = $requiredEnvVarKeys ? @{ $metadataKeyName = ($requiredEnvVarKeys -join ',') } : @{}
+            $metadataEnvVars = $requiredEnvVarKeys ? @{ $EnvVarMetadataKeyName = ($requiredEnvVarKeys -join ',') } : @{}
 
             $desiredEnvVars = $EnvVarsObject,$metadataEnvVars,$existingEnvVars | Join-Hashtable |
                 Select-Hashtable { $_ -notin $obsoleteEnvKeys }

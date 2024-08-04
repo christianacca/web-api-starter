@@ -15,7 +15,7 @@ inputs:
       Env:VariableName to include an environment variable. Use the wildcard character (*) to match environment variables
       that start with a specific string. For example, Env:Api_* will match all environment variables that start with Api_.
       Note: selected environment variables will be merged with the provided envVars input and take precedence over any 
-      environment variables with the same key in the EnvVarsObject hashtable
+      environment variables with the same key in the envVars list
     required: false
   envVarKeyTransform:
     description: |
@@ -23,6 +23,15 @@ inputs:
       instances of search with replace in the environment variable keys. For example, _=>__ will replace all underscores 
       with double underscores in the environment variable keys
     required: false
+  envVarMetadataKeyName:
+    description: |
+      The name of the environment variable that will be used to store the keys of the environment variables that are
+      included in the deployment of the new revision. This list will be used to diff against the environment variables
+      in the next deployment to determine which are obsolete and should be removed from the deployment of the new revision.
+      This diffing process is used to allow for other environment variables to be added to the container app, for example
+      by infrastructure as code, without needing to include them in the deployment here
+    required: false
+    default: __DeployMetadata__AppVarKeys
   healthRequestPath:
     description: |
       The path to use when checking the health of the new revision. Default: /health
@@ -57,6 +66,7 @@ runs:
           EnvVarsObject = $envVarsObject
           EnvVarsSelector = '${{ inputs.envVarsSelector }}'
           EnvVarKeyTransformString = '${{ inputs.envVarKeyTransform }}'
+          EnvVarMetadataKeyName = '${{ inputs.envVarMetadataKeyName }}'
           HealthRequestPath = '${{ inputs.healthRequestPath }}'
           ShowAppRevisionCommand = '${{ inputs.logAppRevisionCommand }}' -eq 'true'
           TestRevision = '${{ inputs.testRevision }}' -eq 'true'
