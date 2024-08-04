@@ -116,6 +116,9 @@ jobs:
         uses: ./.github/actions/container-apps-create-revision # <- replace with MRI-Software/container-apps-create-revision@v1
         with:
           containerAppName: ${{ env.Convention_SubProducts_Api_Primary_ResourceName }}
+          envVars: |
+            Key1=Value '1'
+            Key3=${{ vars.KEY3 }}
           envVarsSelector: ${{ env.gha_step_deploy_api_envVarsSelector }}
           envVarKeyTransform: _=>__
           healthRequestPath: ${{ env.Convention_SubProducts_Api_DefaultHealthPath }}
