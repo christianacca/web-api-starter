@@ -19,7 +19,9 @@
     A list of one or more strings that identity the environment variables to include in the deployment of the new revision.
     Each string, a comma separated list of environment variables. Use the format Env:VariableName to include an 
     environment variable. Use the wildcard character (*) to match environment variables that start with a 
-    specific string. For example, Env:Api_* will match all environment variables that start with Api_
+    specific string. For example, Env:Api_* will match all environment variables that start with Api_.
+    Note: selected environment variables will be merged with the EnvVarsObject hashtable and take precedence over
+    any environment variables with the same key in the EnvVarsObject hashtable
     
     .PARAMETER EnvVarKeyTransform
     A script block to apply to the environment variable keys. Use the format { $_-replace "search", "replace" } to 
