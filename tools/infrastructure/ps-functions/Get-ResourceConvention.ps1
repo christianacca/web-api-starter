@@ -55,12 +55,16 @@ function Get-ResourceConvention {
     }
 
     # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
+    # for listing of which azure service are available in which regions see: https://www.azurespeed.com/Information/AzureRegions
     $azureRegions = switch ($EnvironmentName) {
         'prod-emea' {
             @{ Name = 'uksouth'; Abbreviation = 'uks' }, @{ Name = 'ukwest'; Abbreviation = 'ukw' }
         }
         'prod-apac' {
-            @{ Name = 'australiaeast'; Abbreviation = 'ae' }, @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
+            @{ Name = 'australiaeast'; Abbreviation = 'ae' }
+            @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
+            # australiasoutheast is not available in azure container apps; this is the closest alternative region to australiaeast
+            @{ Name = 'southeastasia'; Abbreviation = 'sea' }
         }
         Default {
             @{ Name = 'eastus'; Abbreviation = 'eus' }, @{ Name = 'westus'; Abbreviation = 'wus' }
@@ -71,6 +75,7 @@ function Get-ResourceConvention {
 
     $azurePrimaryRegion = $azureRegions[0]
     $azureSecondaryRegion = $azureRegions[1]
+    $azureSecondaryAltRegion = $azureRegions[2]
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
     $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
@@ -361,11 +366,14 @@ function Get-ResourceConvention {
             }
             'AcaEnvironment' {
                 $acaEnvNameTemplate = 'cae-{0}-{1}'
+                $acaSecondaryRegion = $azureSecondaryAltRegion ?? $azureSecondaryRegion
                 $acaEnvPrimary = @{
                     ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation
+                    ResourceLocation    =   $azurePrimaryRegion.Name
                 }
                 $acaEnvFailover = @{
-                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation
+                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $acaSecondaryRegion.Abbreviation
+                    ResourceLocation    =   $acaSecondaryRegion.Name
                 }
                 @{
                     Primary             = $acaEnvPrimary
@@ -405,6 +413,7 @@ function Get-ResourceConvention {
                 $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation, $componentName.ToLower()
                 $acaAppPrimary = @{
                     ResourceName        =   $primaryAcaResourceName
+                    ResourceLocation    =   $azurePrimaryRegion.Name
                     IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
                     MinReplicas         =   switch ($EnvironmentName) {
                         { $_ -like 'prod-*' } {
@@ -419,9 +428,11 @@ function Get-ResourceConvention {
                     }
                 } + $acaShareSettings
 
-                $failoverAcaResourceName = $acaAppNameTemplate -f $appInstance, $azureSecondaryRegion.Abbreviation, $componentName.ToLower()
+                $acaSecondaryRegion = $azureSecondaryAltRegion ?? $azureSecondaryRegion
+                $failoverAcaResourceName = $acaAppNameTemplate -f $appInstance, $acaSecondaryRegion.Abbreviation, $componentName.ToLower()
                 $acaAppFailover = @{
                     ResourceName        =   $failoverAcaResourceName
+                    ResourceLocation    =   $acaSecondaryRegion.Name
                     IngressHostname     =   $acaIngressHostnameTemplate -f $failoverAcaResourceName
                     MinReplicas         =   0 # make failover passive node (ie traffic not sent to it unless primary fails)
                 } + $acaShareSettings
