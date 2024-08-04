@@ -5,7 +5,7 @@
     .DESCRIPTION
     Create a new revision for an existing Azure container app.
     IMPORTANT:
-    this script is duplicated here: .github/actions/container-apps-create-revision/create-aca-revision.ps1
+    this script is duplicated here: https://raw.githubusercontent.com/christianacca/container-apps-revision-action/master/src/create-aca-revision.ps1
     Any changes to the script below is likely going to be needed in the above action script as well.
     
     .PARAMETER Name
@@ -23,9 +23,11 @@
     
     .PARAMETER EnvVarsSelector
     A list of one or more strings that identity the environment variables to include in the deployment of the new revision.
-    Each string, a comma separated list of environment variables. Use the format Env:VariableName to include an 
-    environment variable. Use the wildcard character (*) to match environment variables that start with a 
-    specific string. For example, Env:Api_* will match all environment variables that start with Api_
+    Each string, a comma separated list of environment variables. Use the wildcard character (*) to match environment
+    variables that start with a specific string. For example, Api_* will match all environment variables that start
+    with Api_.
+    Note: selected environment variables will be merged with the EnvVarsObject hashtable and take precedence over
+    any environment variables with the same key in the EnvVarsObject hashtable
     
     .PARAMETER EnvVarKeyTransform
     A script block to apply to the environment variable keys. Use the format { $_-replace "search", "replace" } to 
@@ -36,6 +38,13 @@
     A string transformation to apply to the environment variable keys. Use the format "search=>replace" to replace all 
     instances of search with replace in the environment variable keys. For example, _=>__ will replace all underscores
     with double underscores in the environment variable keys
+    
+    .PARAMETER EnvVarMetadataKeyName
+    The name of the environment variable that will be used to store the keys of the environment variables that are
+    included in the deployment of the new revision. This list will be used to diff against the environment variables
+    in the next deployment to determine which are obsolete and should be removed from the deployment of the new revision.
+    This diffing process is used to allow for other environment variables to be added to the container app, for example
+    by infrastructure as code, without needing to include them in the deployment here
     
     .PARAMETER HealthRequestPath
     The path to the request path to use to test the new revision
@@ -75,7 +84,7 @@
         Name            =   'my-container-app'
         ResourceGroup   =   'my-resource-group'
         Image           =   'clcsoftwaredevops.azurecr.io/web-api-starter/api:latest'
-        EnvVarsSelector =   'Env:Api__*', 'Env:EnvironmentInfo__*'
+        EnvVarsSelector =   'Api__*', 'EnvironmentInfo__*'
     }
     create-aca-revision.ps1 @apiParams -InfA Continue -EA Stop
     
@@ -89,7 +98,7 @@
         Name                        =   'my-container-app'
         ResourceGroup               =   'my-resource-group'
         Image                       =   'clcsoftwaredevops.azurecr.io/web-api-starter/api:latest'
-        EnvVarsSelector             =   'Env:Api_Database_UserId,Env:Api_TokenProvider_*', 'Env:Db_*'
+        EnvVarsSelector             =   'Api_Database_UserId,Api_TokenProvider_*', 'Db_*'
         EnvVarKeyTransformString    =   '_=>__'
     }
     create-aca-revision.ps1 @apiParams -InfA Continue -EA Stop
@@ -109,7 +118,7 @@
             'ApplicationInsights_AutoCollectActionArgs' = $true
             'EnvironmentInfo_EnvId' = 'local'
         }
-        EnvVarsSelector             =   'Env:Api_Database_UserId,Env:Api_*', 'Env:Db_*'
+        EnvVarsSelector             =   'Api_Database_UserId,Api_*', 'Db_*'
         EnvVarKeyTransformString    =   '_=>__'
     }
     create-aca-revision.ps1 @apiParams -InfA Continue -EA Stop
@@ -120,9 +129,9 @@
     by replacing a single underscore with a douple underscore, and deploys the docker image and transformed env variables
     to the Azure container app specified by the name and resource group.   
 #>
-    
+
     [CmdletBinding()]
-    param(    
+    param(
         [Parameter(Mandatory)]
         [Alias('ContainerAppName')]
         [string] $Name,
@@ -133,17 +142,14 @@
     
         [Parameter(Mandatory)]
         [string] $ResourceGroup,
-        
-        [Hashtable] $EnvVarsObject = @{},
-        
-        [string[]] $EnvVarsSelector = @(),
     
+        [Hashtable] $EnvVarsObject = @{},
+        [string[]] $EnvVarsSelector = @(),
         [ScriptBlock] $EnvVarKeyTransform,
-
         [string] $EnvVarKeyTransformString,
-
-        [string] $HealthRequestPath = '/health',        
-        [string] $HealthRequestTimeoutSec = 90,        
+        [string] $EnvVarMetadataKeyName = '__DeployMetadata__AppVarKeys',
+        [string] $HealthRequestPath = '/health',
+        [string] $HealthRequestTimeoutSec = 90,
         [switch] $ShowAppRevisionCommand,
         [switch] $TestRevision
     )
@@ -162,7 +168,9 @@
                 throw 'HealthEndpoint is required when TestRevision switch is used'
             }
             if ($EnvVarsSelector) {
-                $selectedEnvVars = Get-Item -Path ($EnvVarsSelector -split ',') -EA SilentlyContinue |
+                $selectedEnvVars = $EnvVarsSelector -split ',' |
+                    ForEach-Object { $_ -like 'Env:*' ? $_ : "Env:$_" } |
+                    Get-Item -EA SilentlyContinue |
                     ForEach-Object -Begin { $tmp = @{} } -Process { $tmp[$_.name] = $_.value } -End { $tmp }
                 $EnvVarsObject = $EnvVarsObject + $selectedEnvVars
             }
