@@ -95,7 +95,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
         }
       }
     ]
-    environmentId: sharedSettings.acaEnvironmentResourceId
+    environmentId: acaEnv.id
     managedIdentities: {
       userAssignedResourceIds: sharedSettings.managedIdentityResourceIds
     }
@@ -126,6 +126,10 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
   }
 }
 
+resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing = {
+  name: instanceSettings.AcaEnvResourceName
+}
+
 resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
   name: instanceSettings.ResourceName
 }
@@ -141,7 +145,6 @@ type managedIdentyClientIdsType = {
 
 
 type sharedSettingsType = {
-  acaEnvironmentResourceId: string
   appInsightsConnectionString: string
   managedIdentityResourceIds: array
   managedIdentityClientIds: managedIdentyClientIdsType
