@@ -113,7 +113,7 @@ jobs:
           sql-file: ./out/migrate-db.sql
 
       - name: Deploy API (primary region)
-        uses: ./.github/actions/container-apps-create-revision # <- replace with MRI-Software/container-apps-create-revision@v1
+        uses: christianacca/container-apps-revision-action@v1
         with:
           containerAppName: ${{ env.Convention_SubProducts_Api_Primary_ResourceName }}
           envVars: |
@@ -128,7 +128,7 @@ jobs:
 
       - name: Deploy API (failover region)
         if: ${{ env.Convention_SubProducts_Api_Failover_ResourceName != null }}
-        uses: ./.github/actions/container-apps-create-revision # <- replace with MRI-Software/container-apps-create-revision@v1
+        uses: christianacca/container-apps-revision-action@v1
         with:
           containerAppName: ${{ env.Convention_SubProducts_Api_Failover_ResourceName }}
           envVarsSelector: ${{ env.gha_step_deploy_api_envVarsSelector }}
