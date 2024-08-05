@@ -162,11 +162,9 @@ module apiPrimary 'api.bicep' = {
   params: {
     exists: apiPrimaryExists
     instanceSettings: settings.SubProducts.Api.Primary
-    sharedSettings: { 
-      ...apiSharedSettings
-      acaEnvironmentResourceId: acaEnvPrimary.outputs.resourceId
-    }
+    sharedSettings: apiSharedSettings
   }
+  dependsOn: [acaEnvPrimary]
 }
 
 var hasAcaFailover = !empty(settings.SubProducts.Aca.Failover ?? {})
@@ -183,11 +181,9 @@ module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ??
   params: {
     instanceSettings: settings.SubProducts.Api.Failover
     exists: apiFailoverExists
-    sharedSettings: { 
-      ...apiSharedSettings
-      acaEnvironmentResourceId: hasAcaFailover ? acaEnvFailover.outputs.resourceId : ''
-    }
+    sharedSettings: apiSharedSettings
   }
+  dependsOn: hasAcaFailover ? [acaEnvFailover] : []
 }
 
 resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {

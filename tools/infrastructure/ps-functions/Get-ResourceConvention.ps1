@@ -385,6 +385,7 @@ function Get-ResourceConvention {
                 $isMainUI = $spInput.IsMainUI ?? $false
                 $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductName
                 $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : ' API'), $EnvironmentName
+                $acaEnv = $subProductsConventions[$spInput.AcaEnv ?? 'Aca']
 
                 $managedId = @{
                     Primary     = '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
@@ -414,6 +415,7 @@ function Get-ResourceConvention {
                 $acaAppPrimary = @{
                     ResourceName        =   $primaryAcaResourceName
                     ResourceLocation    =   $azurePrimaryRegion.Name
+                    AcaEnvResourceName  =   $acaEnv.Primary.ResourceName
                     IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
                     MinReplicas         =   switch ($EnvironmentName) {
                         { $_ -like 'prod-*' } {
@@ -433,6 +435,7 @@ function Get-ResourceConvention {
                 $acaAppFailover = @{
                     ResourceName        =   $failoverAcaResourceName
                     ResourceLocation    =   $acaSecondaryRegion.Name
+                    AcaEnvResourceName  =   $acaEnv.Failover.ResourceName
                     IngressHostname     =   $acaIngressHostnameTemplate -f $failoverAcaResourceName
                     MinReplicas         =   0 # make failover passive node (ie traffic not sent to it unless primary fails)
                 } + $acaShareSettings
