@@ -56,7 +56,8 @@ if you do need to deploy the shared services, you can do so by running the follo
 
 ## Deploying infrastructure using CI/CD
 
-> [!Tip] to discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
+> [!Tip]
+> To discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
 
 1. Trigger build by _either_:
    * Touching any file in tools/infrastructure on the `master` branch (via a PR)
@@ -85,7 +86,8 @@ if you do need to deploy the shared services, you can do so by running the follo
 
 ## Deploying app from CI/CD
 
-> [!Tip] to discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
+> [!Tip]
+> To discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
 
 1. Trigger build by _either_:
    * Touching any file in tools/infrastructure on the `master` branch (via a PR)
