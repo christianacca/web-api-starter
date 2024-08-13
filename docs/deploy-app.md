@@ -41,8 +41,13 @@ For more information on how these github workflows for the project were set up: 
 The shared services required for the app are:
 * Azure container registry (ACR)
 
-These services maybe maintained by other teams and are not part of the deployment process for the app. However,
-if you do need to deploy the shared services, you can do so by running the following github workflow: [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
+Azure container registry (ACR) services are maintained by other teams and are not part of the deployment process for the app. However,
+if you do need to deploy the shared services, you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
+with the 'Create shared container registry?' parameter selected.
+
+Once shared services have been created, you will need to assign the appropriate RBAC permissions to the shared services to allow for role assignments to be made.
+This can be done by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) with the
+'Grant RBAC management permission to provisioning service principals?' parameter selected.
 
 ## Infrastructure
 
@@ -255,7 +260,7 @@ In practice the only way to run these scripts from a dev machine is:
 2. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -CreateSharedContainerRegistry -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
     ````
 3. Provision Azure resources:
    ```pwsh

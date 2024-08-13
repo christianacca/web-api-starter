@@ -16,8 +16,13 @@ on:
           - prod-na
           - prod-emea
           - prod-apac
-      grant-acr-rbac-management-only:
-        description: 'Grant ACR RBAC management only? Note: environment selected must be prod-na'
+      create-shared-container-registry:
+        description: 'Create shared container registry? Note: the environment selected should be appropriate for the shared container registry. So for example, pick prod-na for a container registry intended to be shared by production environments, and dev for dev/test shared container registry.'
+        default: false
+        required: false
+        type: boolean
+      grant-rbac-management:
+        description: 'Grant RBAC management permission to provisioning service principals? Note: environment selected must be prod-na'
         default: false
         required: false
         type: boolean
@@ -56,8 +61,9 @@ jobs:
         shell: pwsh
         run: |
           $parmas = @{
-            EnvironmentName             = '${{ github.event.inputs.environment-name }}'
-            GrantAcrRbacManagementOnly  = $${{ github.event.inputs.grant-acr-rbac-management-only }}
-            SkipInstallModules          = $true
+            EnvironmentName                 = '${{ github.event.inputs.environment-name }}'
+            CreateSharedContainerRegistry   = $${{ github.event.inputs.create-shared-container-registry }}
+            GrantRbacManagement             = $${{ github.event.inputs.grant-rbac-management }}
+            SkipInstallModules              = $true
           }
           ./tools/infrastructure/provision-shared-services.ps1 @parmas -InfA Continue

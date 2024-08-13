@@ -5,7 +5,7 @@ targetScope = 'subscription'
 
 // IMPORTANT: the permissions granted below assume that these service principal were created using the scripts from:
 // https://github.com/MRI-Software/service-principal-automate
-// and therefore have already been granted permissions to other resources they requires
+// and therefore have already been granted permissions to create/update resources in their "home" subscription.
 
 // Note: assumes that the production registry is in the prod-na subscription. thus we are granting permissions to the 
 // service principals that do NOT have permission to manage RBAC for resources in the prod-na subscription
