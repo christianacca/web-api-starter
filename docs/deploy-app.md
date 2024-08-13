@@ -4,13 +4,18 @@
 * [Deploying the app](#deploying-the-app)
   * [Overview](#overview)
   * [Shared services](#shared-services)
+    * [Azure container registry](#azure-container-registry)
+    * [Azure key vault for TLS certificates](#azure-key-vault-for-tls-certificates)
+    * [Grant RBAC management permission for shared services](#grant-rbac-management-permission-for-shared-services)
+  * [Register DNS records](#register-dns-records)
+  * [Add TLS certificates to shared key vault](#add-tls-certificates-to-shared-key-vault)
   * [Infrastructure](#infrastructure)
-  * [Deploying infrastructure using CI/CD](#deploying-infrastructure-using-cicd)
+  * [Deploying infrastructure from CI/CD](#deploying-infrastructure-from-cicd)
   * [Deploying app from CI/CD](#deploying-app-from-cicd)
   * [Granting access to Azure or Power-BI resources](#granting-access-to-azure-or-power-bi-resources)
     * [Steps](#steps)
-    * [Revoking access to Azure resources](#revoking-access-to-azure-resources)
-    * [Azure environment Access levels](#azure-environment-access-levels)
+  * [Revoking access to Azure resources](#revoking-access-to-azure-resources)
+  * [Azure environment Access levels](#azure-environment-access-levels)
   * [Deploying (infrastructure + app) locally from dev machine](#deploying-infrastructure--app-locally-from-dev-machine)
     * [Prerequisites](#prerequisites)
     * [Permissions to run infrastructure scripts](#permissions-to-run-infrastructure-scripts)
@@ -26,35 +31,158 @@
 At a high level deployment consists of:
 
 1. Ensure shared services have been created and RBAC permissions assigned to allow for role assignments to be made
-2. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-3. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
-4. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+2. Register DNS records in the DNS zone for custom domain used by container apps
+3. Add TLS certificate(s) to shared key vault(s) that cover the custom domains used by the container apps
+4. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
+5. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+6. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
 
-
-This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line 
+This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line
 to automate the deployment tasks above and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
 
 For more information on how these github workflows for the project were set up: [create-github-actions-infrastructure-pipeline](create-github-actions-infrastructure-pipeline.md)
+
+> [!WARNING]
+> Before running **any** scripts of workflows, you must make sure to have created the service principals responsible for
+> provisioning the product, for at least `dev` and `prod-na` environments. And to then include the details of those service principals
+> in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1)
+> This is because the `prod-na` subscription is used to create some/all of the shared services required by the app
 
 ## Shared services
 
 The shared services required for the app are:
 * Azure container registry (ACR)
+* Azure key vault for TLS certificates
 
-These services maybe maintained by other teams and are not part of the deployment process for the app. However,
-if you do need to deploy the shared services, you can do so by running the following github workflow: [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
+> [!Note]
+> If there are multiple shared services for the same type required (for example two Azure container registries), you will
+> need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) multiple times, picking the appropriate shared service and environment to deploy each time.
+
+### Azure container registry
+
+Azure container registry (ACR) services are maintained by other teams and are not part of the deployment process for the app. However,
+if you do need to deploy the shared services, you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
+with the 'Create shared container registry?' parameter selected.
+
+### Azure key vault for TLS certificates
+
+Azure key vault for TLS certificates may be maintained by other teams, but if you need to deploy this shared key vault(s),
+you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
+with the 'Create shared key vault?' parameter selected.
+
+### Grant RBAC management permission for shared services
+
+Once shared services have been created, you will need to assign the appropriate RBAC permissions to the shared services 
+to allow for role assignments to be made. This can be done by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) 
+with the 'Grant RBAC management permission to provisioning service principals?' parameter selected.
+
+## Register DNS records
+
+> [!Note]
+> Highly likely DNS zones are maintained by other teams and is not part of the deployment process for the app
+
+> [!Important]
+> This step needs to be repeated any time a new environment is provisioned
+
+Each container app will be assigned a custom domain that will be used to access that app over https. The DNS records for
+these custom domains must be registered in the DNS zone for that custom domain.
+
+There are two DNS records that need to be registered _for each service_ (eg our API) hosted in Azure container apps, 
+_for each environment_ that this service is being deployed to:
+
+* `TXT` record required to validate domain ownership, EG name:`asuid.dev-api-was`; content:`xxxxxxxxx`
+* `CNAME` record for the custom domain pointing to the traffic manager DNS name, EG name:`dev-api-was`; content:`dev-api-was.trafficmanager.net`
+
+> [!WARNING]
+> The `TXT` record must be added to the DNS zone before the azure container app can be created.
+
+To find the values for the values for these DNS record for a specific environment, run the following script:
+
+```pwsh
+# note: replace 'dev, qa' with the environments you want to get the DNS records for. Leave blank to get all environments
+./tools/infrastructure/print-custom-dns-record-table.ps1 dev, qa -Login
+```
+
+## Add TLS certificates to shared key vault
+
+> [!Note]
+> Highly likely TLS certificates are maintained by other teams and is not part of the deployment process for the app
+
+> [!Important]
+> In order to import certificates as instructed below, you will need to be a member of the MS Entra-ID security group
+> 'sg.role.it.itops.cloud'
+
+TLS certificates are required for the custom domains used by the container apps. These certificates must be added to the
+shared key vault(s) that are used by the app.
+
+The process for sourcing these certificates is application specific. Some options include:
+
+* use managed certificates from Azure Container Apps 
+  * see [offical docs](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates?pivots=azure-cli)
+  * **IMPORTANT**: this method will not work for solutions that use Azure traffic manager to route traffic to the container apps
+* use key vault to automatically create/renew certificates using a CA
+  * see [Creating a certificate with a CA partnered with Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/certificates/certificate-scenarios#creating-a-certificate-with-a-ca-partnered-with-key-vault)
+* use Cloudflare to proxy the custom domain and provide an origin server TLS certificate, then import these certificates
+  into a key vault
+  * see [Cloudflare | Origin CA certificates](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/)
+  * this is a good choice for the budget conscious as Cloudflare 1) provides free certificates for the end user of the 
+    site/api served by the container apps, and 2) provides a free Web Application Firewall (WAF) to protect the site/api
+
+This project assumes that Cloudflare method is being used. The following guidance provides an overview of the steps
+required to set up Cloudflare acting as a proxy for the custom domain, and importing the origin server TLS certificate
+into a shared key vault accessible by the app:
+
+1. Create a Cloudflare account and ensure that the cloudflare is the authoritative DNS server for the custom domain
+   * see [Cloudflare | Add your domain to Cloudflare](https://developers.cloudflare.com/learning-paths/get-started/add-domain-to-cf/)
+2. [Add a site](https://developers.cloudflare.com/fundamentals/setup/manage-domains/add-site/) in Cloudflare and configure SSL/TLS so that:
+   * Edge TLS certificates are generated by Cloudflare ([universal SSL](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/) certs are free)
+   * Encryption mode is 'Full (strict)' so that Cloudflare uses SSL between its proxy and our origin server 
+     (for details see [Cloudflare | Encryption modes](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/)
+   * Cloudflare Origin cert is generated for the custom domain. By default, this certificate will be valid for 15 years
+     (see [Cloudflare | Origin CA certificates](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/))
+3. Download the Cloudflare Origin cert and private key as a PEM file
+4. Import the Cloudflare Origin cert PEM file into the shared key vault
+   * see [Azure Key Vault | Import a certificate](https://learn.microsoft.com/en-us/azure/key-vault/certificates/tutorial-import-certificate?tabs=azure-portal)
+
+> [!Note]
+> The certificate for both production and non-production might be the same, and may be stored in the same key vault accessible by all environments.
+> Or the certificates might be different, and stored in different key vaults, accessible only by the environment that requires it.
+> Or the certificates might be the same, but separate copies stored in different key vaults, accessible only by the environment that requires it.
+> The convention configuration for the project determines these choices.
+
+To find the origin SSL certificates required to cover non-production environments, run the following script:
+
+```pwsh
+(./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).TlsCertificates.Dev | select `
+   @{ n='CertificateName'; e={ $_.ResourceName } }, `
+   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
+   ZoneName, `
+   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
+   @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
+```
+
+To find the origin SSL certificates required to cover production environments, run the following script:
+
+```pwsh
+(./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).TlsCertificates.Prod | select `
+   @{ n='CertificateName'; e={ $_.ResourceName } }, `
+   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
+   ZoneName, `
+   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
+   @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
+```
 
 ## Infrastructure
 
 > [!Note]
-> Image represents deployment to the dev environment. 
+> Image represents deployment to the dev environment.
 > Other environments will have the same resources but with different names, plus production and qa environments will also have failover instances for SQL and ACA pods
 
 **TODO: Add image describing infrastructure deployment**
 
 > Also see output from [print-product-convention-table.ps1](../tools/infrastructure/print-product-convention-table.ps1)
 
-## Deploying infrastructure using CI/CD
+## Deploying infrastructure from CI/CD
 
 > [!Tip]
 > To discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
@@ -122,18 +250,18 @@ if you do need to deploy the shared services, you can do so by running the follo
 3. Select the "Run workflow" button
    ![run workflow](./assets/infra-grant-access-run-workflow.png)
 4. In the dialog:
-    1. Select the Environment to which to grant access (select 'all' to expedite the process considerably)
-    2. Select the Access level that is appropriate for the person (see below for description of each access level)
-    3. Select the Scope that is appropriate for the person:
-        * 'global' for access to all resources in the environment
-        * 'pbi' for access to only pbi resources in the environment
-    4. In 'A comma delimited list of User principal names to grant' add the email address of the person(s) to grant access
-    5. Select 'Run workflow' button
+   1. Select the Environment to which to grant access (select 'all' to expedite the process considerably)
+   2. Select the Access level that is appropriate for the person (see below for description of each access level)
+   3. Select the Scope that is appropriate for the person:
+      * 'global' for access to all resources in the environment
+      * 'pbi' for access to only pbi resources in the environment
+   4. In 'A comma delimited list of User principal names to grant' add the email address of the person(s) to grant access
+   5. Select 'Run workflow' button
 5. For all environments except dev, the workflow run will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
    * See example workflow run screenshots below
    * Those members of the [Web API Starter - Production approver](https://github.com/orgs/MRI-Software/teams/web-api-starter-production-approver/members) will be able to approve
 
-Once approved, the Azure RBAC permissions applicable to the selections above will be provisioned to the resources in Azure.
+Once approved, the Azure RBAC permissions and Microsoft Entra ID security group membership applicable to the selections above will be provisioned to the resources in Azure.
 
 To check existing access, run the following script:
 
@@ -151,81 +279,90 @@ _Example workflow run:_
 
 ![run workflow](./assets/infra-grant-access-run-workflow-run-2.png)
 
-### Revoking access to Azure resources
+
+## Revoking access to Azure resources
 
 1. Open the github workflow [Infrastructure Revoke Azure Environment Access](../.github/workflows/infra-revoke-azure-env-access.yml)
 2. Select the "Run workflow" button\
    ![run workflow](./assets/infra-revoke-access-run-workflow.png)
 3. In the dialog:
-    1. Select the Environment to which to revoke access
-    2. Select the Access level that's to be revoked for the person
-    3. Select the Scope to be revoked for the person:
-        * 'global' for access to all resources in the environment
-        * 'pbi' for access to only pbi resources in the environment
-    4. In 'User to revoke' add the email address of the person to revoke access
-    5. Select 'Run workflow' button
+   1. Select the Environment to which to revoke access
+   2. Select the Access level that's to be revoked for the person
+   3. Select the Scope to be revoked for the person:
+      * 'global' for access to all resources in the environment
+      * 'pbi' for access to only pbi resources in the environment
+   4. In 'User to revoke' add the email address of the person to revoke access
+   5. Select 'Run workflow' button
 4. For all environments except dev, the workflow run will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
 
-### Azure environment Access levels
+
+## Azure environment Access levels
 
 ***global* access:**
 
 1. development
-    * dev, qa, rel:
-        * admin access to AIG Azure SQL db
-        * contributor access to Azure resources (_including_ access to keyvault)
-        * admin access to power-bi client workspaces
-    * demo:
-        * data read/write access to AIG Azure SQL db
-        * contributor access to Azure resources (no access to keyvault)
-        * contributor access to power-bi client workspaces
-    * staging and prod:
-        * data read access to AIG Azure SQL db
-        * contributor access to Azure monitor, read access to all other Azure resources (no access to keyvault)
-        * no access to power-bi client workspace
+   * dev, qa, rel:
+     * admin access to AIG Azure SQL db
+     * contributor access to Azure resources (_including_ access to keyvault)
+     * admin access to power-bi client workspaces
+   * demo:
+     * data read/write access to AIG Azure SQL db
+     * contributor access to Azure resources (no access to keyvault)
+     * contributor access to power-bi client workspaces
+   * staging and prod:
+     * data read access to AIG Azure SQL db
+     * contributor access to Azure monitor, read access to all other Azure resources (no access to keyvault)
+     * no access to power-bi client workspace
 2. GPS / support-tier-1
-    * demo, staging and prod environments:
-        * data read access to AIG Azure SQL db
-        * read access to Azure (no access to keyvault)
-        * contributor rights to power-bi client _report_ workspaces
-        * viewer rights to power-bi client _dataset_ workspaces
+   * demo, staging and prod environments:
+     * data read access to AIG Azure SQL db
+     * read access to Azure (no access to keyvault)
+     * contributor rights to power-bi client _report_ workspaces
+     * viewer rights to power-bi client _dataset_ workspaces
 3. App Admin / support-tier-2
-    * demo, staging and prod environments:
-        * contributor access to AIG Azure SQL db
-        * contributor access to Azure (_including_ access to keyvault)
-        * admin rights to power-bi client _report_ workspaces
-        * admin rights to power-bi client _dataset_ workspaces
+   * demo, staging and prod environments:
+     * contributor access to AIG Azure SQL db
+     * contributor access to Azure (_including_ access to keyvault)
+     * admin rights to power-bi client _report_ workspaces
+     * admin rights to power-bi client _dataset_ workspaces
 
 ***pbi* only access:**
 
 1. development
-    * dev, qa, rel: admin access to power-bi client workspaces
-    * demo: contributor access to power-bi client workspaces
-    * staging and prod: no access to power-bi client workspace
+   * dev, qa, rel: admin access to power-bi client workspaces
+   * demo: contributor access to power-bi client workspaces
+   * staging and prod: no access to power-bi client workspace
 2. GPS / support-tier-1
-    * demo, staging and prod environments:
-        * contributor rights to power-bi client _report_ workspaces
-        * viewer rights to power-bi client _dataset_ workspaces
+   * demo, staging and prod environments:
+     * contributor rights to power-bi client _report_ workspaces
+     * viewer rights to power-bi client _dataset_ workspaces
 3. App Admin / support-tier-2
-    * demo, staging and prod environments:
-        * admin rights to power-bi client _report_ workspaces
-        * admin rights to power-bi client _dataset_ workspaces
+   * demo, staging and prod environments:
+     * admin rights to power-bi client _report_ workspaces
+     * admin rights to power-bi client _dataset_ workspaces
 
 To provide a comprehensive list of permissions per environment execute [print-product-convention-table.ps1](../tools/infrastructure/print-product-convention-table.ps1),
 specifically, the example with the description "Returns tables describing all Azure RBAC and Azure ADD security group membership"
 
+
 ## Deploying (infrastructure + app) locally from dev machine
 
 > [!CAUTION]
-> creating the infrastructure from your local dev machine using the provision script below (./tools/infrastructure/provision-azure-resources.ps1)
-> will likely cause the Infrastructure CI/CD pipeline to fail for the environment that you deployed to locally. 
+> Creating the infrastructure from your local dev machine using the provision script below (./tools/infrastructure/provision-azure-resources.ps1)
+> will likely cause the Infrastructure CI/CD pipeline to fail for the environment that you deployed too locally.
 > This is because the AAD groups will be created with your identity as the owner, and NOT the service principal that the
 > pipeline uses. This will cause the pipeline to fail when it tries to add a group member
 
 ### Prerequisites
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to run dev scripts
-* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.28.1**)
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.29.45**). **IMPORTANT**, ensure you have the minimum version installed as the
+  standalone cli and the one packaged by az-cli.
+  * Both standalone and packed version are required and can be installed by following the [official guide](https://learn.microsoft.com/en-gb/azure/azure-resource-manager/bicep/install))
+  * To upgrade the packaged version run: `az bicep upgrade`
+  * To upgrade the standalone version:
+    * MacOS: `brew upgrade bicep`
+    * Windows: `choco upgrade bicep`
 * powershell core (tested on v7.2)
 * docker engine to run the [build.ps1](../tools/dev-scripts/build.ps1)) script with the flag `-DockerPush`
 
@@ -236,10 +373,9 @@ In practice the only way to run these scripts from a dev machine is:
 
 1. To have your own Azure subscription where you are the owner, AND
 2. The Azure subscription is linked to a developer Azure Entra-ID tenant created using the Microsoft 365 developer program. See the following on how to get this setup:
-    1. sign-up for the MS 365 developer program: <https://developer.microsoft.com/en-us/microsoft-365/dev-program>
-    2. linking your VS subscription to your office365 dev tenant: <https://laurakokkarinen.com/how-to-use-the-complimentary-azure-credits-in-a-microsoft-365-developer-tenant-step-by-step/>
-    3. things to be aware of when moving your VS subscription to another AD tenant: <https://docs.microsoft.com/en-us/azure/role-based-access-control/transfer-subscription>
-
+   1. sign-up for the MS 365 developer program: <https://developer.microsoft.com/en-us/microsoft-365/dev-program>
+   2. linking your VS subscription to your office365 dev tenant: <https://laurakokkarinen.com/how-to-use-the-complimentary-azure-credits-in-a-microsoft-365-developer-tenant-step-by-step/>
+   3. things to be aware of when moving your VS subscription to another AD tenant: <https://docs.microsoft.com/en-us/azure/role-based-access-control/transfer-subscription>
 
 ### Steps
 
@@ -250,20 +386,20 @@ In practice the only way to run these scripts from a dev machine is:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
    2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. uncomment `ProductAbbreviation` (line 22) and make it globally unique (eg replace `-cc` with your initials)
-   4. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
-   5. comment-in the block of code that starts `# If you need to override conventions, ...`
+   4. Review `Domain` settings (starting line 23) and adjust as required. At minimum replace 'codingdemo' with the value of a custom domain you own
 2. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -CreateSharedContainerRegistry -CreateSharedKeyVault -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
     ````
-3. Provision Azure resources:
+3. Update the subscription id in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1) to your own subscription id
+4. Provision Azure resources:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
    ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
    ````
    * NOTE: if this script fails try running it again (script is idempotent). For more details see troubleshooting section below
-4. Build App: 
+5. Build App: 
    ```pwsh
    az login
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
@@ -271,17 +407,16 @@ In practice the only way to run these scripts from a dev machine is:
    ./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue
    ```
     * **IMPORTANT**: You will need to have docker engine installed and running on your machine in order to build and push the images
-5. Deploy App: 
+6. Deploy App:
    ```pwsh
    # IMPORTANT: You will likely need to connected to the office VPN in order to satisfy the firewall rules configured in the Azure SQL db
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-   ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
    ````
-6. Test that it worked:
-    * browse to the "Api health Url" printed to the console
-    * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-dev.postman_environment.json)
-      * Change the baseUrl postman variable to the "Api Url" printed to the console above
-      * Run the requests in the collection
+7. Test that it worked:
+   * browse to the "Api health Url" printed to the console
+   * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-dev.postman_environment.json),
+     change the baseUrl postman variable to the "Api Url" printed to the console. Run the requests in the collection
 
 
 ## Cleanup
@@ -293,7 +428,7 @@ or running the github workflow [Infrastructure Uninstall](../.github/workflows/i
 
 ```pwsh
 # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-./tools/infrastructure/deprovision-azure-resources.ps1 -InfA Continue -Environment xxx -DeleteAADGroups -Login -Subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+./tools/infrastructure/deprovision-azure-resources.ps1 -InfA Continue -Environment xxx -DeleteAADGroups -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
 ```
 
 ### From the github workflow
@@ -309,6 +444,5 @@ When running `provision-azure-resources.ps1`, you might receive an error with th
 ```cmd
 Login failed for user '<token-identified principal>'
 ```
-
-To resolve the problem try re-running the provisioning script again (it's safe to do so). If this still does not work try 
+To resolve the problem try re-running the provisioning script again (it's safe to do so). If this still does not work try
 waiting for somewhere between 15-60 minutes and re-run the script.

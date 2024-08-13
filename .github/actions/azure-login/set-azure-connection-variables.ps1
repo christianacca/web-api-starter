@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory)]
     [string] $EnvironmentName,
-    [string] $SubscriptionId
+    [string] $SubscriptionId,
+    [switch] $AsHashtable
 )
 process {
     $vars = switch ($EnvironmentName) {
@@ -38,7 +39,11 @@ process {
     if ($SubscriptionId) {
         $vars.subscriptionId = $SubscriptionId
     }
-    $vars.Keys | ForEach-Object {
-        ('{0}={1}' -f $_, $vars[$_]) >> $env:GITHUB_OUTPUT
+    if ($AsHashtable) {
+        $vars
+    } else {
+        $vars.Keys | ForEach-Object {
+            ('{0}={1}' -f $_, $vars[$_]) >> $env:GITHUB_OUTPUT
+        }
     }
 }
