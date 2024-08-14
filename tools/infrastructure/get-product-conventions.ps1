@@ -20,6 +20,14 @@
                 CompanyName             =   'CLC Software'
                 ProductName             =   'Web API Starter'
 #                ProductAbbreviation     =   'was-cc'
+                Domain                  = @{
+                    TopLevelDomain      =   'co.uk'
+                    CompanyDomain       =   'codingdemo'
+#                    ProductDomain       =   'overridedefaultvaluehere'
+                    # example of 2 level 'na-api-product.comapny.com'
+                    # example of 3 levels 'na-api.product.comapny.com', 'dev-api-product.devtest.comapny.com'
+                    SubDomainLevel      =   2
+                }
                 EnvironmentName         =   $EnvironmentName
                 SubProducts             =   [ordered]@{
                     PbiReportStorage    =   @{ 
