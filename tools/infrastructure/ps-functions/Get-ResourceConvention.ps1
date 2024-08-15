@@ -639,11 +639,12 @@ function Get-ResourceConvention {
         }
     }
     
+    $prodSubscriptiondId = '4c98c256-bc60-40ba-8bcb-81ae94ac52d4'
     $containerRegistryNamePrefix = $CompanyName.Replace(' ', '').ToLower()
     $containerRegistryProd = @{
         ResourceName        =   "${containerRegistryNamePrefix}devopsprod"
         ResourceGroupName   =   'container-registry'
-        SubscriptionId      =   '4c98c256-bc60-40ba-8bcb-81ae94ac52d4'
+        SubscriptionId      =   $prodSubscriptiondId
     }
     $containerRegistryDev = @{
         ResourceName        =   "${containerRegistryNamePrefix}devops"
@@ -654,6 +655,30 @@ function Get-ResourceConvention {
         Available   = $isEnvProdLike ? @($containerRegistryProd) : @($containerRegistryProd, $containerRegistryDev)
         Prod        = $containerRegistryProd
         Dev         = $containerRegistryDev
+    }
+
+    $sharedKeyVaultLocation = 'eastus'
+    $sharedKeyVault = @{
+        ResourceName            =   'kv-{0}-shared' -f $ProductAbbreviation
+        ResourceGroupName       =   'rg-shared-{0}-{1}' -f $ProductAbbreviation, $sharedKeyVaultLocation
+        ResourceLocation        =   $sharedKeyVaultLocation
+        SubscriptionId          =   $prodSubscriptiondId
+        EnablePurgeProtection   =   $false # consider enabling this for your workloads
+    }
+    
+    $devCert = @{
+        KeyVault        =   $sharedKeyVault + @{}
+        ResourceName    =   @(
+            (Get-PublicHostName dev @Domain).Split('.') | Select-Object -Skip 1
+            'wildcardcert'
+        ) -join '-'
+    }
+    $prodCert = @{
+        KeyVault        =   $sharedKeyVault + @{}
+        ResourceName    =   @(
+            (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
+            'wildcardcert'
+        ) -join '-'
     }
 
     $results = @{
@@ -672,6 +697,10 @@ function Get-ResourceConvention {
             Name            =   $ProductName
         }
         SubProducts             =   $subProductsConventions
+        TlsCertificates         =   @{
+            Dev             =   $devCert
+            Prod            =   $prodCert
+        }
         IsTestEnv               =   $isTestEnv
     }
     

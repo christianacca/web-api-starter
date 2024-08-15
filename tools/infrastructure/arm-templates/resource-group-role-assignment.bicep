@@ -1,6 +1,16 @@
 @description('The id of the principal to assign the permission to.')
 param principalId string
 
+@description('The principal type of the assigned principal ID.')
+@allowed([
+  'Device'
+  'ForeignGroup'
+  'Group'
+  'ServicePrincipal'
+  'User'
+])
+param principalType string = 'ServicePrincipal'
+
 @description('The role definition ID for the role assignment.')
 param roleDefinitionId string
 
@@ -13,6 +23,6 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   properties: {
     roleDefinitionId: qualifiedRoleDefinitionId
     principalId: principalId
-    principalType: 'ServicePrincipal'
+    principalType: principalType
   }
 }

@@ -40,10 +40,18 @@ For more information on how these github workflows for the project were set up: 
 
 The shared services required for the app are:
 * Azure container registry (ACR)
+* Azure key vault for TLS certificates
+
+> [!Note]
+> If there are multiple shared services required, you will need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) multiple times, picking the appropriate shared service and environment to deploy each time.
 
 Azure container registry (ACR) services are maintained by other teams and are not part of the deployment process for the app. However,
 if you do need to deploy the shared services, you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
 with the 'Create shared container registry?' parameter selected.
+
+Azure key vault for TLS certificates may be maintained by other teams, but if you need to deploy this shared key vault(s),
+you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
+with the 'Create shared key vault?' parameter selected.
 
 Once shared services have been created, you will need to assign the appropriate RBAC permissions to the shared services to allow for role assignments to be made.
 This can be done by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) with the
@@ -260,7 +268,7 @@ In practice the only way to run these scripts from a dev machine is:
 2. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
-   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -CreateSharedContainerRegistry -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -CreateSharedContainerRegistry -CreateSharedKeyVault -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
     ````
 3. Provision Azure resources:
    ```pwsh

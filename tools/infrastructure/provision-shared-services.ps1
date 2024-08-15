@@ -5,6 +5,7 @@
         
         [switch] $GrantRbacManagement,
         [switch] $CreateSharedContainerRegistry,
+        [switch] $CreateSharedKeyVault,
 
         [switch] $Login,
         [string] $SubscriptionId,
@@ -55,6 +56,14 @@
                 }
                 Write-Information 'Creating shared Azure container registries in current azure subscription'
                 New-AzDeployment @acrParams -EA Stop | Out-Null
+            }
+
+            if ($CreateSharedKeyVault) {
+                $kvParams = $armParams + @{
+                    TemplateFile    =   Join-Path $templatePath 'shared-keyvault-services.bicep'
+                }
+                Write-Information 'Creating shared Azure key vaults in current azure subscription'
+                New-AzDeployment @kvParams -EA Stop | Out-Null
             }
             
             if ($GrantRbacManagement) {
