@@ -148,6 +148,7 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
 }]
 
 var acaEnvSharedSettings = {
+  certSettings: settings.TlsCertificates.Current
   logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
   managedIdentityResourceId: acaEnvManagedId.id
 }
