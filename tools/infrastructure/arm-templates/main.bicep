@@ -148,6 +148,7 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
 }]
 
 var acaEnvSharedSettings = {
+  certSettings: settings.TlsCertificates.Current
   logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
   managedIdentityResourceId: acaEnvManagedId.id
 }
@@ -158,6 +159,7 @@ module acaEnvPrimary 'aca-environment.bicep' = {
     instanceSettings: settings.SubProducts.Aca.Primary
     sharedSettings: acaEnvSharedSettings
   }
+  dependsOn: [acaEnvCertPermission]
 }
 
 var acaContainerRegistries = map(containerRegistries, registry => ({
@@ -195,6 +197,7 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
     instanceSettings: settings.SubProducts.Aca.Failover
     sharedSettings: acaEnvSharedSettings
   }
+  dependsOn: [acaEnvCertPermission]
 }
 
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
