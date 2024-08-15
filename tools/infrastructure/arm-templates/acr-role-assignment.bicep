@@ -1,7 +1,7 @@
-@description('The name of the Azure container registry whose ACR Pull permission is to be assigned.')
+@description('The name of the Azure container registry whose RBAC role is to be assigned.')
 param registryName string
 
-@description('The id of the principal to assign the ACR Pull permission.')
+@description('The id of the principal to assign the RBAC role.')
 param principalId string
 
 @description('The role definition ID for the role assignment.')

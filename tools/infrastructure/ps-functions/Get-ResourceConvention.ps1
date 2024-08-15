@@ -356,7 +356,8 @@ function Get-ResourceConvention {
                 }
             }
             'AcaEnvironment' {
-                $acaEnvNameTemplate = 'cae-{0}-{1}'
+                $acaEnvPrefix = 'cae'
+                $acaEnvNameTemplate = "$acaEnvPrefix-{0}-{1}"
                 $acaSecondaryRegion = $azureSecondaryAltRegion ?? $azureSecondaryRegion
                 $acaEnvPrimary = @{
                     ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation
@@ -367,8 +368,9 @@ function Get-ResourceConvention {
                     ResourceLocation    =   $acaSecondaryRegion.Name
                 }
                 @{
-                    Primary             = $acaEnvPrimary
-                    Failover            = if ($hasFailover) { $acaEnvFailover } else { $null }
+                    ManagedIdentity     =   '{0}-{1}' -f $managedIdentityNamePrefix, $acaEnvPrefix
+                    Primary             =   $acaEnvPrimary
+                    Failover            =   if ($hasFailover) { $acaEnvFailover } else { $null }
                     Type                =   $spInput.Type
                 }
             }
@@ -698,6 +700,7 @@ function Get-ResourceConvention {
         }
         SubProducts             =   $subProductsConventions
         TlsCertificates         =   @{
+            Current         =   $isEnvProdLike ? $prodCert : $devCert
             Dev             =   $devCert
             Prod            =   $prodCert
         }
