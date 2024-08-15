@@ -35,12 +35,12 @@ resource acaEnv 'Microsoft.App/managedEnvironments@2024-02-02-preview' = {
         sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
       }
     }
-    customDomainConfiguration: {
-      certificateKeyVaultProperties: {
-        identity: sharedSettings.managedIdentityResourceId
-        keyVaultUrl: kv::cert.properties.secretUri
-      }
-    }
+    // customDomainConfiguration: {
+    //   certificateKeyVaultProperties: {
+    //     identity: sharedSettings.managedIdentityResourceId
+    //     keyVaultUrl: kv::cert.properties.secretUri
+    //   }
+    // }
     workloadProfiles: [
       {
         name: 'Consumption'
