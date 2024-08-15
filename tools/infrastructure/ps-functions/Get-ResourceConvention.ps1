@@ -698,6 +698,7 @@ function Get-ResourceConvention {
         }
         SubProducts             =   $subProductsConventions
         TlsCertificates         =   @{
+            Current         =   $isEnvProdLike ? $prodCert : $devCert
             Dev             =   $devCert
             Prod            =   $prodCert
         }
