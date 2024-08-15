@@ -109,6 +109,22 @@ module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.11.0' = {
   }
 }
 
+resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Aca.ManagedIdentity
+  location: location
+}
+
+var certSettings = settings.TlsCertificates.Current
+module acaEnvCertPermission 'keyvault-role-assignment.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
+  scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
+  params: {
+    resourceName: certSettings.KeyVault.ResourceName
+    principalId: acaEnvManagedId.properties.principalId
+    roleDefinitionId: 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba' // 'Key Vault Certificate User'
+  }
+}
+
 resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.Api.ManagedIdentity.Primary
   location: location
@@ -131,12 +147,19 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   }
 }]
 
+var acaEnvSharedSettings = {
+  certSettings: settings.TlsCertificates.Current
+  logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+  managedIdentityResourceId: acaEnvManagedId.id
+}
+
 module acaEnvPrimary 'aca-environment.bicep' = {
   name: '${uniqueString(deployment().name, location)}-AcaEnvPrimary'
   params: {
     instanceSettings: settings.SubProducts.Aca.Primary
-    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    sharedSettings: acaEnvSharedSettings
   }
+  dependsOn: [acaEnvCertPermission]
 }
 
 var acaContainerRegistries = map(containerRegistries, registry => ({
@@ -146,6 +169,7 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
 
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+  certSettings: settings.TlsCertificates.Current
   managedIdentityClientIds: {
     default: apiManagedId.properties.clientId
   }
@@ -172,8 +196,9 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
   name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
   params: {
     instanceSettings: settings.SubProducts.Aca.Failover
-    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    sharedSettings: acaEnvSharedSettings
   }
+  dependsOn: [acaEnvCertPermission]
 }
 
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
