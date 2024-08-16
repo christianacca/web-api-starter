@@ -169,6 +169,7 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
 
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+  certSettings: settings.TlsCertificates.Current
   managedIdentityClientIds: {
     default: apiManagedId.properties.clientId
   }
