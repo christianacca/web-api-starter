@@ -98,7 +98,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
     customDomains: [
       {
         name: sharedSettings.subProductsSettings.Api.HostName
-        certificateId: acaEnvCert.id
+        certificateId: acaEnv::cert.id
         bindingType: 'SniEnabled'
       }
     ]
@@ -135,11 +135,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
 
 resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing = {
   name: instanceSettings.AcaEnvResourceName
-}
-
-resource acaEnvCert 'Microsoft.App/managedEnvironments/certificates@2023-11-02-preview' existing = {
-  name: sharedSettings.certSettings.ResourceName
-  parent: acaEnv
+  resource cert 'certificates' existing = { name: sharedSettings.certSettings.ResourceName }
 }
 
 resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
