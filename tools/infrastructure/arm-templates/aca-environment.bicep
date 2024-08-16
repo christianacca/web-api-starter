@@ -43,16 +43,15 @@ resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
     ]
     zoneRedundant: false
   }
-}
 
-resource acaEnvCert 'Microsoft.App/managedEnvironments/certificates@2023-11-02-preview' = {
-  name: sharedSettings.certSettings.ResourceName
-  location: location
-  parent: acaEnv
-  properties: {
-    certificateKeyVaultProperties: {
-      identity: sharedSettings.managedIdentityResourceId
-      keyVaultUrl: kv::cert.properties.secretUri
+  resource acaEnvCert 'certificates' = {
+    name: sharedSettings.certSettings.ResourceName
+    location: location
+    properties: {
+      certificateKeyVaultProperties: {
+        identity: sharedSettings.managedIdentityResourceId
+        keyVaultUrl: kv::cert.properties.secretUri
+      }
     }
   }
 }
