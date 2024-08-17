@@ -21,12 +21,13 @@
                 ProductName             =   'Web API Starter'
 #                ProductAbbreviation     =   'was-cc'
                 Domain                  = @{
-                    TopLevelDomain      =   'co.uk'
-                    CompanyDomain       =   'codingdemo'
-#                    ProductDomain       =   'overridedefaultvaluehere'
+                    TopLevelDomain      =   'co.uk' # <- default is 'com'
+                    CompanyDomain       =   'codingdemo' # <- default is CompanyName lowercased with spaces removed
+#                    NonProdSubDomain    =   'xyz' # <- default is 'devtest'. only applies when `SubDomainLevel` equals 3; specify 'UseProductDomain' to have non-prod environments use the product domain
+#                    ProductDomain       =   'xyz' # <- default is ProductAbbreviation
                     # example of 2 level 'na-api-product.comapny.com'
                     # example of 3 levels 'na-api.product.comapny.com', 'dev-api-product.devtest.comapny.com'
-                    SubDomainLevel      =   2
+                    SubDomainLevel      =   2 # <- default is 3
                 }
                 EnvironmentName         =   $EnvironmentName
                 SubProducts             =   [ordered]@{

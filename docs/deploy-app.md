@@ -357,6 +357,7 @@ In practice the only way to run these scripts from a dev machine is:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
    2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. uncomment `ProductAbbreviation` (line 22) and make it globally unique (eg replace `-cc` with your initials)
+   4. Review `Domain` settings (starting line 23) and adjust as required. At minimum replace 'codingdemo' with the value of a custom domain you own
 2. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372

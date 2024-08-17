@@ -8,6 +8,8 @@ function Get-PublicHostName {
 
         [Parameter(Mandatory)]
         [string] $CompanyDomain,
+        
+        [string] $NonProdSubDomain = 'devtest',
 
         [Parameter(Mandatory)]
         [string] $ProductDomain,
@@ -23,13 +25,15 @@ function Get-PublicHostName {
         . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
     }
     process {
+        $NonProdSubDomain = $NonProdSubDomain -eq 'UseProductDomain' ? '' : $NonProdSubDomain
+        
         $isProdLike = Get-IsEnvironmentProdLike $EnvironmentName
-        $rootDomain = if ($isProdLike -or $SubDomainLevel -eq 2) {
+        $rootDomain = if ($isProdLike -or $SubDomainLevel -eq 2 -or $NonProdSubDomain -eq '') {
             "$CompanyDomain.$TopLevelDomain"
         } else {
-            "devtest.$CompanyDomain.$TopLevelDomain"
+            "$NonProdSubDomain.$CompanyDomain.$TopLevelDomain"
         }
-        $productUrlSegment = ($isProdLike -and $SubDomainLevel -eq 3 ? '.' : '-') + $ProductDomain
+        $productUrlSegment = ($NonProdSubDomain -eq '' -or($isProdLike -and $SubDomainLevel -eq 3) ? '.' : '-') + $ProductDomain
         $urlPrefix = $EnvironmentName.Replace('prod-', '')
         $subProductUrlSegment = $IsMainUI ? '' : "-$($SubProductName.ToLower())"
         
