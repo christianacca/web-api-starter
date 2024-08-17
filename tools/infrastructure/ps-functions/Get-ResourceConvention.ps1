@@ -14,6 +14,7 @@ function Get-ResourceConvention {
         [string] $CompanyAbbreviation,
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
+        [hashtable] $Subscriptions = @{},
 
         [switch] $SeperateDataResourceGroup,
     
@@ -641,17 +642,16 @@ function Get-ResourceConvention {
         }
     }
     
-    $prodSubscriptiondId = '4c98c256-bc60-40ba-8bcb-81ae94ac52d4'
     $containerRegistryNamePrefix = $CompanyName.Replace(' ', '').ToLower()
     $containerRegistryProd = @{
         ResourceName        =   "${containerRegistryNamePrefix}devopsprod"
-        ResourceGroupName   =   'container-registry'
-        SubscriptionId      =   $prodSubscriptiondId
+        ResourceGroupName   =   "rg-prod-$CompanyAbbreviation-sharedservices"
+        SubscriptionId      =   $Subscriptions['global-prod'] ?? $Subscriptions['prod-na']
     }
     $containerRegistryDev = @{
         ResourceName        =   "${containerRegistryNamePrefix}devops"
-        ResourceGroupName   =   'Container_Registry'
-        SubscriptionId      =   'c398eb55-b057-45f9-8fe3-cfb0034418f5'
+        ResourceGroupName   =   "rg-dev-$CompanyAbbreviation-sharedservices"
+        SubscriptionId      =   $Subscriptions['global-dev'] ?? $Subscriptions['dev']
     }
     $containerRegistries = @{
         Available   = $isEnvProdLike ? @($containerRegistryProd) : @($containerRegistryProd, $containerRegistryDev)
@@ -664,7 +664,7 @@ function Get-ResourceConvention {
         ResourceName            =   'kv-{0}-shared' -f $ProductAbbreviation
         ResourceGroupName       =   'rg-shared-{0}-{1}' -f $ProductAbbreviation, $sharedKeyVaultLocation
         ResourceLocation        =   $sharedKeyVaultLocation
-        SubscriptionId          =   $prodSubscriptiondId
+        SubscriptionId          =   $Subscriptions['prod-na']
         EnablePurgeProtection   =   $false # consider enabling this for your workloads
     }
 

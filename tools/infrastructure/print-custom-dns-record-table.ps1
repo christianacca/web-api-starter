@@ -30,7 +30,7 @@ process {
     try {
 
         $environments = if ($EnvironmentName -eq '*') {
-            'dev', 'qa', 'rel', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac'
+            & "$PSScriptRoot/get-product-environment-names.ps1"
         } else {
             $EnvironmentName
         }

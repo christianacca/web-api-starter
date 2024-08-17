@@ -192,7 +192,7 @@
     process {
         try {
 
-            $environments = 'dev', 'qa', 'rel', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac'
+            $environments = & "$PSScriptRoot/get-product-environment-names.ps1"
             
             if ($SchemaOnly) {
                 $environments |

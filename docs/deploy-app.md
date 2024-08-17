@@ -4,6 +4,8 @@
 * [Deploying the app](#deploying-the-app)
   * [Overview](#overview)
   * [Shared services](#shared-services)
+  * [Register DNS records](#register-dns-records)
+  * [Add TLS certificates to shared key vault](#add-tls-certificates-to-shared-key-vault)
   * [Infrastructure](#infrastructure)
   * [Deploying infrastructure using CI/CD](#deploying-infrastructure-using-cicd)
   * [Deploying app from CI/CD](#deploying-app-from-cicd)
@@ -355,8 +357,6 @@ In practice the only way to run these scripts from a dev machine is:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
    2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. uncomment `ProductAbbreviation` (line 22) and make it globally unique (eg replace `-cc` with your initials)
-   4. comment out the line `Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable`
-   5. comment-in the block of code that starts `# If you need to override conventions, ...`
 2. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
