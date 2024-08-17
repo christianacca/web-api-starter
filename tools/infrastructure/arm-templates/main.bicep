@@ -115,15 +115,15 @@ resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 }
 
 var certSettings = settings.TlsCertificates.Current
-module acaEnvCertPermission 'keyvault-role-assignment.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
-  scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
-  params: {
-    resourceName: certSettings.KeyVault.ResourceName
-    principalId: acaEnvManagedId.properties.principalId
-    roleDefinitionId: 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba' // 'Key Vault Certificate User'
-  }
-}
+// module acaEnvCertPermission 'keyvault-role-assignment.bicep' = {
+//   name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
+//   scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
+//   params: {
+//     resourceName: certSettings.KeyVault.ResourceName
+//     principalId: acaEnvManagedId.properties.principalId
+//     roleDefinitionId: 'db79e9a7-68ee-4b58-9aeb-b90e7c24fcba' // 'Key Vault Certificate User'
+//   }
+// }
 
 resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.Api.ManagedIdentity.Primary
@@ -159,7 +159,7 @@ module acaEnvPrimary 'aca-environment.bicep' = {
     instanceSettings: settings.SubProducts.Aca.Primary
     sharedSettings: acaEnvSharedSettings
   }
-  dependsOn: [acaEnvCertPermission]
+  // dependsOn: [acaEnvCertPermission]
 }
 
 var acaContainerRegistries = map(containerRegistries, registry => ({
@@ -198,7 +198,7 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
     instanceSettings: settings.SubProducts.Aca.Failover
     sharedSettings: acaEnvSharedSettings
   }
-  dependsOn: [acaEnvCertPermission]
+  // dependsOn: [acaEnvCertPermission]
 }
 
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
