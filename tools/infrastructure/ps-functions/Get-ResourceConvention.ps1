@@ -667,20 +667,27 @@ function Get-ResourceConvention {
         SubscriptionId          =   $prodSubscriptiondId
         EnablePurgeProtection   =   $false # consider enabling this for your workloads
     }
-    
+
+    $devRootDomain = (Get-PublicHostName dev @Domain).Split('.') | Select-Object -Skip 1
     $devCert = @{
-        KeyVault        =   $sharedKeyVault + @{}
-        ResourceName    =   @(
-            (Get-PublicHostName dev @Domain).Split('.') | Select-Object -Skip 1
-            'wildcardcert'
-        ) -join '-'
+        KeyVault                =   $sharedKeyVault + @{}
+        ResourceName            =   @($devRootDomain; 'wildcardcert') -join '-'
+        SubjectAlternateNames   =   @(
+            $devRootDomain -join '.'
+            @('*'; $devRootDomain) -join '.'
+        )
+        ZoneName                =   $devRootDomain -join '.'
     }
+    
+    $prodRootDomain = (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
     $prodCert = @{
-        KeyVault        =   $sharedKeyVault + @{}
-        ResourceName    =   @(
-            (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
-            'wildcardcert'
-        ) -join '-'
+        KeyVault                =   $sharedKeyVault + @{}
+        ResourceName            =   @($prodRootDomain; 'wildcardcert') -join '-'
+        SubjectAlternateNames   =   @(
+            $prodRootDomain -join '.'
+            @('*'; $prodRootDomain) -join '.'
+        )
+        ZoneName                =   $prodRootDomain -join '.'
     }
 
     $results = @{

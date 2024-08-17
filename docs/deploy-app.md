@@ -26,9 +26,11 @@
 At a high level deployment consists of:
 
 1. Ensure shared services have been created and RBAC permissions assigned to allow for role assignments to be made
-2. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-3. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
-4. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+2. Register DNS records in the DNS zone for custom domain used by container apps
+3. Add TLS certificate(s) to shared key vault(s) that cover the custom domains used by the container apps
+4. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
+5. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+6. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
 
 
 This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line 
@@ -43,7 +45,8 @@ The shared services required for the app are:
 * Azure key vault for TLS certificates
 
 > [!Note]
-> If there are multiple shared services required, you will need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) multiple times, picking the appropriate shared service and environment to deploy each time.
+> If there are multiple shared services for the same type required (for example two Azure container registries), you will
+> need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) multiple times, picking the appropriate shared service and environment to deploy each time.
 
 Azure container registry (ACR) services are maintained by other teams and are not part of the deployment process for the app. However,
 if you do need to deploy the shared services, you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
@@ -56,6 +59,95 @@ with the 'Create shared key vault?' parameter selected.
 Once shared services have been created, you will need to assign the appropriate RBAC permissions to the shared services to allow for role assignments to be made.
 This can be done by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) with the
 'Grant RBAC management permission to provisioning service principals?' parameter selected.
+
+## Register DNS records
+
+> [!Note]
+> Highly likely DNS zones are maintained by other teams and is not part of the deployment process for the app
+
+Each container app will be assigned a custom domain that will be used to access that app over https. The DNS records for
+these custom domains must be registered in the DNS zone for that custom domain.
+
+There are two DNS records that need to be registered _for each service_ (eg our API) hosted in Azure container apps, 
+_for each environment_ that this service is being deployed to:
+
+* `TXT` record required to validate domain ownership, EG name:`asuid.dev-api-was`; content:`xxxxxxxxx`
+* `CNAME` record for the custom domain pointing to the traffic manager DNS name, EG name:`dev-api-was`; content:`dev-api-was.trafficmanager.net`
+
+> [!Critical]
+> The `TXT` record must be added to the DNS zone before the azure container app can be created.
+
+To find the values for the values for these DNS record for a specific environment, run the following script:
+
+```pwsh
+# note: replace 'dev, qa' with the environments you want to get the DNS records for. Leave blank to get all environments
+./tools/infrastructure/print-custom-dns-record-table.ps1 dev, qa -Login
+```
+
+## Add TLS certificates to shared key vault
+
+> [!Note]
+> Highly likely TLS certificates are maintained by other teams and is not part of the deployment process for the app
+
+TLS certificates are required for the custom domains used by the container apps. These certificates must be added to the
+shared key vault(s) that are used by the app.
+
+The process for sourcing these certificates is application specific. Some options include:
+
+* use managed certificates from Azure Container Apps 
+  * see [offical docs](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates?pivots=azure-cli)
+  * **IMPORTANT**: this method will not work for solutions that use Azure traffic manager to route traffic to the container apps
+* use key vault to automatically create/renew certificates using a CA
+  * see [Creating a certificate with a CA partnered with Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/certificates/certificate-scenarios#creating-a-certificate-with-a-ca-partnered-with-key-vault)
+* use Cloudflare to proxy the custom domain and provide an origin server TLS certificate, then import these certificates
+  into a key vault
+  * see [Cloudflare | Origin CA certificates](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/)
+  * this is a good choice for the budget conscious as Cloudflare 1) provides free certificates for the end user of the 
+    site/api served by the container apps, and 2) provides a free Web Application Firewall (WAF) to protect the site/api
+
+This project assumes that Cloudflare method is being used. The following guidance provides an overview of the steps
+required to set up Cloudflare acting as a proxy for the custom domain, and importing the origin server TLS certificate
+into a shared key vault accessible by the app:
+
+1. Create a Cloudflare account and ensure that the cloudflare is the authoritative DNS server for the custom domain
+   * see [Cloudflare | Add your domain to Cloudflare](https://developers.cloudflare.com/learning-paths/get-started/add-domain-to-cf/)
+2. [Add a site](https://developers.cloudflare.com/fundamentals/setup/manage-domains/add-site/) in Cloudflare and configure SSL/TLS so that:
+   * Edge TLS certificates are generated by Cloudflare ([universal SSL](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/) certs are free)
+   * Encryption mode is 'Full (strict)' so that Cloudflare uses SSL between its proxy and our origin server 
+     (for details see [Cloudflare | Encryption modes](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/)
+   * Cloudflare Origin cert is generated for the custom domain. By default, this certificate will be valid for 15 years
+     (see [Cloudflare | Origin CA certificates](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/))
+3. Download the Cloudflare Origin cert and private key as a PEM file
+4. Import the Cloudflare Origin cert PEM file into the shared key vault
+   * see [Azure Key Vault | Import a certificate](https://learn.microsoft.com/en-us/azure/key-vault/certificates/tutorial-import-certificate?tabs=azure-portal)
+
+> [!Note]
+> The certificate for both production and non-production might be the same, and may be stored in the same key vault accessible by all environments.
+> Or the certificates might be different, and stored in different key vaults, accessible only by the environment that requires it.
+> Or the certificates might be the same, but separate copies stored in different key vaults, accessible only by the environment that requires it.
+> The convention configuration for the project determines these choices.
+
+To find the origin SSL certificates required to cover non-production environments, run the following script:
+
+```pwsh
+(./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).TlsCertificates.Dev | select `
+   @{ n='CertificateName'; e={ $_.ResourceName } }, `
+   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
+   ZoneName, `
+   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
+   @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
+```
+
+To find the origin SSL certificates required to cover production environments, run the following script:
+
+```pwsh
+(./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).TlsCertificates.Prod | select `
+   @{ n='CertificateName'; e={ $_.ResourceName } }, `
+   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
+   ZoneName, `
+   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
+   @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
+```
 
 ## Infrastructure
 
