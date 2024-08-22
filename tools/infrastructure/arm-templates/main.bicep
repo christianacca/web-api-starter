@@ -109,6 +109,23 @@ module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.11.0' = {
   }
 }
 
+resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Aca.ManagedIdentity
+  location: location
+}
+
+var certSettings = settings.TlsCertificates.Current
+module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
+  scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
+  params: {
+    certificateName: certSettings.ResourceName
+    keyVaultName: certSettings.KeyVault.ResourceName
+    principalId: acaEnvManagedId.properties.principalId
+    roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // 'Key Vault Secrets User'
+  }
+}
+
 resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.Api.ManagedIdentity.Primary
   location: location
@@ -126,17 +143,24 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), registry.ResourceGroupName)
   params: {
     principalId: apiAcrPullManagedId.properties.principalId
-    registryName: registry.ResourceName
+    resourceName: registry.ResourceName
     roleDefinitionId: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // 'AcrPull'
   }
 }]
+
+var acaEnvSharedSettings = {
+  certSettings: settings.TlsCertificates.Current
+  logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+  managedIdentityResourceId: acaEnvManagedId.id
+}
 
 module acaEnvPrimary 'aca-environment.bicep' = {
   name: '${uniqueString(deployment().name, location)}-AcaEnvPrimary'
   params: {
     instanceSettings: settings.SubProducts.Aca.Primary
-    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    sharedSettings: acaEnvSharedSettings
   }
+  dependsOn: [acaEnvCertPermission]
 }
 
 var acaContainerRegistries = map(containerRegistries, registry => ({
@@ -146,6 +170,7 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
 
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+  certSettings: settings.TlsCertificates.Current
   managedIdentityClientIds: {
     default: apiManagedId.properties.clientId
   }
@@ -172,8 +197,9 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
   name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
   params: {
     instanceSettings: settings.SubProducts.Aca.Failover
-    logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
+    sharedSettings: acaEnvSharedSettings
   }
+  dependsOn: [acaEnvCertPermission]
 }
 
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {

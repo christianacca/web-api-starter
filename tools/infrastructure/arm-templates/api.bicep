@@ -95,6 +95,13 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
         }
       }
     ]
+    customDomains: [
+      {
+        name: sharedSettings.subProductsSettings.Api.HostName
+        certificateId: acaEnv::cert.id
+        bindingType: 'SniEnabled'
+      }
+    ]
     environmentId: acaEnv.id
     managedIdentities: {
       userAssignedResourceIds: sharedSettings.managedIdentityResourceIds
@@ -128,6 +135,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
 
 resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing = {
   name: instanceSettings.AcaEnvResourceName
+  resource cert 'certificates' existing = { name: sharedSettings.certSettings.ResourceName }
 }
 
 resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
@@ -146,6 +154,7 @@ type managedIdentyClientIdsType = {
 
 type sharedSettingsType = {
   appInsightsConnectionString: string
+  certSettings: object
   managedIdentityResourceIds: array
   managedIdentityClientIds: managedIdentyClientIdsType
   subProductsSettings: object

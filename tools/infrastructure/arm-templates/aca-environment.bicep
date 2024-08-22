@@ -1,14 +1,40 @@
 param instanceSettings object
-param logAnalyticsWorkspaceResourceId string
+param sharedSettings sharedSettingsType
 
 var location = instanceSettings.ResourceLocation
 
-module acaEnv 'br/public:avm/res/app/managed-environment:0.5.2' = {
-  name: '${uniqueString(deployment().name, location)}-AcaEnv'
-  params: {
-    logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceResourceId
-    location: location
-    name: instanceSettings.ResourceName
+// todo: switch to azure verified module once keyvault certificate integration is supported (see https://github.com/Azure/bicep-registry-modules/pull/2719)
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (!empty(sharedSettings.logAnalyticsWorkspaceResourceId)) {
+  name: last(split(sharedSettings.logAnalyticsWorkspaceResourceId, '/'))!
+  scope: resourceGroup(split(sharedSettings.logAnalyticsWorkspaceResourceId, '/')[2], split(sharedSettings.logAnalyticsWorkspaceResourceId, '/')[4])
+}
+
+var kvSettings = sharedSettings.certSettings.KeyVault
+resource kv 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
+  name: kvSettings.ResourceName
+  scope: resourceGroup((kvSettings.SubscriptionId ?? subscription().subscriptionId), kvSettings.ResourceGroupName)
+
+  resource cert 'secrets' existing = { name: sharedSettings.certSettings.ResourceName }
+}
+
+resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
+  name: instanceSettings.ResourceName
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${sharedSettings.managedIdentityResourceId}': {}
+    }
+  }
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
     workloadProfiles: [
       {
         name: 'Consumption'
@@ -17,7 +43,30 @@ module acaEnv 'br/public:avm/res/app/managed-environment:0.5.2' = {
     ]
     zoneRedundant: false
   }
+
+  resource acaEnvCert 'certificates' = {
+    name: sharedSettings.certSettings.ResourceName
+    location: location
+    properties: {
+      certificateKeyVaultProperties: {
+        identity: sharedSettings.managedIdentityResourceId
+        keyVaultUrl: kv::cert.properties.secretUri
+      }
+    }
+  }
 }
 
-output defaultDomain string = acaEnv.outputs.defaultDomain
-output resourceId string = acaEnv.outputs.resourceId
+output defaultDomain string = acaEnv.properties.defaultDomain
+output resourceId string = acaEnv.id
+
+
+// =============== //
+//   Definitions   //
+// =============== //
+
+
+type sharedSettingsType = {
+  certSettings: object
+  managedIdentityResourceId: string
+  logAnalyticsWorkspaceResourceId: string
+}

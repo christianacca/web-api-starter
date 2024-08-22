@@ -3,7 +3,8 @@ function Get-ResourceConvention {
         [Parameter(Mandatory)]
         [string] $ProductName,
         [string] $ProductAbbreviation,
-        [string] $ProductSubDomainName,
+        
+        [hashtable] $Domain = @{},
         
         [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
@@ -11,9 +12,9 @@ function Get-ResourceConvention {
         [Parameter(Mandatory)]
         [string] $CompanyName,
         [string] $CompanyAbbreviation,
-        [string] $CompanyDomain,
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
+        [hashtable] $Subscriptions = @{},
 
         [switch] $SeperateDataResourceGroup,
     
@@ -25,10 +26,10 @@ function Get-ResourceConvention {
     . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
     . "$PSScriptRoot/Get-PublicHostName.ps1"
     . "$PSScriptRoot/Get-PbiAadSecurityGroupConvention.ps1"
-    . "$PSScriptRoot/Get-RootDomain.ps1"
     . "$PSScriptRoot/Get-StorageRbacAccess.ps1"
     . "$PSScriptRoot/Get-TeamGroupNames.ps1"
     . "$PSScriptRoot/Get-UniqueString.ps1"
+    . "$PSScriptRoot/string-functions.ps1"
 
     $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
     $hasFailover = if ($EnvironmentName -in $failoverEnvironmnets) { $true } else { $false }
@@ -38,21 +39,14 @@ function Get-ResourceConvention {
     } else {
         $ProductAbbreviation = $ProductAbbreviation.ToLower()
     }
-    if(-not($ProductSubDomainName)) { 
-        $ProductSubDomainName = $ProductAbbreviation
-    } else {
-        $ProductSubDomainName = $ProductSubDomainName.ToLower()
-    }
     if(-not($CompanyAbbreviation)) {
         $CompanyAbbreviation = ($CompanyName -split ' ')[0].ToLower()
     } else {
         $CompanyAbbreviation = $CompanyAbbreviation.ToLower()
     }
-    if(-not($CompanyDomain)) {
-        $CompanyDomain = $CompanyName.Replace(' ', '').ToLower()
-    } else {
-        $CompanyDomain = $CompanyDomain.ToLower()
-    }
+    
+    $Domain.CompanyDomain = $Domain.CompanyDomain ?? $CompanyName.Replace(' ', '').ToLower()
+    $Domain.ProductDomain = $Domain.ProductDomain ?? $ProductAbbreviation
 
     # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
     # for listing of which azure service are available in which regions see: https://www.azurespeed.com/Information/AzureRegions
@@ -120,8 +114,6 @@ function Get-ResourceConvention {
     }
 
     $managedIdentityNamePrefix = "id-$appInstance"
-
-    $rootDomain = Get-RootDomain $EnvironmentName $CompanyDomain
 
     $subProductsConventions = @{}
     $SubProducts.Keys | ForEach-Object -Process {
@@ -307,7 +299,7 @@ function Get-ResourceConvention {
             'FunctionApp' {
                 $funcResourceName = 'func-{0}-{1}-{2}' -f $CompanyAbbreviation, $appInstance, $componentName.ToLower()
                 $funcHostName = $spInput.HasCustomDomain ? `
-                    (Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName) : `
+                    (Get-PublicHostName $EnvironmentName @Domain -SubProductName $componentName) : `
                     "$funcResourceName.azurewebsites.net"
                 
                 $storageUsage = $spInput.StorageUsage
@@ -365,7 +357,8 @@ function Get-ResourceConvention {
                 }
             }
             'AcaEnvironment' {
-                $acaEnvNameTemplate = 'cae-{0}-{1}'
+                $acaEnvPrefix = 'cae'
+                $acaEnvNameTemplate = "$acaEnvPrefix-{0}-{1}"
                 $acaSecondaryRegion = $azureSecondaryAltRegion ?? $azureSecondaryRegion
                 $acaEnvPrimary = @{
                     ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation
@@ -376,8 +369,9 @@ function Get-ResourceConvention {
                     ResourceLocation    =   $acaSecondaryRegion.Name
                 }
                 @{
-                    Primary             = $acaEnvPrimary
-                    Failover            = if ($hasFailover) { $acaEnvFailover } else { $null }
+                    ManagedIdentity     =   '{0}-{1}' -f $managedIdentityNamePrefix, $acaEnvPrefix
+                    Primary             =   $acaEnvPrimary
+                    Failover            =   if ($hasFailover) { $acaEnvFailover } else { $null }
                     Type                =   $spInput.Type
                 }
             }
@@ -448,7 +442,7 @@ function Get-ResourceConvention {
                     ImageName               =   '{0}/{1}' -f $imageRepositoryPrefix, $componentName.ToLower()
                     ImageRepositoryPrefix   =   $imageRepositoryPrefix
                     ManagedIdentity         =   $managedId
-                    HostName                =   Get-PublicHostName $EnvironmentName $CompanyDomain $ProductSubDomainName $componentName -IsMainUI:$isMainUI
+                    HostName                =   Get-PublicHostName $EnvironmentName @Domain -SubProductName $componentName -IsMainUI:$isMainUI
                     OidcAppName             =   $oidcAppName
                     TrafficManagerPath      =   $acaShareSettings.DefaultHealthPath
                     TrafficManagerProtocol  =   'HTTPS'
@@ -581,8 +575,9 @@ function Get-ResourceConvention {
                 }
 
                 $tmProtocol = $targetSubProduct.TrafficManagerProtocol ?? 'HTTP'
+                $targetDomainParts = $targetSubProduct.HostName.Split('.') | Select-StringUntil { $_ -like "*$($Domain.ProductDomain)*" }
                 @{
-                    ResourceName        =   $targetSubProduct.HostName.Replace(".$rootDomain", '').Replace('.', '-')
+                    ResourceName        =   $targetDomainParts -join '-'
                     Path                =   $targetSubProduct.TrafficManagerPath
                     Port                =   $tmProtocol -eq 'HTTP' ? 80 : 443
                     Protocol            =   $tmProtocol
@@ -647,15 +642,16 @@ function Get-ResourceConvention {
         }
     }
     
+    $containerRegistryNamePrefix = $CompanyName.Replace(' ', '').ToLower()
     $containerRegistryProd = @{
-        ResourceName        =   "${CompanyDomain}devopsprod"
-        ResourceGroupName   =   'container-registry'
-        SubscriptionId      =   '4c98c256-bc60-40ba-8bcb-81ae94ac52d4'
+        ResourceName        =   "${containerRegistryNamePrefix}devopsprod"
+        ResourceGroupName   =   "rg-prod-$CompanyAbbreviation-sharedservices"
+        SubscriptionId      =   $Subscriptions['global-prod'] ?? $Subscriptions['prod-na']
     }
     $containerRegistryDev = @{
-        ResourceName        =   "${CompanyDomain}devops"
-        ResourceGroupName   =   'Container_Registry'
-        SubscriptionId      =   'c398eb55-b057-45f9-8fe3-cfb0034418f5'
+        ResourceName        =   "${containerRegistryNamePrefix}devops"
+        ResourceGroupName   =   "rg-dev-$CompanyAbbreviation-sharedservices"
+        SubscriptionId      =   $Subscriptions['global-dev'] ?? $Subscriptions['dev']
     }
     $containerRegistries = @{
         Available   = $isEnvProdLike ? @($containerRegistryProd) : @($containerRegistryProd, $containerRegistryDev)
@@ -663,12 +659,42 @@ function Get-ResourceConvention {
         Dev         = $containerRegistryDev
     }
 
+    $sharedKeyVaultLocation = 'eastus'
+    $sharedKeyVault = @{
+        ResourceName            =   'kv-{0}-shared' -f $ProductAbbreviation
+        ResourceGroupName       =   'rg-shared-{0}-{1}' -f $ProductAbbreviation, $sharedKeyVaultLocation
+        ResourceLocation        =   $sharedKeyVaultLocation
+        SubscriptionId          =   $Subscriptions['prod-na']
+        EnablePurgeProtection   =   $false # consider enabling this for your workloads
+    }
+
+    $devRootDomain = (Get-PublicHostName dev @Domain).Split('.') | Select-Object -Skip 1
+    $devCert = @{
+        KeyVault                =   $sharedKeyVault + @{}
+        ResourceName            =   @($devRootDomain; 'wildcardcert') -join '-'
+        SubjectAlternateNames   =   @(
+            $devRootDomain -join '.'
+            @('*'; $devRootDomain) -join '.'
+        )
+        ZoneName                =   $devRootDomain -join '.'
+    }
+    
+    $prodRootDomain = (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
+    $prodCert = @{
+        KeyVault                =   $sharedKeyVault + @{}
+        ResourceName            =   @($prodRootDomain; 'wildcardcert') -join '-'
+        SubjectAlternateNames   =   @(
+            $prodRootDomain -join '.'
+            @('*'; $prodRootDomain) -join '.'
+        )
+        ZoneName                =   $prodRootDomain -join '.'
+    }
+
     $results = @{
         TeamGroups              =   $teamGroupNames
         AppResourceGroup        =   $appReourceGroup
         Company                 =   @{
             Abbreviation    =   $CompanyAbbreviation
-            Domain          =   $CompanyDomain
             Name            =   $CompanyName
         }
         ContainerRegistries     =   $containerRegistries
@@ -678,9 +704,13 @@ function Get-ResourceConvention {
         Product                 =   @{
             Abbreviation    =   $ProductAbbreviation
             Name            =   $ProductName
-            SubDomainName   =   $ProductSubDomainName
         }
         SubProducts             =   $subProductsConventions
+        TlsCertificates         =   @{
+            Current         =   $isEnvProdLike ? $prodCert : $devCert
+            Dev             =   $devCert
+            Prod            =   $prodCert
+        }
         IsTestEnv               =   $isTestEnv
     }
     

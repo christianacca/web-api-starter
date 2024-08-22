@@ -20,6 +20,15 @@
                 CompanyName             =   'CLC Software'
                 ProductName             =   'Web API Starter'
 #                ProductAbbreviation     =   'was-cc'
+                Domain                  = @{
+                    TopLevelDomain      =   'co.uk' # <- default is 'com'
+                    CompanyDomain       =   'codingdemo' # <- default is CompanyName lowercased with spaces removed
+#                    NonProdSubDomain    =   'xyz' # <- default is 'devtest'. only applies when `SubDomainLevel` equals 3; specify 'UseProductDomain' to have non-prod environments use the product domain
+#                    ProductDomain       =   'xyz' # <- default is ProductAbbreviation
+                    # example of 2 level 'na-api-product.comapny.com'
+                    # example of 3 levels 'na-api.product.comapny.com', 'dev-api-product.devtest.comapny.com'
+                    SubDomainLevel      =   2 # <- default is 3
+                }
                 EnvironmentName         =   $EnvironmentName
                 SubProducts             =   [ordered]@{
                     PbiReportStorage    =   @{ 
@@ -44,24 +53,23 @@
                     KeyVault            =   @{ Type = 'KeyVault' }
 #                    Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }
+                Subscriptions           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName subscriptionId
             }
             
-#            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
+            Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
 
             # If you need to override conventions, comment out the above line, and follow the example below...
 
-            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
-
-            $convention.ContainerRegistries.Dev.ResourceGroupName = "rg-dev-$($convention.Company.Abbreviation)-sharedservices"
-            $convention.ContainerRegistries.Prod.ResourceGroupName = "rg-prod-$($convention.Company.Abbreviation)-sharedservices"
-            $convention.ContainerRegistries.Dev.SubscriptionId = $null
-            $convention.ContainerRegistries.Prod.SubscriptionId = $null
-
-            if ($AsHashtable) {
-                $convention
-            } else {
-                $convention | ConvertTo-Json -Depth 100
-            }
+#            $convention = Get-ResourceConvention @conventionsParams -AsHashtable
+#
+#            $convention.ContainerRegistries.Dev.ResourceGroupName = 'Container_Registry'
+#            $convention.ContainerRegistries.Prod.ResourceGroupName = 'container-registry'
+#
+#            if ($AsHashtable) {
+#                $convention
+#            } else {
+#                $convention | ConvertTo-Json -Depth 100
+#            }
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA
