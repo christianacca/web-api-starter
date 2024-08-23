@@ -45,7 +45,18 @@
                     InternalApi         =   @{ Type = 'FunctionApp'; StorageUsage = 'Queue' }
                     # IMPORTANT: 'Api' should match the name of the c# project in the solution, as this value is 
                     # used in create-and-push-docker-images.ps1 to determine part of the ACR repository name for the docker image for this project
-                    Api                 =   @{ Type = 'AcaApp'; AdditionalManagedId = 'AcrPull' }
+                    Api                 =   @{
+                        AdditionalManagedId = 'AcrPull'
+                        # example of defining whitelist paths in WAF
+#                        WafWhitelist    = @(
+#                            @{
+#                                Path            = '/api/pbireports/*/import', '/api/internal/*'
+#                                RulesToSkip     = 'OWASP Core Ruleset'
+#                                Type            = 'cloudflare'
+#                            }
+#                        )
+                        Type                = 'AcaApp'
+                    }
                     ApiTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'Api' }
                     ApiAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'Api' }
                     # example of an extended health check:

@@ -8,6 +8,7 @@
     * [Azure key vault for TLS certificates](#azure-key-vault-for-tls-certificates)
     * [Grant RBAC management permission for shared services](#grant-rbac-management-permission-for-shared-services)
   * [Register DNS records](#register-dns-records)
+  * [Add whitelists to Cloudflare Web Application Firewall (WAF)](#add-whitelists-to-cloudflare-web-application-firewall-waf)
   * [Add TLS certificates to shared key vault](#add-tls-certificates-to-shared-key-vault)
   * [Infrastructure](#infrastructure)
   * [Deploying infrastructure from CI/CD](#deploying-infrastructure-from-cicd)
@@ -32,10 +33,11 @@ At a high level deployment consists of:
 
 1. Ensure shared services have been created and RBAC permissions assigned to allow for role assignments to be made
 2. Register DNS records in the DNS zone for custom domain used by container apps
-3. Add TLS certificate(s) to shared key vault(s) that cover the custom domains used by the container apps
-4. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
-5. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
-6. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
+3. Add whitelists to Cloudflare Web Application Firewall (WAF) for the custom domains used by the container apps
+4. Add TLS certificate(s) to shared key vault(s) that cover the custom domains used by the container apps
+5. Deploying the infrastructure required for the app (see section ["Deploying infra from CI/CD"](#deploying-infra-from-cicd))
+6. Grant access to the teams members to the resources in Azure for the environment (see section ["Granting access to Azure resources"](#granting-access-to-azure-resources))
+7. Deploying the app into the infrastructure (see section ["Deploying app from CI/CD"](#deploying-app-from-cicd))
 
 This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line
 to automate the deployment tasks above and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
@@ -56,7 +58,8 @@ The shared services required for the app are:
 
 > [!Note]
 > If there are multiple shared services for the same type required (for example two Azure container registries), you will
-> need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) multiple times, picking the appropriate shared service and environment to deploy each time.
+> need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
+> multiple times, picking the appropriate shared service and environment to deploy each time.
 
 ### Azure container registry
 
@@ -102,6 +105,64 @@ To find the values for the values for these DNS record for a specific environmen
 # note: replace 'dev, qa' with the environments you want to get the DNS records for. Leave blank to get all environments
 ./tools/infrastructure/print-custom-dns-record-table.ps1 dev, qa -Login
 ```
+
+## Add whitelists to Cloudflare Web Application Firewall (WAF)
+
+> [!Note]
+> Highly likely WAF rules are maintained by other teams and is not part of the deployment process for the app
+
+> [!Important]
+> This step needs to be repeated any time a new environment is provisioned
+
+The custom domains used by the container apps are proxied by Cloudflare. Cloudflare provides a Web Application Firewall (WAF).
+This WAF will likely need to be tuned to not block legitimate traffic to the container apps.
+
+Define the list of paths for a container app that should not be blocked in [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1).
+For example:
+
+```pwsh
+WafWhitelist    = @(
+    @{
+        Path            = '/api/pbireports/*/import', '/api/breeze/*'
+        RulesToSkip     = 'OWASP Core Ruleset'
+        Type            = 'cloudflare'
+    }
+)
+```
+
+Adjust these as necessary, and then run the following script to obtain the definitions of exception rules to be added to Cloudflare WAF:
+
+```pwsh
+./tools/infrastructure/print-waf-whitelist-list.ps1
+```
+
+An example output of the script above:
+
+```cmd
+
+Zone Name: codingdemo.co.uk
+Rule Name: Web API Starter - OWASP Core Ruleset Skips
+Rules to skip: OWASP Core Ruleset
+Rule Expression...
+
+(http.host eq "dev-api-was.codingdemo.co.uk" and starts_with(lower(http.request.uri.path), "/api/internal/")) or 
+(http.host eq "dev-api-was.codingdemo.co.uk" and starts_with(lower(http.request.uri.path), "/api/pbireports/") and ends_with(lower(http.request.uri.path), "/import")) or 
+(http.host eq "na-api-was.codingdemo.co.uk" and starts_with(lower(http.request.uri.path), "/api/internal/")) or 
+(http.host eq "na-api-was.codingdemo.co.uk" and starts_with(lower(http.request.uri.path), "/api/pbireports/") and ends_with(lower(http.request.uri.path), "/import")) or 
+(http.host eq "qa-api-was.codingdemo.co.uk" and starts_with(lower(http.request.uri.path), "/api/internal/")) or 
+(http.host eq "qa-api-was.codingdemo.co.uk" and starts_with(lower(http.request.uri.path), "/api/pbireports/") and ends_with(lower(http.request.uri.path), "/import"))
+
+```
+
+Consult the Cloudflare documentation for how to add these exceptions to the WAF: [Cloudflare | Managed rules | Create exceptions](https://developers.cloudflare.com/waf/managed-rules/waf-exceptions/)
+
+> [!Important]
+> Make sure the custom exception is added in the list before the ruleset it's intending to skip
+
+> [!Note]
+> If you are using the free tier of Cloudflare, you will need to add the above WAF exceptions to a custom rule instead.
+> Custom rules only allow you to skip the free managed ruleset provided by Cloudflare. For details on how to add
+> custom rules see [Cloudflare | Custom rules](https://developers.cloudflare.com/waf/custom-rules/skip/)
 
 ## Add TLS certificates to shared key vault
 
@@ -235,7 +296,7 @@ To find the origin SSL certificates required to cover production environments, r
 
       ![prerelease option](./assets/infra-prerelease-option.png)
 
-   4. Approve the deployment to demo and/or staging, and then to production:
+   4. Approve the deployment to staging:
       1. Open the [Application Deploy Production Release](../.github/workflows/app-deploy-release.yml) workflow execution just started that has the name of the release you're just published above
       2. [Approve]((https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)) the environment(s) listed in the UI to allow the deployment to continue for each of those respective environments
          ![queued deployment](./assets/app-release-queued.png)

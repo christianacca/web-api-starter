@@ -29,6 +29,7 @@ function Get-ResourceConvention {
     . "$PSScriptRoot/Get-StorageRbacAccess.ps1"
     . "$PSScriptRoot/Get-TeamGroupNames.ps1"
     . "$PSScriptRoot/Get-UniqueString.ps1"
+    . "$PSScriptRoot/Get-WafRule.ps1"
     . "$PSScriptRoot/string-functions.ps1"
 
     $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
@@ -435,6 +436,7 @@ function Get-ResourceConvention {
                 } + $acaShareSettings
 
                 $imageRepositoryPrefix = $ProductName.ToLower().Replace(' ', '-')
+                $hostName = Get-PublicHostName $EnvironmentName @Domain -SubProductName $componentName -IsMainUI:$isMainUI
                 @{
                     Primary                 =   $acaAppPrimary
                     Failover                =   if ($hasFailover) { $acaAppFailover } else { $null }
@@ -442,11 +444,12 @@ function Get-ResourceConvention {
                     ImageName               =   '{0}/{1}' -f $imageRepositoryPrefix, $componentName.ToLower()
                     ImageRepositoryPrefix   =   $imageRepositoryPrefix
                     ManagedIdentity         =   $managedId
-                    HostName                =   Get-PublicHostName $EnvironmentName @Domain -SubProductName $componentName -IsMainUI:$isMainUI
+                    HostName                =   $hostName
                     OidcAppName             =   $oidcAppName
                     TrafficManagerPath      =   $acaShareSettings.DefaultHealthPath
                     TrafficManagerProtocol  =   'HTTPS'
                     Type                    =   $spInput.Type
+                    WafWhitelistRules       =   $spInput.WafWhitelist ?? @() | Get-WafRule $EnvironmentName $Domain -HostName $hostName
                 }
             }
             'AppInsights' {
