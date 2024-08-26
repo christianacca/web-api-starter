@@ -159,18 +159,15 @@
         $ErrorActionPreference = 'Stop'
         $WarningPreference = 'Continue'
 
-        . "$PSScriptRoot/ps-functions/Get-AppRoleId.ps1"
         . "$PSScriptRoot/ps-functions/Get-AzModuleInfo.ps1"
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
         . "$PSScriptRoot/ps-functions/Get-ServicePrincipalAccessToken.ps1"
-        . "$PSScriptRoot/ps-functions/Grant-ADAppRolePermission.ps1"
         . "$PSScriptRoot/ps-functions/Grant-RbacRole.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
-        . "$PSScriptRoot/ps-functions/Set-ADApplication.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureResourceGroup.ps1"
@@ -286,27 +283,7 @@
 
 
             #-----------------------------------------------------------------------------------------------
-            Write-Information '7. Set AAD App registrations...'
-            $funcApp = $convention.SubProducts.InternalApi
-            $appOnlyAppRoleName = 'app_only'
-            $funcAppRoleId = Get-AppRoleId $appOnlyAppRoleName $funcApp.ResourceName
-            $funcAdParams = @{
-                IdentifierUri       =   ('api://{0}' -f $funcApp.ResourceName)
-                DisplayName         =   $funcApp.ResourceName
-                AppRole             =   @{
-                    Id                  =   $funcAppRoleId
-                    AllowedMemberType   =   'Application'
-                    DisplayName         =   $appOnlyAppRoleName
-                    Description         =   'Service-to-Service access'
-                    Value               =   'app_only_access'
-                    IsEnabled           =   $true
-                }
-            }
-            $funcAdRegistration = Set-ADApplication -InputObject $funcAdParams
-
-
-            #-----------------------------------------------------------------------------------------------
-            Write-Information '8. Set Azure resources...'
+            Write-Information '7. Set Azure resources...'
             $currentIpRule = if (-not($SkipIncludeCurrentIPAddressInSQLFirewall)) {
                 $currentIPAddress = ((Invoke-WebRequest -Uri https://icanhazip.com).Content).Trim()
                 @{
@@ -327,13 +304,12 @@
                 $false
             }
             $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
-            $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $funcApp.ResourceName -EA SilentlyContinue)
+            $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.InternalApi.ResourceName -EA SilentlyContinue)
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
                     apiFailoverExists           =   $apiFailoverExists
                     apiPrimaryExists            =   $apiPrimaryExists
-                    internalApiClientId         =   $funcAdRegistration.AppId
                     internalApiExists           =   $internalApiExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
@@ -353,19 +329,7 @@
 
 
             #-----------------------------------------------------------------------------------------------
-            Write-Information '9. Set AAD App role memberships...'
-
-            # 9.1. Set AD app role for function app to api managed identity
-            $api = $convention.SubProducts.Api
-            $appRoleGrants = [PSCustomObject]@{
-                ManagedIdentityDisplayName          =   $api.ManagedIdentity.Primary
-                ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName
-            }
-            $appRoleGrants | Grant-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId
-
-
-            #-----------------------------------------------------------------------------------------------
-            Write-Information '10. Set AAD groups - for resources (post-resource creation)...'
+            Write-Information '8. Set AAD groups - for resources (post-resource creation)...'
 
             $wait = 15
             Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
@@ -417,7 +381,7 @@
 
 
             #-----------------------------------------------------------------------------------------------
-            Write-Information '11. Set Data plane operations...'
+            Write-Information '9. Set Data plane operations...'
 
             # Azure SQL users
             Write-Information 'Setting Azure SQL users logins...'

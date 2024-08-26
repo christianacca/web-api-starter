@@ -1,3 +1,8 @@
+extension microsoftGraph
+
+@description('List of principal ids that are allowed to make http requests to the function app')
+param allowedPrincipalIds string[] = []
+
 @description('List of origins that should be allowed to make cross-origin\ncalls')
 param corsAllowedOrigins array = []
 
@@ -9,9 +14,6 @@ param functionAppName string
 
 @description('Specify the location for the function application resources')
 param location string = resourceGroup().location
-
-@description('The Application (Client) ID of the AD App Registration that the function is a part of.')
-param appClientId string
 
 @description('The name of the user-assigned managed identity to be used by the function app.')
 param managedIdentityName string
@@ -30,6 +32,40 @@ param appInsightsCloudRoleName string = functionAppName
 
 @description('Flag to indicate site exists. If true, the module will preserve the existing appsettings for the site.')
 param resourceExists bool = true
+
+
+var roleName = 'app_only'
+var roleId = guid(roleName, functionAppName)
+resource appReg 'Microsoft.Graph/applications@v1.0' = {
+  displayName: functionAppName
+  uniqueName: functionAppName
+  identifierUris: [
+    'api://${functionAppName}'
+  ]
+  appRoles: [
+    {
+      allowedMemberTypes: [
+        'Application'
+      ]
+      description: 'Service-to-Service access'
+      displayName: roleName
+      id: roleId
+      isEnabled: true
+      value: 'app_only_access'
+    }
+  ]
+}
+
+resource appRegServicePrincipal 'Microsoft.Graph/servicePrincipals@v1.0' = {
+  appId: appReg.appId
+  appRoleAssignmentRequired: true
+}
+
+resource appRoleAssignments 'Microsoft.Graph/appRoleAssignedTo@v1.0' = [for principalId in allowedPrincipalIds: {
+  appRoleId: roleId
+  principalId: principalId
+  resourceId: appRegServicePrincipal.id
+}]
 
 
 resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
@@ -88,7 +124,7 @@ module functionApp 'br/public:avm/res/web/site:0.2.0' = {
           enabled: true
           registration: {
             openIdIssuer: 'https://sts.windows.net/${tenantID}/'
-            clientId: appClientId
+            clientId: appReg.appId
             clientSecretSettingName: 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
           }
           validation: {
