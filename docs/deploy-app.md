@@ -500,6 +500,8 @@ or running the github workflow [Infrastructure Uninstall](../.github/workflows/i
 
 ## Troubleshooting `provision-azure-resources.ps1`
 
+### Problem deploying SQL server
+
 When running `provision-azure-resources.ps1`, you might receive an error with the following message:
 
 ```cmd
@@ -507,3 +509,53 @@ Login failed for user '<token-identified principal>'
 ```
 To resolve the problem try re-running the provisioning script again (it's safe to do so). If this still does not work try
 waiting for somewhere between 15-60 minutes and re-run the script.
+
+### Problem deploying one or more Entra-ID app registrations
+
+When running `provision-azure-resources.ps1`, you might receive an error with a _similar_ message to the following:
+
+```cmd
+7. Set Azure resources...
+  Gathering existing resource information...
+  Creating desired resource state
+
+Write-Error: /home/runner/work/_temp/18abd4a5-7265-4ba2-a12f-9e2013b9649f.ps1:2
+Line |
+   2 |  ./tools/infrastructure/provision-azure-resources.ps1 -EnvironmentName …
+     |  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | 12:45:07 - The deployment 'd2933a88-733d-4b65-afd6-6f8b76eb6546' failed
+     | with error(s). Showing 2 out of 2 error(s). Status Message:
+     | {"error":{"code":"BadRequest","target":"/resources/appReg","message":"Another object with the same value for property 
+uniqueName already exists. Graph client request id: ed2e5d64-4a96-417b-b5ec-109288d212b9. Graph request timestamp: 2024-11-28T12:42:10Z."}} 
+(Code:DeploymentOperationFailed)  Status Message: At least one resource deployment operation failed. Please list deployment operations for 
+details. Please see https://aka.ms/arm-deployment-operations for usage details. (Code: DeploymentFailed)
+  - {"error":{"code":"BadRequest","target":"/resources/appReg","message":"Another object with the same value for property uniqueName already exists.
+Graph client request id: ed2e5d64-4a96-417b-b5ec-109288d212b9. Graph request timestamp: 2024-11-28T12:42:10Z."}} (Code:)   
+CorrelationId: 5a5d3700-d51d-441b-9a8e-c9634f3a5221 at <ScriptBlock><Process>, /home/runner/work/web-api-starter/web-api-starter/tools/infrastructure/provision-azure-resources.ps1: line 318 at <ScriptBlock>, /home/runner/work/_temp/18abd4a5-7265-4ba2-a12f-9e2013b9649f.ps1: line 2 at <ScriptBlock>, <No file>: line 1
+```
+
+To resolve:
+
+1. browse to [Entra-ID app registrations](https://portal.azure.com/#view/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/~/RegisteredApps) in the tenant the infrastructure being deployed to
+2. open the "Deleted applications" tab
+3. look for any application that matches the app registrations that the infra-as-code script is responsible for deploying:
+   * the app registrations follow the naming convention func-[company_abbrev]-[product_abbrev]-[env]-[component_name] eg func-clc-was-dev-internalapi
+4. delete permanently these soft deleted applications
+   * select the applications you noted above
+   * select the "Delete permanently" button
+   * wait until the application is permanently deleted (might take up to a minute)
+5. retry the failing infrastructure workflow run
+
+### Problem Activating initial container app
+
+After successfully running `provision-azure-resources.ps1` for the first time for the environment, but before you have
+deployed the application that's hosted by the infrastructure (ie before running [deploy.ps1](../tools/dev-scripts/deploy.ps1) 
+or the git workflow [Application CI/CD](../.github/workflows/app-ci-cd.yml))), you will see that the container app has
+failed to start and in the "Revisions and issues" tab for the container it will show the error "Activation failed".
+
+This is expected behaviour right now due to the initial docker container image that is deployed to the container app
+during the initial infrastructure deployment. This initial docker image exposes port 80, but the container app is 
+configured expected to expose port 8080.
+
+This issue will be resolved when the application docker image is deployed to the container app.
+
