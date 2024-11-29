@@ -1,4 +1,4 @@
-extension microsoftGraph
+extension 'br:mcr.microsoft.com/bicep/extensions/microsoftgraph/v1.0:0.1.8-preview'
 
 @description('List of principal ids that are allowed to make http requests to the function app')
 param allowedPrincipalIds string[] = []
