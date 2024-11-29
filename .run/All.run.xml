@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="All" type="CompoundRunConfigurationType">
     <toRun name="Template.Api" type="LaunchSettings" />
-    <toRun name="Template.Functions" type="AzureFunctionsHost" />
+    <toRun name="Template.Functions" type="AzureFunctionAppRun" />
     <method v="2" />
   </configuration>
 </component>
