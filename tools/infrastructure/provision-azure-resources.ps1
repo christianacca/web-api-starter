@@ -290,7 +290,7 @@
                 ManagedIdentityDisplayName          =   $api.ManagedIdentity.Primary	
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName	
             }	
-            $appRoleGrants | Revoke-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId -EA SilentlyContinue
+            $appRoleGrants | Revoke-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId -EA Stop
 
 
             #-----------------------------------------------------------------------------------------------
