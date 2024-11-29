@@ -172,6 +172,10 @@
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureResourceGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureSqlAADUser.ps1"
+
+        # TODO: DELETE these cmdlets, and remove lines below once deployment of app role's using bicep has rolled out
+        . "$PSScriptRoot/ps-functions/Get-AppRoleId.ps1"
+        . "$PSScriptRoot/ps-functions/Revoke-ADAppRolePermission.ps1"
         
         $templatePath = Join-Path $PSScriptRoot arm-templates
     }
@@ -280,6 +284,20 @@
             #-----------------------------------------------------------------------------------------------
             Write-Information '6. Set AAD groups - for Azure resource (pre-resource creation)...'
             $sqlAdAdminGroup = Set-AADGroup $convention.SubProducts.Sql.AadAdminGroupName -EA Stop
+
+
+            #-----------------------------------------------------------------------------------------------
+            # TODO: remove lines below once deployment of app role's using bicep has rolled out
+            Write-Information '7.0. Remove original app role assignments...'
+            $funcApp = $convention.SubProducts.InternalApi	
+            $appOnlyAppRoleName = 'app_only'	
+            $funcAppRoleId = Get-AppRoleId $appOnlyAppRoleName $funcApp.ResourceName
+            $api = $convention.SubProducts.Api	
+            $appRoleGrants = [PSCustomObject]@{	
+                ManagedIdentityDisplayName          =   $api.ManagedIdentity.Primary	
+                ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName	
+            }	
+            $appRoleGrants | Revoke-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId -EA Continue
 
 
             #-----------------------------------------------------------------------------------------------
