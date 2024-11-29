@@ -1,45 +1,45 @@
-function Grant-ADAppRolePermission {
+function Revoke-ADAppRolePermission {
     <#
       .SYNOPSIS
-      Grants the AD App role declared by an AD App registration to a manged identity 
+      Revokes the AD App role declared by an AD App registration from a manged identity 
       
       .DESCRIPTION
-      Grants the AD App role beloging to a AD App registration to a manged identity . This script is written 
+      Revokes the AD App role beloging to a AD App registration from a manged identity . This script is written 
       to be idempotent so it is safe to be run multiple times.
       
       Required permission to run this script:
       * Azure AD Application administrator
     
       .PARAMETER TargetAppDisplayName
-      The name of the AD App registration that declares the app role that is to be granted
+      The name of the AD App registration that declares the app role that is to be revoked
       
       .PARAMETER AppRoleId
-      The id of the app role to be granted
+      The id of the app role to be revoked
       
       .PARAMETER ManagedIdentityDisplayName
-      The display name of the managed identity to grant the app role to. Required when ManagedIdentityObjectId is not specified
+      The display name of the managed identity to revoke the app role from. Required when ManagedIdentityObjectId is not specified
             
       .PARAMETER ManagedIdentityResourceGroupName
       The resource group containing the managed identity. Required when ManagedIdentityObjectId is not specified
                   
       .PARAMETER ManagedIdentityObjectId
-      The object id of the managed managed identity to grant the app role to.
+      The object id of the managed managed identity to revoke the app role from.
       Required when ManagedIdentityDisplayName and ManagedIdentityResourceGroupName is not specified
       
       .EXAMPLE
-      Grant-ADAppRolePermission -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx -ManagedIdentityDisplayName web-api-starter-api -ManagedIdentityResourceGroupName web-api-starter
+      Revoke-ADAppRolePermission -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx -ManagedIdentityDisplayName web-api-starter-api -ManagedIdentityResourceGroupName web-api-starter
    
       Description
       -----------
-      Assign app role ($AppRoleId) exposed by the AD app registration 'web-api-starter-func' to the managed identity
+      Revokes app role ($AppRoleId) exposed by the AD app registration 'web-api-starter-func' from the managed identity
       that is identified by the display name of 'web-api-starter-api' in the resource group 'web-api-starter'
       
       .EXAMPLE
-      Grant-ADAppRolePermission -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx -ManagedIdentityObjectId xxx-xxx-yyy
+      Revoke-ADAppRolePermission -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx -ManagedIdentityObjectId xxx-xxx-yyy
    
       Description
       -----------
-      Assign app role ($AppRoleId) exposed by the AD app registration 'web-api-starter-func' to the managed identity
+      Revokes app role ($AppRoleId) exposed by the AD app registration 'web-api-starter-func' from the managed identity
       with object id 'xxx-xxx-yyy'
             
       .EXAMPLE
@@ -52,11 +52,11 @@ function Grant-ADAppRolePermission {
           ManagedIdentityObjectId =   'bab5e655-a79d-4e3a-a1a0-7ba68e5cf698'
         }
       )
-      $appRoleGrants | Grant-ADAppRolePermission -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx
+      $appRoleGrants | Revoke-ADAppRolePermission -TargetAppDisplayName web-api-starter-func -AppRoleId xxx-xxx-xxx
    
       Description
       -----------
-      Assign multiple managed identities to the app role ($AppRoleId) exposed by the AD app registration 'web-api-starter-func'
+      Revokes multiple managed identities from the app role ($AppRoleId) exposed by the AD app registration 'web-api-starter-func'
       
     #>
     [CmdletBinding()]
@@ -110,20 +110,6 @@ function Grant-ADAppRolePermission {
             }
 
             #------------- Assign AD app role for target app to managed identity -------------
-            # Replace '***** Update-AzADServicePrincipal WORKAROUND' below with this commented out code once 
-            # `Update-AzADServicePrincipal` has implemented `AppRoleAssignment` parameter
-#            $targetAppRoleAssignmentParams = @{
-#                ObjectId                    =   $targetAppServicePrincipal.Id
-#                AppRoleAssignment         =   @{
-#                    ResourceId  =   $targetAppServicePrincipal.Id
-#                    AppRoleId   =   $AppRoleId
-#                    PrincipalId =   $ManagedIdentityObjectId
-#                }
-#            }
-#            Write-Information "Assigning function app AD App role to API managed identity..."
-#            Update-AzADServicePrincipal @$targetAppRoleAssignmentParams -EA Stop
-
-            # ***** BEGIN Update-AzADServicePrincipal WORKAROUND
             $appRoleAssignmentUrl = "https://graph.microsoft.com/v1.0/servicePrincipals/$($targetAppServicePrincipal.Id)/appRoleAssignedTo"
 
             Write-Information "Searching for AD app role assignment for AD App registration '$TargetAppDisplayName'..."
@@ -134,18 +120,11 @@ function Grant-ADAppRolePermission {
 
             $funcAppAdRole = $existingAppRoleAssignments |
                 Where-Object { $_.appRoleId -eq $AppRoleId -and $_.principalId -eq $ManagedIdentityObjectId }
-            if (-not($funcAppAdRole)) {
-                $appRoleAssignmentJson = @{
-                    principalId =   $ManagedIdentityObjectId
-                    resourceId  =   $targetAppServicePrincipal.Id
-                    appRoleId   =   $AppRoleId
-                } | ConvertTo-Json -Compress
-
-                Write-Information "Assigning AD app role '$AppRoleId' exposed by '$TargetAppDisplayName' app to managed identity '$ManagedIdentityObjectId'..."
-                { Invoke-AzRestMethod -Method POST -Uri $appRoleAssignmentUrl -Payload $appRoleAssignmentJson -EA Stop } |
+            if ($funcAppAdRole) {
+                Write-Information "Removing AD app role '$AppRoleId' exposed by '$TargetAppDisplayName' app from managed identity '$ManagedIdentityObjectId'..."
+                { Invoke-AzRestMethod -Method DELETE -Uri "$appRoleAssignmentUrl/$($funcAppAdRole.id)" -EA Stop } |
                     Invoke-EnsureHttpSuccess | Out-Null
             }
-            # ***** END Update-AzADServicePrincipal WORKAROUND
         }
         catch {
             Write-Error -ErrorRecord $_ -EA $callerEA

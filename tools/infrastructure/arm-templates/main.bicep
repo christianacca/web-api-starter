@@ -1,6 +1,3 @@
-@description('The Client ID of the Internal Api AAD app registration.')
-param internalApiClientId string
-
 @description('Whether the Internal Api function app already exists.')
 param internalApiExists bool = true
 
@@ -245,7 +242,7 @@ var internalApiSettings = settings.SubProducts.InternalApi
 module internalApi 'internal-api.bicep' = {
   name: '${uniqueString(deployment().name, location)}-InternalApi'
   params: {
-    appClientId: internalApiClientId
+    allowedPrincipalIds: [apiManagedId.properties.principalId]
     appInsightsCloudRoleName: 'Web API Starter Functions'
     appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
     functionAppName: internalApiSettings.ResourceName
