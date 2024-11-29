@@ -203,6 +203,13 @@
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
 
             #-----------------------------------------------------------------------------------------------
+            Write-Information '0. Print environment information...'
+            $standaloneBicepVs = Invoke-Exe { bicep --version } -EA Continue
+            Write-Information "  INFO | Standalone Bicep version: $($standaloneBicepVs)"
+            $azBicepVs = Invoke-Exe { az bicep version } -EA Continue
+            Write-Information "  INFO | Azure CLI Bicep version: $($azBicepVs)"
+            
+            #-----------------------------------------------------------------------------------------------
             Write-Information '1. Check resource providers are registered...'
             $resourceProviderName = @(
                 'Microsoft.Web' # for Azure Function App
