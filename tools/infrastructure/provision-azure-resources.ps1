@@ -173,9 +173,12 @@
         . "$PSScriptRoot/ps-functions/Set-AzureResourceGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureSqlAADUser.ps1"
 
-        # TODO: DELETE these cmdlets, and remove lines below once deployment of app role's using bicep has rolled out
+        # TODO: DELETE these cmdlets, and remove lines below once deployment of app reg using bicep has rolled out
         . "$PSScriptRoot/ps-functions/Get-AppRoleId.ps1"
         . "$PSScriptRoot/ps-functions/Revoke-ADAppRolePermission.ps1"
+
+        # TODO: remove line below once deployment of app reg using bicep has rolled out
+        . "$PSScriptRoot/ps-functions/Invoke-EnsureHttpSuccess.ps1"
         
         $templatePath = Join-Path $PSScriptRoot arm-templates
     }
@@ -287,17 +290,27 @@
 
 
             #-----------------------------------------------------------------------------------------------
-            # TODO: remove lines below once deployment of app role's using bicep has rolled out
-            Write-Information '7.0. Remove original app role assignments...'
-            $funcApp = $convention.SubProducts.InternalApi	
+            # TODO: remove lines below once deployment of app reg using bicep has rolled out
+            Write-Information '7.0.0 Remove original app role assignments...'
+            $funcAppName = $convention.SubProducts.InternalApi.ResourceName
             $appOnlyAppRoleName = 'app_only'	
-            $funcAppRoleId = Get-AppRoleId $appOnlyAppRoleName $funcApp.ResourceName
+            $funcAppRoleId = Get-AppRoleId $appOnlyAppRoleName $funcAppName -EA Stop
             $api = $convention.SubProducts.Api	
             $appRoleGrants = [PSCustomObject]@{	
                 ManagedIdentityDisplayName          =   $api.ManagedIdentity.Primary	
                 ManagedIdentityResourceGroupName    =   $appResourceGroup.ResourceName	
             }	
-            $appRoleGrants | Revoke-ADAppRolePermission -TargetAppDisplayName $funcApp.ResourceName -AppRoleId $funcAppRoleId -EA Continue
+            $appRoleGrants | Revoke-ADAppRolePermission -TargetAppDisplayName $funcAppName -AppRoleId $funcAppRoleId -EA Continue
+
+            Write-Information '7.0.1. Backfill uniqueName to app registrations...'
+            $targetAppAdRegistration = Get-AzADApplication -DisplayName $funcAppName -EA Stop
+            $appRegJson = @{
+                uniqueName  =   $funcAppName
+            } | ConvertTo-Json -Compress | ConvertTo-Json
+            Write-Information "Backfill AD app registration client supplied key for '$funcAppName' (ID: '$($targetAppAdRegistration.Id)')..."
+            $appRegUrl = "https://graph.microsoft.com/v1.0/applications/$($targetAppAdRegistration.Id)"
+            { Invoke-AzRestMethod -Method PATCH -Uri $appRegUrl -Payload appRegJson -EA Stop } |
+                Invoke-EnsureHttpSuccess | Out-Null
 
 
             #-----------------------------------------------------------------------------------------------
