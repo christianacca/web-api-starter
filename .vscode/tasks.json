@@ -57,7 +57,7 @@
 				"publish",
 				"--configuration",
 				"Release",
-				"/property:PublishDir=bin/Release/net6.0/publish",
+				"/property:PublishDir=bin/Release/net8.0/publish",
 				"/property:GenerateFullPaths=true",
 				"/consoleloggerparameters:NoSummary"
 			],

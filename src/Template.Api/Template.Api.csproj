@@ -7,22 +7,22 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Azure.Storage.Queues" Version="12.14.0" />
+        <PackageReference Include="Azure.Storage.Queues" Version="12.21.0" />
         <PackageReference Include="Hellang.Middleware.ProblemDetails" Version="6.5.1" />
-        <PackageReference Include="Microsoft.ApplicationInsights.Profiler.AspNetCore" Version="2.7.1" />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.3" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.3">
+        <PackageReference Include="Microsoft.ApplicationInsights.Profiler.AspNetCore" Version="2.7.2" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Extensions.Azure" Version="1.7.1" />
+        <PackageReference Include="Microsoft.Extensions.Azure" Version="1.9.0" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
-        <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.2" />
+        <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.7" />
         <PackageReference Include="Mri.AppInsights.AspNetCore" Version="7.1.0" />
-        <PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
+        <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
         <PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="4.0.0" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-        <PackageReference Include="Yarp.ReverseProxy" Version="2.1.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="7.1.0" />
+        <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
     </ItemGroup>
 
     <ItemGroup>
