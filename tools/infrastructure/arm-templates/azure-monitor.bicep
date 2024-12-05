@@ -84,7 +84,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-module webTests 'br/public:avm/res/insights/webtest:0.1.3' = [for (webTest, i) in defaultAvailabilityTests: {
+module webTests 'br/public:avm/res/insights/webtest:0.3.0' = [for (webTest, i) in defaultAvailabilityTests: {
   name: '${uniqueString(deployment().name, location)}-${i}-WebTest'
   params: {
     appInsightResourceId: appInsights.id

@@ -62,7 +62,7 @@ module appEnvVars 'desired-env-vars.bicep' = {
   }
 }
 
-module api 'br/public:avm/res/app/container-app:0.4.1' = {
+module api 'br/public:avm/res/app/container-app:0.11.0' = {
   name: '${uniqueString(deployment().name, location)}-AcaApi'
   params: {
     containers: [
@@ -102,7 +102,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
         bindingType: 'SniEnabled'
       }
     ] : []
-    environmentId: acaEnv.id
+    environmentResourceId: acaEnv.id
     managedIdentities: {
       userAssignedResourceIds: sharedSettings.managedIdentityResourceIds
     }
