@@ -22,7 +22,7 @@ var certMaintainerPrincipals = [
   }
 ]
 
-module resourceGroups 'br/public:avm/res/resources/resource-group:0.2.4' = [for (name, index) in resourceGroupNames: {
+module resourceGroups 'br/public:avm/res/resources/resource-group:0.4.0' = [for (name, index) in resourceGroupNames: {
   name: '${uniqueString(deployment().name)}-${index}-ResourceGroup'
   params: {
     name: name
@@ -40,7 +40,7 @@ module readerPermissions 'resource-group-role-assignment.bicep' = [for (name, in
   dependsOn: [resourceGroups]
 }]
 
-module keyVaults 'br/public:avm/res/key-vault/vault:0.6.2' = [for (kv, index) in keyVaultSettings: {
+module keyVaults 'br/public:avm/res/key-vault/vault:0.11.0' = [for (kv, index) in keyVaultSettings: {
   name: '${uniqueString(deployment().name)}-${index}-KeyVault'
   scope: resourceGroup(kv.ResourceGroupName)
   params: {

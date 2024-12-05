@@ -305,13 +305,11 @@
                 $false
             }
             $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
-            $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.InternalApi.ResourceName -EA SilentlyContinue)
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
                     apiFailoverExists           =   $apiFailoverExists
                     apiPrimaryExists            =   $apiPrimaryExists
-                    internalApiExists           =   $internalApiExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
                 }
