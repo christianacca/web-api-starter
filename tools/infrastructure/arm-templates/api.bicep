@@ -62,7 +62,7 @@ module appEnvVars 'desired-env-vars.bicep' = {
   }
 }
 
-module api 'br/public:avm/res/app/container-app:0.4.1' = {
+module api 'br/public:avm/res/app/container-app:0.11.0' = {
   name: '${uniqueString(deployment().name, location)}-AcaApi'
   params: {
     containers: [
@@ -95,14 +95,14 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
         }
       }
     ]
-    customDomains: [
+    customDomains: sharedSettings.isCustomDomainEnabled ? [
       {
         name: sharedSettings.subProductsSettings.Api.HostName
         certificateId: acaEnv::cert.id
         bindingType: 'SniEnabled'
       }
-    ]
-    environmentId: acaEnv.id
+    ] : []
+    environmentResourceId: acaEnv.id
     managedIdentities: {
       userAssignedResourceIds: sharedSettings.managedIdentityResourceIds
     }
@@ -135,7 +135,7 @@ module api 'br/public:avm/res/app/container-app:0.4.1' = {
 
 resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing = {
   name: instanceSettings.AcaEnvResourceName
-  resource cert 'certificates' existing = { name: sharedSettings.certSettings.ResourceName }
+  resource cert 'certificates' existing = if (sharedSettings.isCustomDomainEnabled) { name: sharedSettings.certSettings.ResourceName }
 }
 
 resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
@@ -155,6 +155,7 @@ type managedIdentyClientIdsType = {
 type sharedSettingsType = {
   appInsightsConnectionString: string
   certSettings: object
+  isCustomDomainEnabled: bool
   managedIdentityResourceIds: array
   managedIdentityClientIds: managedIdentyClientIdsType
   subProductsSettings: object

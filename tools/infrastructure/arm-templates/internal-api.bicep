@@ -1,4 +1,4 @@
-extension 'br:mcr.microsoft.com/bicep/extensions/microsoftgraph/v1.0:0.1.8-preview'
+extension microsoftGraphV1
 
 @description('List of principal ids that are allowed to make http requests to the function app')
 param allowedPrincipalIds string[] = []
@@ -15,8 +15,8 @@ param functionAppName string
 @description('Specify the location for the function application resources')
 param location string = resourceGroup().location
 
-@description('The name of the user-assigned managed identity to be used by the function app.')
-param managedIdentityName string
+@description('A list of Resource ID of the user-assigned managed identities, in the form of /subscriptions/<subscriptionId>/resourceGroups/<ResourceGroupName>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<managedIdentity>.')
+param managedIdentityResourceIds array
 
 @description('The name of the Storage Account')
 param storageAccountName string = toLower('funcsa${uniqueString(resourceGroup().id)}')
@@ -30,10 +30,6 @@ param appInsightsResourceId string = ''
 @description('The name of the function app as it appears in application insights')
 param appInsightsCloudRoleName string = functionAppName
 
-@description('Flag to indicate site exists. If true, the module will preserve the existing appsettings for the site.')
-param resourceExists bool = true
-
-
 var roleName = 'app_only'
 var roleId = guid(roleName, functionAppName)
 resource appReg 'Microsoft.Graph/applications@v1.0' = {
@@ -43,6 +39,8 @@ resource appReg 'Microsoft.Graph/applications@v1.0' = {
     'api://${functionAppName}'
   ]
   appRoles: [
+    // important: to delete a role, set it's `isEnabled` to false then deploy to all environments, only then can remove the role from the list
+    // note: in the future, this may not be necessary see: https://github.com/microsoftgraph/msgraph-bicep-types/issues/197
     {
       allowedMemberTypes: [
         'Application'
@@ -68,39 +66,25 @@ resource appRoleAssignments 'Microsoft.Graph/appRoleAssignedTo@v1.0' = [for prin
 }]
 
 
-resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: managedIdentityName
-}
-
-var requiredAppsettings = {
-  AzureWebJobsFeatureFlags: 'EnableHttpProxying'
-  FUNCTIONS_EXTENSION_VERSION: '~4'
-  FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
-  WEBSITE_CLOUD_ROLENAME: appInsightsCloudRoleName
-  // note: ideally, WEBSITE_CONTENTAZUREFILECONNECTIONSTRING should be set by the module - see ote on setWebsiteContentAzureFileConnectionString
-  WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
-  WEBSITE_CONTENTSHARE: toLower(functionAppName)
-  WEBSITE_RUN_FROM_PACKAGE: '1'
-}
-
-var existingAppsettings = resourceExists ? list(resourceId('Microsoft.Web/sites/config', functionAppName, 'appsettings'), '2020-12-01').properties : {}
-
-// module should ideally assign WEBSITE_CONTENTAZUREFILECONNECTIONSTRING using a param value setWebsiteContentAzureFileConnectionString
-module functionApp 'br/public:avm/res/web/site:0.2.0' = {
+module functionApp 'br/public:avm/res/web/site:0.11.1' = {
   name: '${uniqueString(deployment().name, location)}-InternalApi'
   params:{
     name: functionAppName
     kind: 'functionapp'
     managedIdentities: {
       systemAssigned: false
-      userAssignedResourceIds: [
-        internalApiManagedId.id
-      ]
+      userAssignedResourceIds: managedIdentityResourceIds
     }
     appInsightResourceId: appInsightsResourceId
-    appSettingsKeyValuePairs: union(requiredAppsettings, existingAppsettings)
-    setAzureWebJobsDashboard: false
-    // setWebsiteContentAzureFileConnectionString: true
+    appSettingsKeyValuePairs: {
+      AzureWebJobsFeatureFlags: 'EnableHttpProxying'
+      FUNCTIONS_EXTENSION_VERSION: '~4'
+      FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
+      WEBSITE_CLOUD_ROLENAME: appInsightsCloudRoleName
+      WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
+      WEBSITE_CONTENTSHARE: toLower(functionAppName)
+      WEBSITE_RUN_FROM_PACKAGE: '1'
+    }
     siteConfig: {
       netFrameworkVersion: 'v8.0'
       cors: {
@@ -165,6 +149,3 @@ module hostingPlan 'br/public:avm/res/web/serverfarm:0.1.0' = {
 resource storageAccount 'Microsoft.Storage/storageAccounts@2019-06-01' existing = {
   name: storageAccountName
 }
-
-@description('The Client ID of the Azure AD application associated with the internal api managed identity.')
-output internalApiManagedIdentityClientId string = internalApiManagedId.properties.clientId

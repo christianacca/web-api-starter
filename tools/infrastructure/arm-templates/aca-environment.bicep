@@ -44,7 +44,7 @@ resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
     zoneRedundant: false
   }
 
-  resource acaEnvCert 'certificates' = {
+  resource acaEnvCert 'certificates' = if (sharedSettings.isCustomDomainEnabled) {
     name: sharedSettings.certSettings.ResourceName
     location: location
     properties: {
@@ -67,6 +67,7 @@ output resourceId string = acaEnv.id
 
 type sharedSettingsType = {
   certSettings: object
+  isCustomDomainEnabled: bool
   managedIdentityResourceId: string
   logAnalyticsWorkspaceResourceId: string
 }

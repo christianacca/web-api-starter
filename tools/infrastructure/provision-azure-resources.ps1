@@ -197,6 +197,7 @@
 
             Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
 
+            # Tip: you can also print out listing for the conventions. See the examples in ./tools/infrastructure/print-product-convention-table.ps1
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
 
             #-----------------------------------------------------------------------------------------------
@@ -304,13 +305,11 @@
                 $false
             }
             $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
-            $internalApiExists = $null -ne (Get-AzWebApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.InternalApi.ResourceName -EA SilentlyContinue)
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
                     apiFailoverExists           =   $apiFailoverExists
                     apiPrimaryExists            =   $apiPrimaryExists
-                    internalApiExists           =   $internalApiExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
                 }

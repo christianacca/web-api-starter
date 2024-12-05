@@ -1,6 +1,3 @@
-@description('Whether the Internal Api function app already exists.')
-param internalApiExists bool = true
-
 @description('Whether the failover intance of the API container app already exists.')
 param apiFailoverExists bool = true
 
@@ -9,7 +6,7 @@ param apiPrimaryExists bool = true
 
 param location string = resourceGroup().location
 
-@description('The settings for all resources provisioned by this template.')
+@description('The settings for all resources provisioned by this template. TIP: to find the structure of settings object use: ./tools/infrastructure/get-product-conventions.ps1')
 param settings object
 
 @description('The Object ID of the SQL AAD Admin security group.')
@@ -17,7 +14,7 @@ param sqlAdAdminGroupObjectId string
 
 
 var kvSettings = settings.SubProducts.KeyVault
-module keyVault 'br/public:avm/res/key-vault/vault:0.6.2' = {
+module keyVault 'br/public:avm/res/key-vault/vault:0.11.0' = {
   name: '${uniqueString(deployment().name, location)}-KeyVault'
   params: {
     name: kvSettings.ResourceName
@@ -56,7 +53,7 @@ module azureMonitor 'azure-monitor.bicep' = {
 }
 
 var reportStorage = settings.SubProducts.PbiReportStorage
-module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.11.0' = {
+module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.14.3' = {
   name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
   params: {
     name: reportStorage.StorageAccountName
@@ -112,7 +109,7 @@ resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 }
 
 var certSettings = settings.TlsCertificates.Current
-module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = {
+module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = if (settings.SubProducts.Aca.IsCustomDomainEnabled) {
   name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
   scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
   params: {
@@ -147,6 +144,7 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
 
 var acaEnvSharedSettings = {
   certSettings: settings.TlsCertificates.Current
+  isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
   managedIdentityResourceId: acaEnvManagedId.id
 }
@@ -157,7 +155,7 @@ module acaEnvPrimary 'aca-environment.bicep' = {
     instanceSettings: settings.SubProducts.Aca.Primary
     sharedSettings: acaEnvSharedSettings
   }
-  dependsOn: [acaEnvCertPermission]
+  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
 }
 
 var acaContainerRegistries = map(containerRegistries, registry => ({
@@ -168,6 +166,7 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
+  isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   managedIdentityClientIds: {
     default: apiManagedId.properties.clientId
   }
@@ -196,7 +195,7 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
     instanceSettings: settings.SubProducts.Aca.Failover
     sharedSettings: acaEnvSharedSettings
   }
-  dependsOn: [acaEnvCertPermission]
+  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
 }
 
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
@@ -214,7 +213,7 @@ resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@
   location: location
 }
 
-module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.11.0' = {
+module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.14.3' = {
   name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
   params: {
     name: settings.SubProducts.InternalApi.StorageAccountName
@@ -246,9 +245,10 @@ module internalApi 'internal-api.bicep' = {
     appInsightsCloudRoleName: 'Web API Starter Functions'
     appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
     functionAppName: internalApiSettings.ResourceName
-    managedIdentityName: internalApiSettings.ManagedIdentity
+    managedIdentityResourceIds: [
+      internalApiManagedId.id
+    ]
     location: location
-    resourceExists: internalApiExists
     storageAccountName: internalApiStorageAccount.outputs.name
   }
 }
@@ -296,6 +296,6 @@ module azureSqlDb 'azure-sql-server.bicep' = {
 @description('The Client ID of the Azure AD application associated with the api managed identity.')
 output apiManagedIdentityClientId string = apiManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
-output internalApiManagedIdentityClientId string = internalApi.outputs.internalApiManagedIdentityClientId
+output internalApiManagedIdentityClientId string = internalApiManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the sql managed identity.')
 output sqlManagedIdentityClientId string = azureSqlDb.outputs.managedIdentityClientId

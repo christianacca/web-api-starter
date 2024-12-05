@@ -37,7 +37,11 @@
                         DefaultStorageTier  =   'Cool'
                         Usage               =   'Blob'
                     }
-                    Aca                 =   @{ Type = 'AcaEnvironment' }
+                    Aca                 =   @{
+                        # set to $false when you want to deploy without first having to create a custom domain and SSL certificate
+                        IsCustomDomainEnabled   =   $true
+                        Type = 'AcaEnvironment'
+                    }
                     AcrPull             =   @{ Type = 'ManagedIdentity' }
                     AppInsights         =   @{ Type = 'AppInsights' }
                     Sql                 =   @{ Type = 'SqlServer' }

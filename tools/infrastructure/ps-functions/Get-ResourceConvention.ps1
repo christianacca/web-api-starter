@@ -370,10 +370,11 @@ function Get-ResourceConvention {
                     ResourceLocation    =   $acaSecondaryRegion.Name
                 }
                 @{
-                    ManagedIdentity     =   '{0}-{1}' -f $managedIdentityNamePrefix, $acaEnvPrefix
-                    Primary             =   $acaEnvPrimary
-                    Failover            =   if ($hasFailover) { $acaEnvFailover } else { $null }
-                    Type                =   $spInput.Type
+                    IsCustomDomainEnabled   =   $spInput.IsCustomDomainEnabled ?? $false
+                    ManagedIdentity         =   '{0}-{1}' -f $managedIdentityNamePrefix, $acaEnvPrefix
+                    Primary                 =   $acaEnvPrimary
+                    Failover                =   if ($hasFailover) { $acaEnvFailover } else { $null }
+                    Type                    =   $spInput.Type
                 }
             }
             'AcaApp' {
