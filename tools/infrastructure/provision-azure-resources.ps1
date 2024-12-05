@@ -197,6 +197,7 @@
 
             Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
 
+            # Tip: you can also print out listing for the conventions. See the examples in ./tools/infrastructure/print-product-convention-table.ps1
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
 
             #-----------------------------------------------------------------------------------------------

@@ -112,7 +112,7 @@ resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
 }
 
 var certSettings = settings.TlsCertificates.Current
-module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = {
+module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = if (settings.SubProducts.Aca.IsCustomDomainEnabled) {
   name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
   scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
   params: {
@@ -147,6 +147,7 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
 
 var acaEnvSharedSettings = {
   certSettings: settings.TlsCertificates.Current
+  isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   logAnalyticsWorkspaceResourceId: azureMonitor.outputs.logAnalyticsWorkspaceResourceId
   managedIdentityResourceId: acaEnvManagedId.id
 }
@@ -157,7 +158,7 @@ module acaEnvPrimary 'aca-environment.bicep' = {
     instanceSettings: settings.SubProducts.Aca.Primary
     sharedSettings: acaEnvSharedSettings
   }
-  dependsOn: [acaEnvCertPermission]
+  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
 }
 
 var acaContainerRegistries = map(containerRegistries, registry => ({
@@ -168,6 +169,7 @@ var acaContainerRegistries = map(containerRegistries, registry => ({
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
+  isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   managedIdentityClientIds: {
     default: apiManagedId.properties.clientId
   }
@@ -196,7 +198,7 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
     instanceSettings: settings.SubProducts.Aca.Failover
     sharedSettings: acaEnvSharedSettings
   }
-  dependsOn: [acaEnvCertPermission]
+  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
 }
 
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {

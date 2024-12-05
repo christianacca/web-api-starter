@@ -207,6 +207,8 @@ into a shared key vault accessible by the app:
 3. Download the Cloudflare Origin cert and private key as a PEM file
 4. Import the Cloudflare Origin cert PEM file into the shared key vault
    * see [Azure Key Vault | Import a certificate](https://learn.microsoft.com/en-us/azure/key-vault/certificates/tutorial-import-certificate?tabs=azure-portal)
+   * **IMPORTANT**: the PEM file that you can download from the cloudflare site might not contain the private key section. In which case you will
+     need to generate a new origin cert from Cloudflare and then download that
 
 > [!Note]
 > The certificate for both production and non-production might be the same, and may be stored in the same key vault accessible by all environments.
@@ -446,11 +448,14 @@ In practice the only way to run these scripts from a dev machine is:
 > [!NOTE]
 > The steps below assume you are deploying to your own Azure subscription and Azure Entra-ID tenant
 
-1. Modify product conventions to avoid conflicts for those azure resource whose names are globally unique:
+1. Modify product conventions to customize azure resource whose names are globally unique, or otherwise different in your own subscription:
    1. open [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
    2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. uncomment `ProductAbbreviation` (line 22) and make it globally unique (eg replace `-cc` with your initials)
    4. Review `Domain` settings (starting line 23) and adjust as required. At minimum replace 'codingdemo' with the value of a custom domain you own
+   5. Set `Aca.IsCustomDomainEnabled` to `$false`. In order to have this set to true you will need
+       * a custom domain as explained in the section above "Register DNS records"
+       * a TLS certificate for the custom domain as explained in the section above "Add TLS certificates to shared key vault"
 2. Update the subscription id in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1) to your own subscription id
 3. Setup shared infrastructure:
    ```pwsh
