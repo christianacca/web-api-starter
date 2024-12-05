@@ -63,12 +63,18 @@ module keyVaultRbacAssignmentPermissions 'keyvault-role-assignment.bicep' = [for
 
 var resourceGroupDeployments = union(
   map(principalsIdsAcrAccess, principalId => ({
-    principalId: principalId
+    principal: {
+      principalId: principalId
+      principalType: 'ServicePrincipal'
+    }
     resourceGroupName: prodRegistry.ResourceGroupName
     resourceGroupSubscriptionId: prodRegistry.SubscriptionId
   })),
   map(principalsIdsKeyVaultAccess, principalId => ({
-    principalId: principalId
+    principal: {
+      principalId: principalId
+      principalType: 'ServicePrincipal'
+    }
     resourceGroupName: prodTlsCertKeyVault.ResourceGroupName
     resourceGroupSubscriptionId: prodTlsCertKeyVault.SubscriptionId
   }))
@@ -81,7 +87,7 @@ module tagContirbutorPermissions 'resource-group-role-assignment.bicep' = [for (
   name: '${uniqueString(deployment().name)}-${index}-TagsContrPermission'
   scope: resourceGroup((x.resourceGroupSubscriptionId ?? subscription().subscriptionId), x.resourceGroupName)
   params: {
-    principalId: x.principalId
+    principals: [x.principal]
     roleDefinitionId: '4a9ae827-6dc8-4573-8ac7-8239d42aa03f' // <- Tag Contributor
   }
 }]
