@@ -25,6 +25,9 @@
     * [From a powershell prompt](#from-a-powershell-prompt)
     * [From the github workflow](#from-the-github-workflow)
   * [Troubleshooting `provision-azure-resources.ps1`](#troubleshooting-provision-azure-resourcesps1)
+    * [Problem deploying SQL server](#problem-deploying-sql-server)
+    * [Problem deploying one or more Entra-ID app registrations](#problem-deploying-one-or-more-entra-id-app-registrations)
+    * [Problem Activating initial container app](#problem-activating-initial-container-app)
 <!-- TOC -->
 
 ## Overview
@@ -448,12 +451,12 @@ In practice the only way to run these scripts from a dev machine is:
    2. set `CompanyName` (line 20) to make it globally unique (eg change `CLC` to your initials)
    3. uncomment `ProductAbbreviation` (line 22) and make it globally unique (eg replace `-cc` with your initials)
    4. Review `Domain` settings (starting line 23) and adjust as required. At minimum replace 'codingdemo' with the value of a custom domain you own
-2. Setup shared infrastructure:
+2. Update the subscription id in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1) to your own subscription id
+3. Setup shared infrastructure:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
    ./tools/infrastructure/provision-shared-services.ps1 -InfA Continue -EnvironmentName dev -CreateSharedContainerRegistry -CreateSharedKeyVault -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
     ````
-3. Update the subscription id in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1) to your own subscription id
 4. Provision Azure resources:
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
