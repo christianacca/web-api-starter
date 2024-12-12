@@ -120,13 +120,8 @@ module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = if (settings
   }
 }
 
-resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Api.ManagedIdentity.Primary
-  location: location
-}
-
-resource apiAcrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Api.ManagedIdentity.AcrPull
+resource acrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.AcrPull.ResourceName
   location: location
 }
 
@@ -136,11 +131,14 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   name: '${uniqueString(deployment().name, location)}-${index}-AcrPullPermission'
   scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), registry.ResourceGroupName)
   params: {
-    principalId: apiAcrPullManagedId.properties.principalId
+    principalId: acrPullManagedId.properties.principalId
     resourceName: registry.ResourceName
     roleDefinitionId: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // 'AcrPull'
   }
 }]
+
+
+// ---------- Begin: ACA environments -----------
 
 var acaEnvSharedSettings = {
   certSettings: settings.TlsCertificates.Current
@@ -158,10 +156,31 @@ module acaEnvPrimary 'aca-environment.bicep' = {
   dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
 }
 
+var hasAcaFailover = !empty(settings.SubProducts.Aca.Failover ?? {})
+module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
+  params: {
+    instanceSettings: settings.SubProducts.Aca.Failover
+    sharedSettings: acaEnvSharedSettings
+  }
+  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
+}
+
+// ---------- End: ACA environments -----------
+
+
 var acaContainerRegistries = map(containerRegistries, registry => ({
   server: '${registry.ResourceName}.azurecr.io'
-  identity: apiAcrPullManagedId.id
+  identity: acrPullManagedId.id
 }))
+
+
+// ---------- Begin: Template.Api -----------
+
+resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity.Primary
+  location: location
+}
 
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
@@ -172,7 +191,7 @@ var apiSharedSettings = {
   }
   managedIdentityResourceIds: [
     apiManagedId.id
-    apiAcrPullManagedId.id
+    acrPullManagedId.id
   ]
   registries: acaContainerRegistries
   subProductsSettings: settings.SubProducts
@@ -188,16 +207,6 @@ module apiPrimary 'api.bicep' = {
   dependsOn: [acaEnvPrimary]
 }
 
-var hasAcaFailover = !empty(settings.SubProducts.Aca.Failover ?? {})
-module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
-  name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
-  params: {
-    instanceSettings: settings.SubProducts.Aca.Failover
-    sharedSettings: acaEnvSharedSettings
-  }
-  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
-}
-
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
   name: '${uniqueString(deployment().name, location)}-AcaApiFailover'
   params: {
@@ -207,6 +216,9 @@ module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ??
   }
   dependsOn: hasAcaFailover ? [acaEnvFailover] : []
 }
+
+// ---------- End: Template.Api -----------
+
 
 resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.InternalApi.ManagedIdentity

@@ -14,7 +14,7 @@ var isInitialContainerImage = exists ? existingApp.properties.template.container
 var exposedContainerPort = 8080
 
 module appEnvVars 'desired-env-vars.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-AcaApiEnvVars'
+  name: '${uniqueString(deployment().name, location)}-AcaEnvVars'
   params: {
     envVars: [
       {
@@ -62,8 +62,8 @@ module appEnvVars 'desired-env-vars.bicep' = {
   }
 }
 
-module api 'br/public:avm/res/app/container-app:0.11.0' = {
-  name: '${uniqueString(deployment().name, location)}-AcaApi'
+module app 'br/public:avm/res/app/container-app:0.11.0' = {
+  name: '${uniqueString(deployment().name, location)}-Aca'
   params: {
     containers: [
       {
