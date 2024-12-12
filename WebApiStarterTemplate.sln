@@ -1,5 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# 
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Template.Api", "src\Template.Api\Template.Api.csproj", "{305991B7-8A22-4E11-8F90-6F9D5AC16A87}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Template.Functions", "src\Template.Functions\Template.Functions.csproj", "{DD561531-4F91-4534-AACD-D7769EE1A141}"
@@ -7,6 +8,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Template.Shared", "src\Template.Shared\Template.Shared.csproj", "{55547C6A-F5FF-437D-AAC2-9E559DA85BF6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Azure.ManagedIdentity", "src\Azure.ManagedIdentity\Azure.ManagedIdentity.csproj", "{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Template.App", "src\Template.App\Template.App.csproj", "{6A20EA9B-C08B-4686-887E-607E06DADA2D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,5 +33,9 @@ Global
 		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6C8356A7-59CF-4CC7-9C9D-CA235E1D1F33}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A20EA9B-C08B-4686-887E-607E06DADA2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A20EA9B-C08B-4686-887E-607E06DADA2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A20EA9B-C08B-4686-887E-607E06DADA2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A20EA9B-C08B-4686-887E-607E06DADA2D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
