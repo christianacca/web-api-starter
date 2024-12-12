@@ -159,12 +159,14 @@
         $ErrorActionPreference = 'Stop'
         $WarningPreference = 'Continue'
 
+        . "$PSScriptRoot/ps-functions/Get-AcaAppInfoVars.ps1"
         . "$PSScriptRoot/ps-functions/Get-AzModuleInfo.ps1"
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
         . "$PSScriptRoot/ps-functions/Get-ServicePrincipalAccessToken.ps1"
         . "$PSScriptRoot/ps-functions/Grant-RbacRole.ps1"
+        . "$PSScriptRoot/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
@@ -298,21 +300,16 @@
             if ($convention.SubProducts.Sql.Firewall.Rule) {
                 $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
+            
             Write-Information "  Gathering existing resource information..."
-            $apiFailoverExists = if ($convention.SubProducts.Api.Failover) {
-                $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Failover.ResourceName -EA SilentlyContinue)    
-            } else {
-                $false
-            }
-            $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
+            $apiDeployVars = Get-AcaAppInfoVars $convention -SubProductName Api
+            
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
-                    apiFailoverExists           =   $apiFailoverExists
-                    apiPrimaryExists            =   $apiPrimaryExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
-                }
+                } + $apiDeployVars
                 TemplateFile        =   Join-Path $templatePath main.bicep
             }
             if ($WhatIfAzureResourceDeployment) {
