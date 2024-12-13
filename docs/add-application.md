@@ -84,7 +84,8 @@ We're just need to define our preferred docker base image
    Dockerfile
    ```
 
-## 3. Extend infra-as-code to deploy new app
+
+## 3. Extend infra-as-code conventions for new app
 
 1. Add app created above to [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1)
 
@@ -102,3 +103,108 @@ We're just need to define our preferred docker base image
    ```pwsh
    (./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).SubProducts.App | ConvertTo-Json
     ```
+
+
+## 4. Add initial azure container app definition to infra-as-code bicep
+
+1. Add new parameters to the main.bicep file:
+
+   ```bicep
+   param appPrimaryExists bool = true
+   param appFailoverExists bool = true
+   ```
+      
+   Name these parameters with a prefix to match the new app name. For example if your app was named `Template.Web`, then
+   the parameters would be `webPrimaryExists` and `webFailoverExists`.
+      
+2. Copy existing api.bicep definition. Name the copy after the name of your application. In our case that's app.bicep
+   
+3. Adapt the definition in this new app.bicep file as follows:
+   * adjust the `appEnvVars` module to include any environment variables required by the app
+     * **TIP**: pick names for these variables that start with a prefix to clearly separate from other apps in the solution (for our new project use `App__`)
+   * adjust the `scaleRules` to match the expected scaling requirement for the app
+
+4. Add to main.bicep the azure container app module and managed identity for the app
+      
+   * Copy the existing api module section starting and end `Template.Api` and rename `api` to `app` and `Api` to `App`
+   * Adjust the shared settings for the azure container app to NOT enable custom domain (this will be enabled later). EG:
+   
+     ```bicep
+     var appSharedSettings = {
+       // SNIP
+       isCustomDomainEnabled: false
+       // isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
+     }
+     ```
+
+5. Add output variable for the managed identity of the new app
+
+   Add the following to the output section of main.bicep, adjusting the name as needed:
+
+   ```bicep
+   @description('The Client ID of the Azure AD application associated with the MVC App managed identity.')
+   output appManagedIdentityClientId string = appManagedId.properties.clientId
+   ```
+   
+6. Assign RBAC role assignment and app role assignment to the new app managed identity
+
+   This will depend on the access requirements for the new app. For example, if the app needs to secrets from a key vault, then
+   the managed identity will need to be assigned the `Key Vault Secrets User` role. If the app needs to access a storage account,
+   then the managed identity will need to be assigned the `Storage Blob Data Contributor` role, etc.
+
+   Example: in main.bicep grant permission to read key secrets to new app's managed identity
+
+   ```bicep
+   module keyVault 'br/public:avm/res/key-vault/vault:0.11.0' = {
+     name: '${uniqueString(deployment().name, location)}-KeyVault'
+     params: {
+       // SNIP
+       roleAssignments: [
+         { principalId: appManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+       ]
+     }
+   }
+   ```
+      
+## 5. Adjust infra-as-code provisioning scripts
+
+Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-resources.ps1) as follows
+
+1. Gather the bicep deployment variables for the new app and add these to the bicep `TemplateParameterObject`
+
+   EG:
+
+   ```pwsh
+   Write-Information "  Gathering existing resource information..."
+   $mainArmTemplateParams = @(
+       # <SNIP>
+       Get-AcaAppInfoVars $convention -SubProductName App
+   )
+   ```
+   
+2. Print out the managed identity client id of the new app
+
+   EG:
+
+   ```pwsh
+   Write-Information '  Creating desired resource state'
+   # <SNIP>
+   Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
+   ```
+   
+3. Grant membership to required Entra-ID security groups
+
+   EG:
+
+   ```pwsh
+   Write-Information '8. Set AAD groups - for resources (post-resource creation)...'
+   
+   # <SNIP>
+   
+   $dbCrudMembership = @(
+       @{
+           ApplicationId       =   $armResources.appManagedIdentityClientId.Value
+           Type                =   'ServicePrincipal'
+       }
+   )
+   ```
