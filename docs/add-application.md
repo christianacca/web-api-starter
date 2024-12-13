@@ -208,3 +208,30 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
        }
    )
    ```
+   
+4. Deploy new azure container app
+
+   ```pwsh
+   # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+   ./tools/infrastructure/provision-azure-resources.ps1 -InfA Continue -EnvironmentName dev -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+   ```
+   
+5. Verify the initial azure container app is running
+
+   
+
+   ```pwsh
+   $dev = & "tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
+   $subProductName = 'App' # <- IMPORTANT: change to the name of the sub-product you are verifying
+   $aceDomain = (Get-AzContainerAppManagedEnv -ResourceGroupName $dev.AppResourceGroup.ResourceName -Name $dev.SubProducts.Aca.Primary.ResourceName).DefaultDomain
+   $acaInfo = [ordered]@{
+     ResourceGroup   = $dev.AppResourceGroup.ResourceName
+     AcaEnvironment  = $dev.SubProducts.Aca.Primary.ResourceName
+     Aca             = $dev.SubProducts[$subProductName].Primary.ResourceName
+     Url           = ('https://{0}.{1}' -f $dev.SubProducts[$subProductName].Primary.ResourceName, $aceDomain)
+   }
+   [PsCustomObject]$acaInfo | fl *
+   ```
+   
+   * Browse to the URL printed above to verify the app is running correctly. You should see the default asp.net core sample app page
+   
