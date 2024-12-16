@@ -40,23 +40,15 @@ process {
         $convention = & "./tools/infrastructure/get-product-conventions.ps1" -EnvironmentName $environment -AsHashtable
         $infra = & "./tools/infrastructure/get-infrastructure-info.ps1" $convention -AsHashtable
         
-        $api = $convention.SubProducts.Api
-        $funcApp = $convention.SubProducts.InternalApi
-        $keyVault = $convention.SubProducts.KeyVault
-        $reportsStorage = $convention.SubProducts.PbiReportStorage
         $appResourceGroup = $convention.AppResourceGroup.ResourceName
         
-        $sqlServerName = $convention.SubProducts.Sql.Primary.ResourceName
-        $sqlServerInstace = "$sqlServerName.database.windows.net"
-        $databaseName = $convention.SubProducts.Db.ResourceName
-        
-        $apiSecretValues = Get-DotnetUserSecrets -UserSecretsId d4101dd7-fec4-4011-a0e8-65748f7ee73c
-        $apiDevAppSettings = Get-Content ./src/Template.Api/appsettings.Development.json | ConvertFrom-Json
-        
         # ----------- Deploy Database migrations -----------
-        ./tools/dev-scripts/deploy-db.ps1 -SqlServerName $sqlServerName -DatabaseName $databaseName -EA Stop
+        ./tools/dev-scripts/deploy-db.ps1 -SqlServerName $convention.SubProducts.Sql.Primary.ResourceName -DatabaseName $convention.SubProducts.Db.ResourceName -EA Stop
 
         # ----------- Deploy API to Azure container apps -----------
+        $api = $convention.SubProducts.Api
+        $apiSecretValues = Get-DotnetUserSecrets -UserSecretsId d4101dd7-fec4-4011-a0e8-65748f7ee73c
+        $apiDevAppSettings = Get-Content ./src/Template.Api/appsettings.Development.json | ConvertFrom-Json
         $apiParams = @{
             Name                =   $api.Primary.ResourceName
             ResourceGroup       =   $appResourceGroup
@@ -75,6 +67,7 @@ process {
 
         
         # ----------- Deploy Function app -----------
+        $funcApp = $convention.SubProducts.InternalApi
         $funcParams = @{
             AppSettings                     =   @{
             # for list of in-built settings see: https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings
@@ -82,11 +75,11 @@ process {
             }
             ConfigureAppSettingsJson        =   { param([Hashtable] $Settings)
                 $Settings.InternalApi.Database.DataSource = $convention.SubProducts.Sql.Primary.DataSource
-                $Settings.InternalApi.Database.InitialCatalog = $databaseName
+                $Settings.InternalApi.Database.InitialCatalog = $convention.SubProducts.Db.ResourceName
                 $Settings.InternalApi.Database.UserID = $infra.InternalApi.ManagedIdentityClientId
                 $Settings.InternalApi.DefaultAzureCredentials.ManagedIdentityClientId = $infra.InternalApi.ManagedIdentityClientId
-                $Settings.InternalApi.KeyVaultName = $keyVault.ResourceName
-                $Settings.InternalApi.ReportBlobStorage.ServiceUri = "https://$($reportsStorage.StorageAccountName).blob.core.windows.net"
+                $Settings.InternalApi.KeyVaultName = $convention.SubProducts.KeyVault.ResourceName
+                $Settings.InternalApi.ReportBlobStorage.ServiceUri = "https://$($convention.SubProducts.PbiReportStorage.StorageAccountName).blob.core.windows.net"
             }
             ResourceGroup                   =   $appResourceGroup
             Name                            =   $funcApp.ResourceName
@@ -99,7 +92,7 @@ process {
         Write-Host "Api Url: https://$($apiAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
         Write-Host "Api Health Url: https://$($apiAca.configuration.ingress.fqdn)/health" -ForegroundColor Yellow
         Write-Host "Function App Url: https://$($funcApp.HostName)" -ForegroundColor Yellow
-        Write-Host "Azure SQL Public Url: https://$($sqlServerInstace):1433" -ForegroundColor Yellow
+        Write-Host "Azure SQL Public Url: https://$($convention.SubProducts.Sql.Primary.ResourceName).database.windows.net:1433" -ForegroundColor Yellow
         Write-Host '******************* Summary: end ********************************'
         
     }
