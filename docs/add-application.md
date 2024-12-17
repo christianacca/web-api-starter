@@ -2,7 +2,8 @@
 
 [!IMPORTANT]
 For the purposes of this guide, the name of the MVC web application will be Template.App. For your app, pick a name that
-is suitable for your solution. Once selected use that name in place of Template.App in the following instructions.
+is suitable for your solution. Use that name and substitute `Template.App`, `App` and `app` in the instructions below.
+For example, if you chose `Template.Web` then use the following substitutions: `Template.Web`, `Web` and `web`.
 
 ## 1. Create a new dotnet project and add to solution
 
@@ -209,7 +210,7 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    )
    ```
    
-4. Deploy new azure container app
+4. Deploy initial azure container app infrastructure
 
    ```pwsh
    # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
@@ -218,11 +219,9 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    
 5. Verify the initial azure container app is running
 
-   
-
    ```pwsh
    $dev = & "tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
-   $subProductName = 'App' # <- IMPORTANT: change to the name of the sub-product you are verifying
+   $subProductName = 'App'
    $aceDomain = (Get-AzContainerAppManagedEnv -ResourceGroupName $dev.AppResourceGroup.ResourceName -Name $dev.SubProducts.Aca.Primary.ResourceName).DefaultDomain
    $acaInfo = [ordered]@{
      ResourceGroup   = $dev.AppResourceGroup.ResourceName
@@ -234,4 +233,57 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    ```
    
    * Browse to the URL printed above to verify the app is running correctly. You should see the default asp.net core sample app page
+
+## 5. Adjust dev script to deploy new azure container app
+
+1. Add new azure container app to the [deploy.ps1](../tools/dev-scripts/deploy.ps1) script
+
+   * Copy the section `# ----------- Deploy API to Azure container apps -----------` adjusting for the new container app. 
+     EG:
+
+     ```pwsh
+     # ----------- Deploy App to Azure container apps -----------
+     $app = $convention.SubProducts.App
+     $appParams = @{
+       Name                =   $app.Primary.ResourceName
+       ResourceGroup       =   $appResourceGroup
+       Image               =   '{0}.azurecr.io/{1}:{2}' -f $convention.ContainerRegistries.Dev.ResourceName, $app.ImageName, $BuildNumber
+       EnvVarsObject       =   @{
+         'ApplicationInsights__AutoCollectActionArgs' = $true
+       }
+       HealthRequestPath   =   $app.DefaultHealthPath
+       TestRevision        =   $true
+     }
+     $appAca = ./tools/dev-scripts/create-aca-revision.ps1 @appParams -InfA Continue -EA Stop
+     ```
+
+   * Print the url of the new container app. EG:
+
+     ```pwsh
+     Write-Host "App Url: https://$($appAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
+     ```
+
+2. Deploy azure container app
+
+   1. Build the solution, publishing docker image:
+
+      ```pwsh
+      az login
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      az account set --subscription xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ./tools/dev-scripts/build.ps1 -DockerPush -InfA Continue
+      ```
+      * **IMPORTANT**: You will need to have docker engine installed and running on your machine in order to build and push the images
+      * When prompted for build number, enter value such as `0.0.7`, picking a value that is higher than the last build number
    
+   2. Deploy application stack:
+
+      ```pwsh
+      # IMPORTANT: You will likely need to connected to the office VPN in order to satisfy the firewall rules configured in the Azure SQL db
+      # 'CC - Visual Studio Enterprise' subscription id: 402f88b4-9dd2-49e3-9989-96c788e93372
+      ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
+      ````
+   
+      * When prompted for build number, enter the same value you provided above when building the solution
+
+   3. Test that it worked by browsing to the "App health Url" printed to the console

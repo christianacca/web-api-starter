@@ -3,5 +3,5 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled-extra
 
 WORKDIR /app
 
-ENTRYPOINT ["dotnet", "Template.Api.dll"]
+ENTRYPOINT ["dotnet", "Template.App.dll"]
 COPY . .
