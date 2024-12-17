@@ -88,7 +88,7 @@ with the 'Grant RBAC management permission to provisioning service principals?' 
 > Highly likely DNS zones are maintained by other teams and is not part of the deployment process for the app
 
 > [!Important]
-> This step needs to be repeated any time a new environment is provisioned
+> This step needs to be repeated any time a new environment and/or a new azure container app is provisioned
 
 Each container app will be assigned a custom domain that will be used to access that app over https. The DNS records for
 these custom domains must be registered in the DNS zone for that custom domain.
@@ -102,11 +102,18 @@ _for each environment_ that this service is being deployed to:
 > [!WARNING]
 > The `TXT` record must be added to the DNS zone before the azure container app can be created.
 
-To find the values for the values for these DNS record for a specific environment, run the following script:
+To find the values for these DNS record for a specific environment, run the following script:
 
 ```pwsh
 # note: replace 'dev, qa' with the environments you want to get the DNS records for. Leave blank to get all environments
 ./tools/infrastructure/print-custom-dns-record-table.ps1 dev, qa -Login
+```
+
+To find the values for these DNS record for all environments for a specific component, run the following script:
+
+```pwsh
+# note: replace 'Api' with the name of the component you want to get the DNS records for. Leave blank to get all componnts
+./tools/infrastructure/print-custom-dns-record-table.ps1 -Component 'Api' -Login
 ```
 
 ## Add whitelists to Cloudflare Web Application Firewall (WAF)
