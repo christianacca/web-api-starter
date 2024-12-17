@@ -302,15 +302,19 @@
             }
             
             Write-Information "  Gathering existing resource information..."
-            $apiDeployVars = Get-AcaAppInfoVars $convention -SubProductName Api
+            $mainArmTemplateParams = @(
+                @{
+                    settings                    =   $convention
+                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
+                }
+                Get-AcaAppInfoVars $convention -SubProductName Api
+                Get-AcaAppInfoVars $convention -SubProductName App
+            )
             
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
-                TemplateParameterObject =   @{
-                    settings                    =   $convention
-                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
-                } + $apiDeployVars
-                TemplateFile        =   Join-Path $templatePath main.bicep
+                TemplateParameterObject =   $mainArmTemplateParams | Join-Hashtable
+                TemplateFile            =   Join-Path $templatePath main.bicep
             }
             if ($WhatIfAzureResourceDeployment) {
                 Write-Information '  Print Azure resource desired state changes only...'
@@ -319,6 +323,7 @@
             }
             Write-Information '  Creating desired resource state'
             $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
+            Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
             Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
             Write-Information "  INFO | 'Azure SQL Managed Identity Client Id':- $($armResources.sqlManagedIdentityClientId.Value)"
@@ -352,6 +357,10 @@
             $dbCrudMembership = @(
                 @{
                     ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
+                    Type                =   'ServicePrincipal'
+                }
+                @{
+                    ApplicationId       =   $armResources.appManagedIdentityClientId.Value
                     Type                =   'ServicePrincipal'
                 }
                 @{

@@ -4,6 +4,12 @@ param apiFailoverExists bool = true
 @description('Whether the primary intance of the API container app already exists.')
 param apiPrimaryExists bool = true
 
+@description('Whether the failover intance of the MVC App container app already exists.')
+param appFailoverExists bool = true
+
+@description('Whether the primary intance of the MVC App container app already exists.')
+param appPrimaryExists bool = true
+
 param location string = resourceGroup().location
 
 @description('The settings for all resources provisioned by this template. TIP: to find the structure of settings object use: ./tools/infrastructure/get-product-conventions.ps1')
@@ -30,6 +36,7 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.11.0' = {
     }
     roleAssignments: [
       { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+      { principalId: appManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
       { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
     ]
   }
@@ -238,6 +245,66 @@ module apiTrafficManager 'traffic-manager-profile.bicep' = {
 // ---------- End: Template.Api -----------
 
 
+// ---------- Begin: Template.App -----------
+
+resource appManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.App.ManagedIdentity.Primary
+  location: location
+}
+
+var appSharedSettings = {
+  appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+  certSettings: settings.TlsCertificates.Current
+  isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
+  managedIdentityClientIds: {
+    default: appManagedId.properties.clientId
+  }
+  managedIdentityResourceIds: [
+    appManagedId.id
+    acrPullManagedId.id
+  ]
+  registries: acaContainerRegistries
+  subProductsSettings: settings.SubProducts
+}
+
+module appPrimary 'app.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AcaAppPrimary'
+  params: {
+    exists: appPrimaryExists
+    instanceSettings: settings.SubProducts.App.Primary
+    sharedSettings: appSharedSettings
+  }
+  dependsOn: [acaEnvPrimary]
+}
+
+module appFailover 'app.bicep' = if (!empty(settings.SubProducts.App.Failover ?? {})) {
+  name: '${uniqueString(deployment().name, location)}-AcaAppFailover'
+  params: {
+    instanceSettings: settings.SubProducts.App.Failover
+    exists: appFailoverExists
+    sharedSettings: appSharedSettings
+  }
+  dependsOn: hasAcaFailover ? [acaEnvFailover] : []
+}
+
+var appTmEndpoints = map(settings.SubProducts.AppTrafficManager.Endpoints, endpoint => ({ 
+  ...endpoint
+  Target: replace(endpoint.Target, 'ACA_ENV_DEFAULT_DOMAIN', endpoint.Name == settings.SubProducts.App.Primary.ResourceName ? acaPrimaryDomain : acaFailoverDomain )
+}))
+
+module appTrafficManager 'traffic-manager-profile.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AppTrafficManager'
+  params: {
+    tmSettings: {
+      ...settings.SubProducts.AppTrafficManager
+      Endpoints: appTmEndpoints
+    }
+  }
+}
+
+// ---------- End: Template.App -----------
+
+
 resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.InternalApi.ManagedIdentity
   location: location
@@ -308,6 +375,8 @@ module azureSqlDb 'azure-sql-server.bicep' = {
 
 @description('The Client ID of the Azure AD application associated with the api managed identity.')
 output apiManagedIdentityClientId string = apiManagedId.properties.clientId
+@description('The Client ID of the Azure AD application associated with the app managed identity.')
+output appManagedIdentityClientId string = appManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
 output internalApiManagedIdentityClientId string = internalApiManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the sql managed identity.')

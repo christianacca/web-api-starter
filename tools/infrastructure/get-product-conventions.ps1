@@ -65,6 +65,12 @@
                     ApiAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'Api' }
                     # example of an extended health check:
 #                    ApiExtendedAvailabilityTest =   @{ Type = 'AvailabilityTest'; IsExtendedCheck = $true; Path = '/health-extended'; Target = 'Api' }
+                    App                 = @{
+                        AdditionalManagedId = 'AcrPull'
+                        Type = 'AcaApp'
+                    }
+                    AppAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'App' }
+                    AppTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'App' }
                     KeyVault            =   @{ Type = 'KeyVault' }
 #                    Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }

@@ -65,6 +65,21 @@ process {
         }
         $apiAca = ./tools/dev-scripts/create-aca-revision.ps1 @apiParams -InfA Continue -EA Stop
 
+
+        # ----------- Deploy App to Azure container apps -----------
+        $app = $convention.SubProducts.App
+        $appParams = @{
+            Name                =   $app.Primary.ResourceName
+            ResourceGroup       =   $appResourceGroup
+            Image               =   '{0}.azurecr.io/{1}:{2}' -f $convention.ContainerRegistries.Dev.ResourceName, $app.ImageName, $BuildNumber
+            EnvVarsObject       =   @{
+                'ApplicationInsights__AutoCollectActionArgs' = $true
+            }
+            HealthRequestPath   =   $app.DefaultHealthPath
+            TestRevision        =   $true
+        }
+        $appAca = ./tools/dev-scripts/create-aca-revision.ps1 @appParams -InfA Continue -EA Stop
+
         
         # ----------- Deploy Function app -----------
         $funcApp = $convention.SubProducts.InternalApi
@@ -90,6 +105,7 @@ process {
 
         Write-Host '******************* Summary: start ******************************'
         Write-Host "Api Url: https://$($apiAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
+        Write-Host "App Url: https://$($appAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
         Write-Host "Api Health Url: https://$($apiAca.configuration.ingress.fqdn)/health" -ForegroundColor Yellow
         Write-Host "Function App Url: https://$($funcApp.HostName)" -ForegroundColor Yellow
         Write-Host "Azure SQL Public Url: https://$($convention.SubProducts.Sql.Primary.ResourceName).database.windows.net:1433" -ForegroundColor Yellow
