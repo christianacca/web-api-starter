@@ -287,3 +287,51 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
       * When prompted for build number, enter the same value you provided above when building the solution
 
    3. Test that it worked by browsing to the "App health Url" printed to the console
+
+## 6. Add app to the solution's CI/CD pipeline
+
+1. Modify the 'Map variables' step in the [__Application Deployment](../.github/workflows/__app-deploy.yml) github workflow 
+   to include the variables required for the new app. At minimum this will be:
+
+   ```yml
+   ".*": {
+     # <SNIP>
+     "gha_step_deploy_app_envVarsSelector": "App_*,ApplicationInsights_*",
+     "gha_step_deploy_app_imageToDeploy": "${{ inputs.docker-registry }}/${{ env.Convention_SubProducts_App_ImageName }}:${{ inputs.docker-image-tag }}"
+     # <SNIP>
+   }
+   ```
+   
+2. Deploy the new azure container app to both the primary and failover ACA environments:
+
+   1. Copy the existing 'Deploy App to Azure container apps' step in the pipeline and adjust for the new app. EG:
+
+      ```yml
+      - name: Deploy App (primary region)
+        uses: christianacca/container-apps-revision-action@v1
+        with:
+        containerAppName: ${{ env.Convention_SubProducts_App_Primary_ResourceName }}
+        envVarsSelector: ${{ env.gha_step_deploy_app_envVarsSelector }}
+        envVarKeyTransform: _=>__
+        healthRequestPath: ${{ env.Convention_SubProducts_App_DefaultHealthPath }}
+        imageToDeploy: ${{ env.gha_step_deploy_app_imageToDeploy }}
+        resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
+        testRevision: true
+      
+      - name: Deploy App (failover region)
+        if: ${{ env.Convention_SubProducts_App_Failover_ResourceName != null }}
+        uses: christianacca/container-apps-revision-action@v1
+        with:
+        containerAppName: ${{ env.Convention_SubProducts_App_Failover_ResourceName }}
+        envVarsSelector: ${{ env.gha_step_deploy_app_envVarsSelector }}
+        envVarKeyTransform: _=>__
+        healthRequestPath: ${{ env.Convention_SubProducts_App_DefaultHealthPath }}
+        imageToDeploy: ${{ env.gha_step_deploy_app_imageToDeploy }}
+        resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
+        testRevision: true
+      ```
+      
+   2. Commit the changes and push to PR branch
+      * The changes made to the workflow will NOT yet be executed. Only the initial build, test and publish steps will be executed
+   3. Manually run the [Application CI/CD](../.github/workflows/app-ci-cd.yml) github workflow selecting the PR branch
+      * This will execute the deployment steps for the new app

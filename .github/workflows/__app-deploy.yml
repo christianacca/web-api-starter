@@ -51,6 +51,7 @@ jobs:
           environment-name: ${{ inputs.environment-name }}
 
       - uses: kanga333/variable-mapper@3681b75f5c6c00162721168fb91ab74925eaebcb # <- v0.3.0
+        name: Map variables
         with:
           mode: fill
           key: "${{ inputs.environment-name }}"
@@ -88,6 +89,8 @@ jobs:
                 "ApplicationInsights_AutoCollectActionArgs": "${{ env.Convention_IsTestEnv }}",
                 "gha_step_deploy_api_envVarsSelector": "Api_*,ApplicationInsights_*,CentralIdentity_*,EnvironmentInfo_*",
                 "gha_step_deploy_api_imageToDeploy": "${{ inputs.docker-registry }}/${{ env.Convention_SubProducts_Api_ImageName }}:${{ inputs.docker-image-tag }}",
+                "gha_step_deploy_app_envVarsSelector": "App_*,ApplicationInsights_*",
+                "gha_step_deploy_app_imageToDeploy": "${{ inputs.docker-registry }}/${{ env.Convention_SubProducts_App_ImageName }}:${{ inputs.docker-image-tag }}",
                 "EnvironmentInfo_EnvId": "${{ inputs.environment-name }}",
                 "EnvironmentInfo_InfraVersion": "${{ env.Infra_Version }}",
                 "InternalApi_Database_DataSource": "${{ env.Convention_SubProducts_Sql_Primary_DataSource }}",
@@ -132,6 +135,29 @@ jobs:
           envVarKeyTransform: _=>__
           healthRequestPath: ${{ env.Convention_SubProducts_Api_DefaultHealthPath }}
           imageToDeploy: ${{ env.gha_step_deploy_api_imageToDeploy }}
+          resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
+          testRevision: true
+
+      - name: Deploy App (primary region)
+        uses: christianacca/container-apps-revision-action@v1
+        with:
+          containerAppName: ${{ env.Convention_SubProducts_App_Primary_ResourceName }}
+          envVarsSelector: ${{ env.gha_step_deploy_app_envVarsSelector }}
+          envVarKeyTransform: _=>__
+          healthRequestPath: ${{ env.Convention_SubProducts_App_DefaultHealthPath }}
+          imageToDeploy: ${{ env.gha_step_deploy_app_imageToDeploy }}
+          resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
+          testRevision: true
+
+      - name: Deploy App (failover region)
+        if: ${{ env.Convention_SubProducts_App_Failover_ResourceName != null }}
+        uses: christianacca/container-apps-revision-action@v1
+        with:
+          containerAppName: ${{ env.Convention_SubProducts_App_Failover_ResourceName }}
+          envVarsSelector: ${{ env.gha_step_deploy_app_envVarsSelector }}
+          envVarKeyTransform: _=>__
+          healthRequestPath: ${{ env.Convention_SubProducts_App_DefaultHealthPath }}
+          imageToDeploy: ${{ env.gha_step_deploy_app_imageToDeploy }}
           resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
           testRevision: true
 
