@@ -106,7 +106,6 @@ process {
         Write-Host '******************* Summary: start ******************************'
         Write-Host "Api Url: https://$($apiAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
         Write-Host "App Url: https://$($appAca.configuration.ingress.fqdn)" -ForegroundColor Yellow
-        Write-Host "Api Health Url: https://$($apiAca.configuration.ingress.fqdn)/health" -ForegroundColor Yellow
         Write-Host "Function App Url: https://$($funcApp.HostName)" -ForegroundColor Yellow
         Write-Host "Azure SQL Public Url: https://$($convention.SubProducts.Sql.Primary.ResourceName).database.windows.net:1433" -ForegroundColor Yellow
         Write-Host '******************* Summary: end ********************************'

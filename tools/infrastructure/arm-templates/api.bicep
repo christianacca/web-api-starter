@@ -4,7 +4,7 @@ param sharedSettings sharedSettingsType
 
 var location = instanceSettings.ResourceLocation
 
-var initialAppImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+var initialAppImage = 'mcr.microsoft.com/dotnet/samples:aspnetapp'
 var appImage = exists ? existingApp.properties.template.containers[0].image : initialAppImage
 // initial image does not define a http health endpoint at the path we want for our image, therefore for a reasonable
 // default exerience when creating the container app for the first time fallback to defaults that container-apps will configure

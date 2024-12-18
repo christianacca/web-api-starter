@@ -6,8 +6,9 @@
   * [4. Add initial azure container app definition to infra-as-code bicep](#4-add-initial-azure-container-app-definition-to-infra-as-code-bicep)
   * [5. Adjust infra-as-code provisioning scripts](#5-adjust-infra-as-code-provisioning-scripts)
   * [6. Adjust dev deploy script to deploy new azure container app](#6-adjust-dev-deploy-script-to-deploy-new-azure-container-app)
-  * [7. Add app to the solution's CI/CD pipeline](#7-add-app-to-the-solutions-cicd-pipeline)
-  * [8. Implement custom domain for the new app](#8-implement-custom-domain-for-the-new-app)
+  * [7. Update dev setup guide](#7-update-dev-setup-guide)
+  * [8. Add app to the solution's CI/CD pipeline](#8-add-app-to-the-solutions-cicd-pipeline)
+  * [9. Implement custom domain for the new app](#9-implement-custom-domain-for-the-new-app)
 <!-- TOC -->
 
 # Instructions for adding a new application to the solution
@@ -103,7 +104,7 @@ for "inner-loop" development.
    add file named Dockerfile to the root of the new project with the following definition:
 
    ```yaml
-   FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled-extra # <- change '8.0' to the version of the .net you are targeting
+   FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled-extra
    #EXPOSE 8080 <- this is the default port that a .net 8+ application will be configured to listen on and is the port exposed in the base docker image
    
    WORKDIR /app
@@ -151,11 +152,12 @@ for "inner-loop" development.
 
    ```pwsh
    $dev = ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable
+   $subProductName = 'App'
    @{
-     App = $dev.SubProducts.App
-     AppAvailabilityTest = $dev.SubProducts.AppAvailabilityTest
-     AppTrafficManager = $dev.SubProducts.AppTrafficManager
-   } | ConvertTo-Json
+     ContainerApp = $dev.SubProducts[$subProductName]
+     AvailabilityTest = $dev.SubProducts["$($subProductName)AvailabilityTest"]
+     TrafficManager = $dev.SubProducts["$($subProductName)TrafficManager"]
+   } | ConvertTo-Json -Depth 100
     ```
 
 
@@ -164,8 +166,8 @@ for "inner-loop" development.
 1. Add new parameters to the [main.bicep](../tools/infrastructure/arm-templates/main.bicep) file:
 
    ```bicep
-   param appPrimaryExists bool = true
    param appFailoverExists bool = true
+   param appPrimaryExists bool = true
    ```
       
    Name these parameters with a prefix to match the new app name. For example if your app was named `Template.Web`, then
@@ -332,9 +334,16 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    
       * When prompted for build number, enter the same value you provided above when building the solution
 
-   3. Test that it worked by browsing to the "App health Url" printed to the console
+   3. Test that it worked by browsing to the "App Url" printed to the console
 
-## 7. Add app to the solution's CI/CD pipeline
+## 7. Update dev setup guide
+
+Add a section to the [dev-setup.md](../docs/dev-setup.md) guide to explain how to configure and run new app for local 
+development.
+
+For an example section to add, see [dev-setup.md](../docs/dev-setup.md#app)
+
+## 8. Add app to the solution's CI/CD pipeline
 
 1. Modify the 'Map variables' step in the [__Application Deployment](../.github/workflows/__app-deploy.yml) github workflow 
    to include the variables required for the new app. At minimum this will be:
@@ -382,7 +391,7 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    3. Manually run the [Application CI/CD](../.github/workflows/app-ci-cd.yml) github workflow selecting the PR branch
       * This will execute the deployment steps for the new app
 
-## 8. Implement custom domain for the new app
+## 9. Implement custom domain for the new app
 
 1. Create DNS records for the new app
 

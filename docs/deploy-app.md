@@ -27,7 +27,6 @@
   * [Troubleshooting `provision-azure-resources.ps1`](#troubleshooting-provision-azure-resourcesps1)
     * [Problem deploying SQL server](#problem-deploying-sql-server)
     * [Problem deploying one or more Entra-ID app registrations](#problem-deploying-one-or-more-entra-id-app-registrations)
-    * [Problem Activating initial container app](#problem-activating-initial-container-app)
 <!-- TOC -->
 
 ## Overview
@@ -490,7 +489,7 @@ In practice the only way to run these scripts from a dev machine is:
    ./tools/dev-scripts/deploy.ps1 -InfA Continue -Login -SubscriptionId xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx
    ````
 7. Test that it worked:
-   * browse to the "Api health Url" printed to the console
+   * browse to the "Api Url" printed to the console
    * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-dev.postman_environment.json),
      change the baseUrl postman variable to the "Api Url" printed to the console. Run the requests in the collection
 
@@ -560,17 +559,3 @@ To resolve:
    * select the "Delete permanently" button
    * wait until the application is permanently deleted (might take up to a minute)
 5. retry the failing infrastructure workflow run
-
-### Problem Activating initial container app
-
-After successfully running `provision-azure-resources.ps1` for the first time for the environment, but before you have
-deployed the application that's hosted by the infrastructure (ie before running [deploy.ps1](../tools/dev-scripts/deploy.ps1) 
-or the git workflow [Application CI/CD](../.github/workflows/app-ci-cd.yml))), you will see that the container app has
-failed to start and in the "Revisions and issues" tab for the container it will show the error "Activation failed".
-
-This is expected behaviour right now due to the initial docker container image that is deployed to the container app
-during the initial infrastructure deployment. This initial docker image exposes port 80, but the container app is 
-configured expected to expose port 8080.
-
-This issue will be resolved when the application docker image is deployed to the container app.
-
