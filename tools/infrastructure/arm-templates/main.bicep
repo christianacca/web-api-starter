@@ -110,22 +110,7 @@ module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.14.3' = {
   }
 }
 
-resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Aca.ManagedIdentity
-  location: location
-}
-
-var certSettings = settings.TlsCertificates.Current
-module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = if (settings.SubProducts.Aca.IsCustomDomainEnabled) {
-  name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
-  scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
-  params: {
-    certificateName: certSettings.ResourceName
-    keyVaultName: certSettings.KeyVault.ResourceName
-    principalId: acaEnvManagedId.properties.principalId
-    roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // 'Key Vault Secrets User'
-  }
-}
+// ---------- Begin: Container registeries -----------
 
 resource acrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.AcrPull.ResourceName
@@ -144,8 +129,32 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   }
 }]
 
+var acaContainerRegistries = map(containerRegistries, registry => ({
+  server: '${registry.ResourceName}.azurecr.io'
+  identity: acrPullManagedId.id
+}))
+
+// ---------- End: Container registeries -----------
+
 
 // ---------- Begin: ACA environments -----------
+
+resource acaEnvManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Aca.ManagedIdentity
+  location: location
+}
+
+var certSettings = settings.TlsCertificates.Current
+module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = if (settings.SubProducts.Aca.IsCustomDomainEnabled) {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvCertPermission'
+  scope: resourceGroup((certSettings.KeyVault.SubscriptionId ?? subscription().subscriptionId), certSettings.KeyVault.ResourceGroupName)
+  params: {
+    certificateName: certSettings.ResourceName
+    keyVaultName: certSettings.KeyVault.ResourceName
+    principalId: acaEnvManagedId.properties.principalId
+    roleDefinitionId: '4633458b-17de-408a-b874-0445c86b69e6' // 'Key Vault Secrets User'
+  }
+}
 
 var acaEnvSharedSettings = {
   certSettings: settings.TlsCertificates.Current
@@ -177,12 +186,6 @@ var acaPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
 var acaFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
 
 // ---------- End: ACA environments -----------
-
-
-var acaContainerRegistries = map(containerRegistries, registry => ({
-  server: '${registry.ResourceName}.azurecr.io'
-  identity: acrPullManagedId.id
-}))
 
 
 // ---------- Begin: Template.Api -----------
