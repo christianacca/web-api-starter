@@ -439,6 +439,7 @@ function Get-ResourceConvention {
                 $imageRepositoryPrefix = $ProductName.ToLower().Replace(' ', '-')
                 $hostName = Get-PublicHostName $EnvironmentName @Domain -SubProductName $componentName -IsMainUI:$isMainUI
                 @{
+                    Name                    =   $componentName
                     Primary                 =   $acaAppPrimary
                     Failover                =   if ($hasFailover) { $acaAppFailover } else { $null }
                     DefaultHealthPath       =   $acaShareSettings.DefaultHealthPath
@@ -586,6 +587,7 @@ function Get-ResourceConvention {
                     Port                =   $tmProtocol -eq 'HTTP' ? 80 : 443
                     Protocol            =   $tmProtocol
                     Endpoints           =   @() + $tmEndpoints
+                    Target              =   $spInput.Target
                     Type                =   $spInput.Type
                 }
             }

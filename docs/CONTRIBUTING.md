@@ -7,6 +7,7 @@
   * [API design conventions](#api-design-conventions)
   * [Typical tasks](#typical-tasks)
     * [Working with EF Core migrations](#working-with-ef-core-migrations)
+    * [Adding a new application](#adding-a-new-application)
 <!-- TOC -->
 
 This document is the a contribution guide for the AIG backend stack project. _It is a work in progress._
@@ -106,3 +107,7 @@ dotnet ef migrations remove -p src/Template.Shared -s src/Template.Api
 Remove-Item -Force -ErrorAction Continue ./obj/CreateOrUpdateDb.sql
 dotnet ef migrations script -i -o obj/CreateOrUpdateDb.sql -p src/Template.Shared -s src/Template.Api
 ```
+
+### Adding a new application
+
+Set guide [here](./add-application.md)

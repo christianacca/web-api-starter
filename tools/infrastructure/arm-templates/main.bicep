@@ -4,6 +4,12 @@ param apiFailoverExists bool = true
 @description('Whether the primary intance of the API container app already exists.')
 param apiPrimaryExists bool = true
 
+@description('Whether the failover intance of the MVC App container app already exists.')
+param appFailoverExists bool = true
+
+@description('Whether the primary intance of the MVC App container app already exists.')
+param appPrimaryExists bool = true
+
 param location string = resourceGroup().location
 
 @description('The settings for all resources provisioned by this template. TIP: to find the structure of settings object use: ./tools/infrastructure/get-product-conventions.ps1')
@@ -11,6 +17,8 @@ param settings object
 
 @description('The Object ID of the SQL AAD Admin security group.')
 param sqlAdAdminGroupObjectId string
+
+import { objectValues } from 'utils.bicep'
 
 
 var kvSettings = settings.SubProducts.KeyVault
@@ -28,6 +36,7 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.11.0' = {
     }
     roleAssignments: [
       { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
+      { principalId: appManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
       { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Key Vault Secrets User', principalType: 'ServicePrincipal' }
     ]
   }
@@ -41,9 +50,7 @@ module azureMonitor 'azure-monitor.bicep' = {
     alertEmailNonCritical: settings.IsEnvironmentProdLike ? 'christian.crowhurst@gmail.com' : 'christian.crowhurst@gmail.com'
     appInsightsName: aiSettings.ResourceName
     appName: settings.Product.Abbreviation
-    defaultAvailabilityTests: [
-      settings.SubProducts.ApiAvailabilityTest
-    ]
+    defaultAvailabilityTests: filter(objectValues(settings.SubProducts), x => x.Type == 'AvailabilityTest')
     enableMetricAlerts: aiSettings.IsMetricAlertsEnabled
     environmentName: settings.EnvironmentName
     environmentAbbreviation: aiSettings.EnvironmentAbbreviation
@@ -120,13 +127,8 @@ module acaEnvCertPermission 'keyvault-cert-role-assignment.bicep' = if (settings
   }
 }
 
-resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Api.ManagedIdentity.Primary
-  location: location
-}
-
-resource apiAcrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: settings.SubProducts.Api.ManagedIdentity.AcrPull
+resource acrPullManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.AcrPull.ResourceName
   location: location
 }
 
@@ -136,11 +138,14 @@ module acrPullPermissions 'acr-role-assignment.bicep' = [for (registry, index) i
   name: '${uniqueString(deployment().name, location)}-${index}-AcrPullPermission'
   scope: resourceGroup((registry.SubscriptionId ?? subscription().subscriptionId), registry.ResourceGroupName)
   params: {
-    principalId: apiAcrPullManagedId.properties.principalId
+    principalId: acrPullManagedId.properties.principalId
     resourceName: registry.ResourceName
     roleDefinitionId: '7f951dda-4ed3-4680-a7ca-43fe172d538d' // 'AcrPull'
   }
 }]
+
+
+// ---------- Begin: ACA environments -----------
 
 var acaEnvSharedSettings = {
   certSettings: settings.TlsCertificates.Current
@@ -158,10 +163,34 @@ module acaEnvPrimary 'aca-environment.bicep' = {
   dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
 }
 
+var hasAcaFailover = !empty(settings.SubProducts.Aca.Failover ?? {})
+module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
+  name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
+  params: {
+    instanceSettings: settings.SubProducts.Aca.Failover
+    sharedSettings: acaEnvSharedSettings
+  }
+  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
+}
+
+var acaPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
+var acaFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
+
+// ---------- End: ACA environments -----------
+
+
 var acaContainerRegistries = map(containerRegistries, registry => ({
   server: '${registry.ResourceName}.azurecr.io'
-  identity: apiAcrPullManagedId.id
+  identity: acrPullManagedId.id
 }))
+
+
+// ---------- Begin: Template.Api -----------
+
+resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.Api.ManagedIdentity.Primary
+  location: location
+}
 
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
@@ -172,7 +201,7 @@ var apiSharedSettings = {
   }
   managedIdentityResourceIds: [
     apiManagedId.id
-    apiAcrPullManagedId.id
+    acrPullManagedId.id
   ]
   registries: acaContainerRegistries
   subProductsSettings: settings.SubProducts
@@ -188,16 +217,6 @@ module apiPrimary 'api.bicep' = {
   dependsOn: [acaEnvPrimary]
 }
 
-var hasAcaFailover = !empty(settings.SubProducts.Aca.Failover ?? {})
-module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
-  name: '${uniqueString(deployment().name, location)}-AcaEnvFailover'
-  params: {
-    instanceSettings: settings.SubProducts.Aca.Failover
-    sharedSettings: acaEnvSharedSettings
-  }
-  dependsOn: acaEnvSharedSettings.isCustomDomainEnabled ? [acaEnvCertPermission] : []
-}
-
 module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ?? {})) {
   name: '${uniqueString(deployment().name, location)}-AcaApiFailover'
   params: {
@@ -207,6 +226,84 @@ module apiFailover 'api.bicep' = if (!empty(settings.SubProducts.Api.Failover ??
   }
   dependsOn: hasAcaFailover ? [acaEnvFailover] : []
 }
+
+var apiTmEndpoints = map(settings.SubProducts.ApiTrafficManager.Endpoints, endpoint => ({ 
+  ...endpoint
+  Target: replace(endpoint.Target, 'ACA_ENV_DEFAULT_DOMAIN', endpoint.Name == settings.SubProducts.Api.Primary.ResourceName ? acaPrimaryDomain : acaFailoverDomain )
+}))
+
+module apiTrafficManager 'traffic-manager-profile.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-ApiTrafficManager'
+  params: {
+    tmSettings: {
+      ...settings.SubProducts.ApiTrafficManager
+      Endpoints: apiTmEndpoints
+    }
+  }
+}
+
+// ---------- End: Template.Api -----------
+
+
+// ---------- Begin: Template.App -----------
+
+resource appManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: settings.SubProducts.App.ManagedIdentity.Primary
+  location: location
+}
+
+var appSharedSettings = {
+  appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
+  certSettings: settings.TlsCertificates.Current
+  isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
+  managedIdentityClientIds: {
+    default: appManagedId.properties.clientId
+  }
+  managedIdentityResourceIds: [
+    appManagedId.id
+    acrPullManagedId.id
+  ]
+  registries: acaContainerRegistries
+  subProductsSettings: settings.SubProducts
+}
+
+module appPrimary 'app.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AcaAppPrimary'
+  params: {
+    exists: appPrimaryExists
+    instanceSettings: settings.SubProducts.App.Primary
+    sharedSettings: appSharedSettings
+  }
+  dependsOn: [acaEnvPrimary]
+}
+
+module appFailover 'app.bicep' = if (!empty(settings.SubProducts.App.Failover ?? {})) {
+  name: '${uniqueString(deployment().name, location)}-AcaAppFailover'
+  params: {
+    instanceSettings: settings.SubProducts.App.Failover
+    exists: appFailoverExists
+    sharedSettings: appSharedSettings
+  }
+  dependsOn: hasAcaFailover ? [acaEnvFailover] : []
+}
+
+var appTmEndpoints = map(settings.SubProducts.AppTrafficManager.Endpoints, endpoint => ({ 
+  ...endpoint
+  Target: replace(endpoint.Target, 'ACA_ENV_DEFAULT_DOMAIN', endpoint.Name == settings.SubProducts.App.Primary.ResourceName ? acaPrimaryDomain : acaFailoverDomain )
+}))
+
+module appTrafficManager 'traffic-manager-profile.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AppTrafficManager'
+  params: {
+    tmSettings: {
+      ...settings.SubProducts.AppTrafficManager
+      Endpoints: appTmEndpoints
+    }
+  }
+}
+
+// ---------- End: Template.App -----------
+
 
 resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: settings.SubProducts.InternalApi.ManagedIdentity
@@ -253,23 +350,6 @@ module internalApi 'internal-api.bicep' = {
   }
 }
 
-var apiPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
-var apiFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
-var apiTmEndpoints = map(settings.SubProducts.ApiTrafficManager.Endpoints, endpoint => ({ 
-  ...endpoint
-  Target: replace(endpoint.Target, 'ACA_ENV_DEFAULT_DOMAIN', endpoint.Name == settings.SubProducts.Api.Primary.ResourceName ? apiPrimaryDomain : apiFailoverDomain )
-}))
-
-module apiTrafficManager 'traffic-manager-profile.bicep' = {
-  name: '${uniqueString(deployment().name, location)}-ApiTrafficManager'
-  params: {
-    tmSettings: {
-      ...settings.SubProducts.ApiTrafficManager
-      Endpoints: apiTmEndpoints
-    }
-  }
-}
-
 
 var sqlServer = settings.SubProducts.Sql
 var sqlDatabase = settings.SubProducts.Db
@@ -295,6 +375,8 @@ module azureSqlDb 'azure-sql-server.bicep' = {
 
 @description('The Client ID of the Azure AD application associated with the api managed identity.')
 output apiManagedIdentityClientId string = apiManagedId.properties.clientId
+@description('The Client ID of the Azure AD application associated with the app managed identity.')
+output appManagedIdentityClientId string = appManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the internal api managed identity.')
 output internalApiManagedIdentityClientId string = internalApiManagedId.properties.clientId
 @description('The Client ID of the Azure AD application associated with the sql managed identity.')

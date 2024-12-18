@@ -159,12 +159,14 @@
         $ErrorActionPreference = 'Stop'
         $WarningPreference = 'Continue'
 
+        . "$PSScriptRoot/ps-functions/Get-AcaAppInfoVars.ps1"
         . "$PSScriptRoot/ps-functions/Get-AzModuleInfo.ps1"
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
         . "$PSScriptRoot/ps-functions/Get-ServicePrincipalAccessToken.ps1"
         . "$PSScriptRoot/ps-functions/Grant-RbacRole.ps1"
+        . "$PSScriptRoot/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
@@ -298,22 +300,18 @@
             if ($convention.SubProducts.Sql.Firewall.Rule) {
                 $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
+            
             Write-Information "  Gathering existing resource information..."
-            $apiFailoverExists = if ($convention.SubProducts.Api.Failover) {
-                $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Failover.ResourceName -EA SilentlyContinue)    
-            } else {
-                $false
-            }
-            $apiPrimaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $convention.SubProducts.Api.Primary.ResourceName -EA SilentlyContinue)
+            $acaAppTemplateParams = $convention.SubProducts.GetEnumerator() | Where-Object { $_.value.Type -eq 'AcaApp' } |
+                Select-Object -ExpandProperty Value |
+                Get-AcaAppInfoVars -ResourceGroupName $appResourceGroup.ResourceName | Join-Hashtable
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
                 TemplateParameterObject =   @{
-                    apiFailoverExists           =   $apiFailoverExists
-                    apiPrimaryExists            =   $apiPrimaryExists
                     settings                    =   $convention
                     sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
-                }
-                TemplateFile        =   Join-Path $templatePath main.bicep
+                } + $acaAppTemplateParams
+                TemplateFile            =   Join-Path $templatePath main.bicep
             }
             if ($WhatIfAzureResourceDeployment) {
                 Write-Information '  Print Azure resource desired state changes only...'
@@ -322,6 +320,7 @@
             }
             Write-Information '  Creating desired resource state'
             $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
+            Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
             Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
             Write-Information "  INFO | 'Azure SQL Managed Identity Client Id':- $($armResources.sqlManagedIdentityClientId.Value)"
@@ -355,6 +354,10 @@
             $dbCrudMembership = @(
                 @{
                     ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
+                    Type                =   'ServicePrincipal'
+                }
+                @{
+                    ApplicationId       =   $armResources.appManagedIdentityClientId.Value
                     Type                =   'ServicePrincipal'
                 }
                 @{

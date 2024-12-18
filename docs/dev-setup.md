@@ -68,6 +68,24 @@ Once up and running, feel free to then switch to running the projects via an IDE
 6. Start/Run the API project: `dotnet run --project ./src/Template.Api`
 7. Check that the basics are running by browsing to: <https://localhost:5000/health>
 
+## App
+
+1. If not already, login to Azure using az-cli using your mri username/password:
+   ```pwsh
+   # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
+   az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
+   ```
+2. Ensure connection string is pointing to the SQL Server instance
+   * Review the connection string in App/appsettings.Development.json
+     (**tip**: the default is intended to work with localdb installed by Visual Studio on a windows machine)
+   * Adjust as necessary to connect to your SQL Server instance
+      * use dotnet user-secrets tool rather than modifying appsettings.Development.json file directly
+      * EG:  `dotnet user-secrets set App:ConnectionStrings:AppDatabase 'Data Source=(localdb)\YOURINSTANCE;Initial Catalog=web-api-starter;Integrated Security=True;TrustServerCertificate=true;' --id 0668440a-e0d7-43d5-ab50-2ec0f874712b`
+      * **tip**: if you're using Visual Studio or Jetbrains Rider, you can use the built-in user-secrets tool to set the connection string.
+        But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
+3. Start/Run the API project: `dotnet run --project ./src/Template.App`
+4. Check that the basics are running by browsing to: <https://localhost:5001/health>
+
 ## Functions App
 
 1. If not already, login to Azure using az-cli using your mri username/password. EG:
