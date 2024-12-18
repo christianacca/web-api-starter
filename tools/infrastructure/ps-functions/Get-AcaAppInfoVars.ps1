@@ -6,12 +6,11 @@ function Get-AcaAppInfoVars {
     #>
     [CmdletBinding()]
     param(
-        [ValidateNotNull()]
-        [Alias('Convention')]
-        [Hashtable] $InputObject,
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [Hashtable] $AppInfo,
         
         [Parameter(Mandatory)]
-        [string] $SubProductName
+        [string] $ResourceGroupName
     )
     begin {
         Set-StrictMode -Version 'Latest'
@@ -20,19 +19,17 @@ function Get-AcaAppInfoVars {
     }
     process {
         try {
-            $appResourceGroup = $convention.AppResourceGroup
-            $app = $convention.SubProducts[$SubProductName]
-
-            $failoverExists = if ($app.Failover) {
-                $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $app.Failover.ResourceName -EA SilentlyContinue)
+            $failoverExists = if ($AppInfo.Failover) {
+                $null -ne (Get-AzContainerApp -ResourceGroupName $ResourceGroupName -Name $AppInfo.Failover.ResourceName -EA SilentlyContinue)
             } else {
                 $false
             }
-            $primaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $appResourceGroup.ResourceName -Name $app.Primary.ResourceName -EA SilentlyContinue)
+            $primaryExists = $null -ne (Get-AzContainerApp -ResourceGroupName $ResourceGroupName -Name $AppInfo.Primary.ResourceName -EA SilentlyContinue)
             
+            $varPrefix = $AppInfo.Name.ToLower()
             $vars = @{}
-            $vars[('{0}FailoverExists' -f $SubProductName.ToLower())] = $failoverExists
-            $vars[('{0}PrimaryExists' -f $SubProductName.ToLower())] = $primaryExists
+            $vars[('{0}FailoverExists' -f $varPrefix)] = $failoverExists
+            $vars[('{0}PrimaryExists' -f $varPrefix)] = $primaryExists
 
             $vars
         }

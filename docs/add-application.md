@@ -224,20 +224,8 @@ for "inner-loop" development.
 ## 5. Adjust infra-as-code provisioning scripts
 
 Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-resources.ps1) as follows
-
-1. Gather the bicep deployment variables for the new app and add these to the bicep `TemplateParameterObject`
-
-   EG:
-
-   ```pwsh
-   Write-Information "  Gathering existing resource information..."
-   $mainArmTemplateParams = @(
-       # <SNIP>
-       Get-AcaAppInfoVars $convention -SubProductName App
-   )
-   ```
    
-2. Print out the managed identity client id of the new app
+1. Print out the managed identity client id of the new app
 
    EG:
 
@@ -247,7 +235,7 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
    ```
    
-3. Grant membership to required Entra-ID security groups
+2. Grant membership to required Entra-ID security groups
 
    EG:
 
@@ -263,7 +251,7 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    )
    ```
    
-4. Deploy initial azure container app infrastructure
+3. Deploy initial azure container app infrastructure
 
    * To deploy from local dev machine
      (**note**: you will only be able to deploy in this way to your own Azure subscription and Azure Entra-ID tenant):
@@ -275,7 +263,7 @@ Extend [provision-azure-resources.ps1](../tools/infrastructure/provision-azure-r
    
    * Alternatively, push your changes to a branch, and manually run [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) github workflow selecting your branch
    
-5. Verify the initial azure container app is running
+4. Verify the initial azure container app is running
 
    ```pwsh
    $dev = & "tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable

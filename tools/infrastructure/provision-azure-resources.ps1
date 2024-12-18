@@ -302,18 +302,15 @@
             }
             
             Write-Information "  Gathering existing resource information..."
-            $mainArmTemplateParams = @(
-                @{
-                    settings                    =   $convention
-                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
-                }
-                Get-AcaAppInfoVars $convention -SubProductName Api
-                Get-AcaAppInfoVars $convention -SubProductName App
-            )
-            
+            $acaAppTemplateParams = $convention.SubProducts.GetEnumerator() | Where-Object { $_.value.Type -eq 'AcaApp' } |
+                Select-Object -ExpandProperty Value |
+                Get-AcaAppInfoVars -ResourceGroupName $appResourceGroup.ResourceName | Join-Hashtable
             $mainArmParams = @{
                 ResourceGroupName       =   $appResourceGroup.ResourceName
-                TemplateParameterObject =   $mainArmTemplateParams | Join-Hashtable
+                TemplateParameterObject =   @{
+                    settings                    =   $convention
+                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
+                } + $acaAppTemplateParams
                 TemplateFile            =   Join-Path $templatePath main.bicep
             }
             if ($WhatIfAzureResourceDeployment) {
