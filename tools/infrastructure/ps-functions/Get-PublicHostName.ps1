@@ -1,7 +1,6 @@
 function Get-PublicHostName {
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName,
         
         [string] $TopLevelDomain = 'com',

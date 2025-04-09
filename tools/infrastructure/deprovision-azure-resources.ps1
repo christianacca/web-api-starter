@@ -37,7 +37,6 @@
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName,
         
         [switch] $DeleteAADGroups,
