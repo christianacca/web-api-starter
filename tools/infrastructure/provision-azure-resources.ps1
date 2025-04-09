@@ -133,7 +133,6 @@
     
     [CmdletBinding()]
     param(
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
 
         [string] $BuildVersion = '0.0.0',
