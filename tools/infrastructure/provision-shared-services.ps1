@@ -1,6 +1,5 @@
     [CmdletBinding()]
     param(
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName = 'dev',
         
         [switch] $GrantRbacManagement,
