@@ -7,7 +7,7 @@ param(
 )
 process {
     $vars = switch ($EnvironmentName) {
-        ({$PSItem -in 'dev', 'qa', 'rel', 'release', 'demo'}) {
+        ({ ($PSItem -in 'dev', 'qa', 'rel', 'release') -or ($PSItem -like 'demo*') }) {
             @{
                 # cli-devops-shared-web-api-starter-arm
                 clientId        =   'e18be585-830e-408d-bafa-fe4d41a5e52e'
@@ -15,7 +15,7 @@ process {
                 subscriptionId  =   '402f88b4-9dd2-49e3-9989-96c788e93372'
             }
         }
-        ({$PSItem -in 'staging', 'prod-na'}) {
+        ({$PSItem -in 'staging', 'prod-na', 'prod'}) {
             @{
                 # cli-nadevopsproduction-prod-web-api-starter-arm
                 clientId        =   '6a3a29da-76bf-4ee2-b2fc-a65ccf22f33e'

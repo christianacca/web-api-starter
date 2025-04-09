@@ -5,8 +5,7 @@ function Get-ResourceConvention {
         [string] $ProductAbbreviation,
         
         [hashtable] $Domain = @{},
-        
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
+
         [string] $EnvironmentName = 'dev',
 
         [Parameter(Mandatory)]
@@ -24,6 +23,7 @@ function Get-ResourceConvention {
     Set-StrictMode -Off # allow reference to non-existant object properties to keep script readable
 
     . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
+    . "$PSScriptRoot/Get-IsTestEnv.ps1"
     . "$PSScriptRoot/Get-PublicHostName.ps1"
     . "$PSScriptRoot/Get-PbiAadSecurityGroupConvention.ps1"
     . "$PSScriptRoot/Get-StorageRbacAccess.ps1"
@@ -32,8 +32,7 @@ function Get-ResourceConvention {
     . "$PSScriptRoot/Get-WafRule.ps1"
     . "$PSScriptRoot/string-functions.ps1"
 
-    $failoverEnvironmnets = 'qa', 'rel', 'release', 'prod-emea', 'prod-apac', 'prod-na'
-    $hasFailover = if ($EnvironmentName -in $failoverEnvironmnets) { $true } else { $false }
+    $hasFailover = ($EnvironmentName -in 'qa', 'rel', 'release') -or ($EnvironmentName -like 'prod*')
 
     if(-not($ProductAbbreviation)) {
         $ProductAbbreviation = -join ($ProductName -split ' ' | ForEach-Object { $_[0].ToString().ToLower() })
@@ -51,11 +50,11 @@ function Get-ResourceConvention {
 
     # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
     # for listing of which azure service are available in which regions see: https://www.azurespeed.com/Information/AzureRegions
-    $azureRegions = switch ($EnvironmentName) {
-        'prod-emea' {
+    $azureRegions = switch -Wildcard ($EnvironmentName) {
+        '*-emea' {
             @{ Name = 'uksouth'; Abbreviation = 'uks' }, @{ Name = 'ukwest'; Abbreviation = 'ukw' }
         }
-        'prod-apac' {
+        '*-apac' {
             @{ Name = 'australiaeast'; Abbreviation = 'ae' }
             @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
             # australiasoutheast is not available in azure container apps; this is the closest alternative region to australiaeast
@@ -73,7 +72,7 @@ function Get-ResourceConvention {
     $azureSecondaryAltRegion = $azureRegions[2]
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
-    $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
+    $isTestEnv = Get-IsTestEnv $EnvironmentName
     $isScaleToZeroEnv = $EnvironmentName -in 'ff', 'dev', 'staging'
     
     if ($isScaleToZeroEnv -and $hasFailover) {
@@ -82,7 +81,7 @@ function Get-ResourceConvention {
 
     $resourceGroupRbac = @(
         @{
-            Role    =   $isTestEnv -or ($EnvironmentName -eq 'demo') ? 'Contributor' : 'Reader'
+            Role    =   $isTestEnv -or $EnvironmentName -like 'demo*' ? 'Contributor' : 'Reader'
             Member  =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
         }
         @{
@@ -129,14 +128,14 @@ function Get-ResourceConvention {
             }
             'StorageAccount' {
                 $storageUsage = $spInput.Usage ?? 'Blob'
-                $rbacAssignment = switch ($EnvironmentName) {
+                $rbacAssignment = switch -Wildcard ($EnvironmentName) {
                     { $isTestEnv } {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
                             Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         }
                     }
-                    'demo' {
+                    'demo*' {
                         @{
                             Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
                             Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
@@ -241,12 +240,12 @@ function Get-ResourceConvention {
                             @{
                                 Name            = "$adSqlGroupNamePrefix.reader";
                                 DatabaseRole    = 'db_datareader'
-                                Member          = switch ($EnvironmentName) {
-                                    { $_ -like 'prod-*' -or $_ -eq 'staging' } {
+                                Member          = switch -Wildcard ($EnvironmentName) {
+                                    { $isEnvProdLike } {
                                         @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                                         @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                     }
-                                    'demo' {
+                                    'demo*' {
                                         @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
                                     }
                                     Default {
@@ -257,8 +256,8 @@ function Get-ResourceConvention {
                             @{
                                 Name            = "$adSqlGroupNamePrefix.crud";
                                 DatabaseRole    = 'db_datareader', 'db_datawriter'
-                                Member          = switch ($EnvironmentName) {
-                                    'demo' {
+                                Member          = switch -Wildcard ($EnvironmentName) {
+                                    'demo*' {
                                         @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                                     }
                                     Default {
@@ -270,7 +269,7 @@ function Get-ResourceConvention {
                                 Name            = "$adSqlGroupNamePrefix.contributor";
                                 DatabaseRole    = 'db_datareader', 'db_datawriter', 'db_ddladmin'
                                 Member          = switch ($EnvironmentName) {
-                                    { $_ -like 'prod-*' -or $_ -eq 'staging' -or $_ -eq 'demo' } {
+                                    { $isEnvProdLike -or $_ -like 'demo*' } {
                                         @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
                                     }
                                     Default {
@@ -305,14 +304,14 @@ function Get-ResourceConvention {
                 
                 $storageUsage = $spInput.StorageUsage
                 $rbacAssignment = if ($storageUsage) {
-                    switch ($EnvironmentName) {
+                    switch -Wildcard ($EnvironmentName) {
                         { $isTestEnv } {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'ReadWrite'
                                 Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                             }
                         }
-                        'demo' {
+                        'demo*' {
                             @{
                                 Role            =   Get-StorageRbacAccess $storageUsage 'Readonly'
                                 Member          =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
@@ -413,8 +412,8 @@ function Get-ResourceConvention {
                     ResourceLocation    =   $azurePrimaryRegion.Name
                     AcaEnvResourceName  =   $acaEnv.Primary.ResourceName
                     IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
-                    MinReplicas         =   switch ($EnvironmentName) {
-                        { $_ -like 'prod-*' } {
+                    MinReplicas         =   switch -Wildcard ($EnvironmentName) {
+                        'prod*' {
                             3 # required for zone availability resillency
                         }
                         Default {
@@ -455,8 +454,11 @@ function Get-ResourceConvention {
                 }
             }
             'AppInsights' {
-                $envAbbreviation = switch ($EnvironmentName) {
-                    { $_ -like 'prod-*' } {
+                $envAbbreviation = switch -Wildcard ($EnvironmentName) {
+                    'demo-*' {
+                        'd{0}' -f $EnvironmentName.Replace('demo-', '')
+                    }
+                    'prod-*' {
                         'p{0}' -f $EnvironmentName.Replace('prod-', '')
                     }
                     'release' {
@@ -477,7 +479,7 @@ function Get-ResourceConvention {
                             Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                         }
                     }
-                    { $isEnvProdLike -or $_ -eq 'demo' } {
+                    { $isEnvProdLike -or $_ -like 'demo*' } {
                         @{
                             Role            =   'Monitoring Contributor'
                             Member          =   @(

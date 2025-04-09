@@ -13,7 +13,6 @@
 #>
 
 param(
-    [ValidateSet('dev', 'qa', 'rel', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac', '*')]
     [string[]] $EnvironmentName = '*',
     
     [string[]] $ComponentName,
