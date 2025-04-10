@@ -16,7 +16,8 @@
 
    Recommendations:
    * qa: require approval (to allow qa to pull changes into environment at their own pace, and to avoid a deploy from release branch being overwritten)
-   * staging and prod-xx:
+   * demo, demo-xx: require approval
+   * staging, prod, and prod-xx:
      * require approval
      * only allowed to run for release branches and the default (eg master) branch
 

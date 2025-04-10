@@ -44,7 +44,11 @@ At a high level deployment consists of:
 This repo contains various powershell scripts (see [tools/dev-scripts directory](../tools/dev-scripts)) that can be run from the command-line
 to automate the deployment tasks above and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
 
-For more information on how these github workflows for the project were set up: [create-github-actions-infrastructure-pipeline](create-github-actions-infrastructure-pipeline.md)
+> [!Note]
+> For more information on how these github workflows for the project were set up: [Create github workflow to deploy infrastructure](create-github-actions-infrastructure-pipeline.md)
+
+> [!Note]
+> For guidance on how to add another environment to the project: [Add a new environment](add-environment.md)
 
 > [!WARNING]
 > Before running **any** scripts of workflows, you must make sure to have created the service principals responsible for
