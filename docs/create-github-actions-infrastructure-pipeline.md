@@ -11,14 +11,18 @@
    3. Manually run the workflow 'Create Github environments'
 
 3. (optional) Add approvals and branch protection policies
-   
-   See: <https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment>
+
+   Go to [Settings > Environments](https://github.com/christianacca/web-api-starter/settings/environments) in the github repo
+   and select the environments you have just created. Add the branch protection rules as required to each environment.
 
    Recommendations:
    * qa: require approval (to allow qa to pull changes into environment at their own pace, and to avoid a deploy from release branch being overwritten)
-   * staging and prod-xx:
+   * demo, demo-xx: require approval
+   * staging, prod, and prod-xx:
      * require approval
      * only allowed to run for release branches and the default (eg master) branch
+
+   For more information see: <https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment>
 
 4. Create a convenience azure-login github action
 

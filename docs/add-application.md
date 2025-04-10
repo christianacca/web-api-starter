@@ -13,10 +13,10 @@
 
 # Instructions for adding a new application to the solution
 
-[!IMPORTANT]
-For the purposes of this guide, the name of the MVC web application will be Template.App. For your app, pick a name that
-is suitable for your solution. Use that name and substitute `Template.App`, `App` and `app` in the instructions below.
-For example, if you chose `Template.Web` then use the following substitutions: `Template.Web`, `Web` and `web`.
+> [!IMPORTANT]
+> For the purposes of this guide, the name of the MVC web application will be Template.App. For your app, pick a name that
+> is suitable for your solution. Use that name and substitute `Template.App`, `App` and `app` in the instructions below.
+> For example, if you chose `Template.Web` then use the following substitutions: `Template.Web`, `Web` and `web`.
 
 ## 1. Create a new dotnet project and add to solution
 
