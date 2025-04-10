@@ -12,11 +12,15 @@ on:
           - dev
           - qa
           - demo
+          - demo-na
+          - demo-emea
+          - demo-apac
+          - 'demo*'
           - staging
           - prod-na
           - prod-emea
           - prod-apac
-          - 'prod + staging'
+          - 'prod* + staging'
           - all
       access-level:
         description: Access Level to grant
@@ -78,7 +82,7 @@ jobs:
 
   demo:
     needs: approval-context
-    if: ${{ contains(fromJSON('["demo", "all"]'), github.event.inputs.environment-name) }}
+    if: ${{ contains(fromJSON('["demo", "demo*", "all"]'), github.event.inputs.environment-name) }}
     uses: ./.github/workflows/__infra-grant-azure-env-access.yml
     with:
       environment-name: demo
@@ -90,9 +94,51 @@ jobs:
       contents: read
       id-token: write
 
+  demo-na:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["demo-na", "demo*", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-grant-azure-env-access.yml
+    with:
+      environment-name: demo-na
+      access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  demo-emea:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["demo-emea", "demo*", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-grant-azure-env-access.yml
+    with:
+      environment-name: demo-emea
+      access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
+  demo-apac:
+    needs: approval-context
+    if: ${{ contains(fromJSON('["demo-apac", "demo*", "all"]'), github.event.inputs.environment-name) }}
+    uses: ./.github/workflows/__infra-grant-azure-env-access.yml
+    with:
+      environment-name: demo-apac
+      access-level: ${{ github.event.inputs.access-level }}
+      scope: ${{ github.event.inputs.scope }}
+      user-principal-name: ${{ github.event.inputs.user-principal-name }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+
   staging:
     needs: approval-context
-    if: ${{ contains(fromJSON('["staging", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    if: ${{ contains(fromJSON('["staging", "prod* + staging", "all"]'), github.event.inputs.environment-name) }}
     uses: ./.github/workflows/__infra-grant-azure-env-access.yml
     with:
       environment-name: staging
@@ -106,7 +152,7 @@ jobs:
 
   prod-na:
     needs: approval-context
-    if: ${{ contains(fromJSON('["prod-na", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    if: ${{ contains(fromJSON('["prod-na", "prod* + staging", "all"]'), github.event.inputs.environment-name) }}
     uses: ./.github/workflows/__infra-grant-azure-env-access.yml
     with:
       environment-name: prod-na
@@ -120,7 +166,7 @@ jobs:
 
   prod-emea:
     needs: approval-context
-    if: ${{ contains(fromJSON('["prod-emea", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    if: ${{ contains(fromJSON('["prod-emea", "prod* + staging", "all"]'), github.event.inputs.environment-name) }}
     uses: ./.github/workflows/__infra-grant-azure-env-access.yml
     with:
       environment-name: prod-emea
@@ -134,7 +180,7 @@ jobs:
 
   prod-apac:
     needs: approval-context
-    if: ${{ contains(fromJSON('["prod-apac", "prod + staging", "all"]'), github.event.inputs.environment-name) }}
+    if: ${{ contains(fromJSON('["prod-apac", "prod* + staging", "all"]'), github.event.inputs.environment-name) }}
     uses: ./.github/workflows/__infra-grant-azure-env-access.yml
     with:
       environment-name: prod-apac
