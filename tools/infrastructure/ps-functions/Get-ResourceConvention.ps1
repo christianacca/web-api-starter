@@ -23,6 +23,7 @@ function Get-ResourceConvention {
     Set-StrictMode -Off # allow reference to non-existant object properties to keep script readable
 
     . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
+    . "$PSScriptRoot/Get-IsPublicHostNameProdLike.ps1"
     . "$PSScriptRoot/Get-IsTestEnv.ps1"
     . "$PSScriptRoot/Get-PublicHostName.ps1"
     . "$PSScriptRoot/Get-PbiAadSecurityGroupConvention.ps1"
@@ -715,7 +716,7 @@ function Get-ResourceConvention {
         }
         SubProducts             =   $subProductsConventions
         TlsCertificates         =   @{
-            Current         =   $isEnvProdLike ? $prodCert : $devCert
+            Current         =   (Get-IsPublicHostNameProdLike $EnvironmentName) ? $prodCert : $devCert
             Dev             =   $devCert
             Prod            =   $prodCert
         }
