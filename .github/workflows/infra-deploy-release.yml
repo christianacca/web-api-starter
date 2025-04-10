@@ -29,6 +29,42 @@ jobs:
       contents: read
       id-token: write
   
+  demo-na:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: demo-na
+      build-version: ${{ needs.globalvars.outputs.buildFullVersion }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  demo-emea:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: demo-emea
+      build-version: ${{ needs.globalvars.outputs.buildFullVersion }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
+  demo-apac:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__infra-deploy.yml
+    with:
+      environment-name: demo-apac
+      build-version: ${{ needs.globalvars.outputs.buildFullVersion }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+  
   staging:
     needs: globalvars
     if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
