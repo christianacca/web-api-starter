@@ -58,15 +58,27 @@ jobs:
           map: |
             {
               "dev": {
-                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
-                "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default"
               },
               "qa": {
-                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default"
+              },
+              "dev|qa": {
                 "CentralIdentity_BaseUri": "https://welcome-release-internal.redmz.mrisoftware.com"
               },
               "demo": {
-                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default",
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default"
+              },
+              "demo-na": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default"
+              },
+              "demo-emea": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default"
+              },
+              "demo-apac": {
+                "Api_TokenProvider_Authority": "https://mrisaas.oktapreview.com/oauth2/default"
+              },
+              "demo.*": {
                 "CentralIdentity_BaseUri": "https://welcomeci-demo.saas.mrisoftware.com"
               },
               "staging": {
