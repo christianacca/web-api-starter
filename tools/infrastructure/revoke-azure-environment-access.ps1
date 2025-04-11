@@ -20,7 +20,6 @@
     [CmdletBinding(DefaultParameterSetName = 'Main')]
     param(
         [Parameter(Mandatory, ParameterSetName = 'Main')]
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName,
 
         [Parameter(Mandatory, ParameterSetName = 'Main')]

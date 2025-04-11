@@ -1,7 +1,6 @@
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName,
         
         [switch] $AsHashtable
@@ -15,6 +14,11 @@
     }
     process {
         try {
+
+            $environments = & "$PSScriptRoot/get-product-environment-names.ps1"
+            if ($EnvironmentName -notin $environments) {
+                throw "EnvironmentName '$EnvironmentName' is not valid. Valid values are: $($environments -join ', ')"
+            }
             
             $conventionsParams = @{
                 CompanyName             =   'CLC Software'

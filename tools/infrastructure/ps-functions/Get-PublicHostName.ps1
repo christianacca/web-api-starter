@@ -1,7 +1,6 @@
 function Get-PublicHostName {
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
         [string] $EnvironmentName,
         
         [string] $TopLevelDomain = 'com',
@@ -22,12 +21,12 @@ function Get-PublicHostName {
         [switch] $IsMainUI
     )
     begin {
-        . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
+        . "$PSScriptRoot/Get-IsPublicHostNameProdLike.ps1"
     }
     process {
         $NonProdSubDomain = $NonProdSubDomain -eq 'UseProductDomain' ? '' : $NonProdSubDomain
         
-        $isProdLike = Get-IsEnvironmentProdLike $EnvironmentName
+        $isProdLike = Get-IsPublicHostNameProdLike $EnvironmentName
         $rootDomain = if ($isProdLike -or $SubDomainLevel -eq 2 -or $NonProdSubDomain -eq '') {
             "$CompanyDomain.$TopLevelDomain"
         } else {

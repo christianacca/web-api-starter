@@ -2,8 +2,7 @@ function Get-PbiAadSecurityGroupConvention {
     param(
         [Parameter(Mandatory)]
         [string] $ProductName,
-        
-        [ValidateSet('ff', 'dev', 'qa', 'rel', 'release', 'demo', 'staging', 'prod-na', 'prod-emea', 'prod-apac')]
+
         [string] $EnvironmentName = 'dev',
 
         [Parameter(Mandatory)]
@@ -15,17 +14,18 @@ function Get-PbiAadSecurityGroupConvention {
     Set-StrictMode -Version 'Latest'
     
     . "$PSScriptRoot/Get-IsEnvironmentProdLike.ps1"
+    . "$PSScriptRoot/Get-IsTestEnv.ps1"
 
     $productNameLower = $ProductName.ToLower()
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
-    $isTestEnv = $EnvironmentName -in 'ff', 'dev', 'qa', 'rel', 'release'
+    $isTestEnv = Get-IsTestEnv $EnvironmentName
 
     $adPbiGroupNamePrefix = 'sg.365.pbi'
     $adPbiWksGroupNamePrefix = $('{0}.workspace.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
     $adPbiReportGroupNamePrefix = $('{0}.report.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
     $adPbiDatasetGroupNamePrefix = $('{0}.dataset.{1}.{2}' -f $adPbiGroupNamePrefix, $productNameLower, $EnvironmentName).Replace('-', '')
-    $pbiGroup = @(switch ($EnvironmentName) {
+    $pbiGroup = @(switch -Wildcard ($EnvironmentName) {
         { $isTestEnv } {
             @{
                 Name            = "$adPbiWksGroupNamePrefix.admin";
@@ -33,7 +33,7 @@ function Get-PbiAadSecurityGroupConvention {
                 Member          = @{ Name = $TeamGroupNames.DevelopmentGroup; Type = 'Group' }
             }
         }
-        'demo' {
+        'demo*' {
             @{
                 Name            = "$adPbiReportGroupNamePrefix.admin";
                 PbiRole         = 'Admin'
