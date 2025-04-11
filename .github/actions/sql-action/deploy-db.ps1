@@ -21,10 +21,13 @@ begin {
     $ErrorActionPreference = 'Stop'
     
     . "$PSScriptRoot/Invoke-Exe.ps1"
+    
+    $serverInstance = $SqlServerName.Contains('.database.windows.net') ? $SqlServerName : "$SqlServerName.database.windows.net"
+    
 }
 process {
     try {
-        Write-Information "Running database script against '$SqlServerName/$DatabaseName'..."
+        Write-Information "Running database script against server: '$serverInstance'; db: $DatabaseName..."
 
         Write-Information "  Acquiring access token using current az account context..."
         $accessToken = Invoke-Exe {
@@ -34,7 +37,7 @@ process {
         $sql = Get-Content $Path -Raw -EA Stop
         $sqlParams = @{
             AccessToken         =   $accessToken
-            ServerInstance      =   "$SqlServerName.database.windows.net"
+            ServerInstance      =   $serverInstance
             Database            =   $DatabaseName
             Query               =   $sql
             ConnectionTimeout   =   60

@@ -5,7 +5,7 @@ inputs:
     description: 'Name of the Azure SQL database'
     required: true
   server-name:
-    description: 'Name of the Azure SQL Server, like MyCompanyServer'
+    description: 'Name of the Azure SQL Server, like MyCompanyServer, or the full instance name like tcp:MyCompanyServer.database.windows.net,1433'
     required: true
   sql-file:
     description: 'Path to SQL script file to deploy'
@@ -15,7 +15,7 @@ runs:
   using: composite
   steps:
     - name: Install dependent powershell modules
-      uses: potatoqualitee/psmodulecache@03c44cade706c982e0632f52a2712668b03c8f24 # <- v5.3
+      uses: potatoqualitee/psmodulecache@ee5e9494714abf56f6efbfa51527b2aec5c761b8 # <- v6.2.1
       with:
         modules-to-cache: SqlServer:22.0.59
     - name: Execute SQL

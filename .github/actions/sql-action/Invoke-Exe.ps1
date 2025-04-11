@@ -14,9 +14,8 @@ function Invoke-Exe {
             Write-Verbose "Executing: $ScriptBlock"
             Invoke-Command $ScriptBlock
             if ($LASTEXITCODE -ne 0) {
-                $exitCode = $LASTEXITCODE
                 $global:LASTEXITCODE = $null # reset so that runtimes like github actions doesn't fail the entire script
-                throw "Command failed with exit code $exitCode; Cmd: $ScriptBlock"
+                throw "Command failed with exit code $LASTEXITCODE; Cmd: $ScriptBlock"
             }
         }
         catch {
