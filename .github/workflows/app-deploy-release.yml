@@ -32,6 +32,51 @@ jobs:
       actions: read
       contents: read
       id-token: write
+    
+  demo-na:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: demo-na
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    
+  demo-emea:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: demo-emea
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    
+  demo-apac:
+    needs: globalvars
+#    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
+    uses: ./.github/workflows/__app-deploy.yml
+    with:
+      docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
+      docker-registry: ${{ needs.globalvars.outputs.acrName }}
+      environment-name: demo-apac
+      git-tag: ${{ github.ref_name }}
+    secrets: inherit
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
   
   staging:
     needs: globalvars

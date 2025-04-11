@@ -12,6 +12,9 @@ on:
           - dev
           - qa
           - demo
+          - demo-na
+          - demo-emea
+          - demo-apac
           - staging
           - prod-na
           - prod-emea
