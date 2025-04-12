@@ -4,6 +4,9 @@ function Get-ResourceConvention {
         [string] $ProductName,
         [string] $ProductAbbreviation,
         
+        [string] $DefaultRegion = 'na',
+        [hashtable] $AzureRegion,
+        
         [hashtable] $Domain = @{},
 
         [string] $EnvironmentName = 'dev',
@@ -31,6 +34,7 @@ function Get-ResourceConvention {
     . "$PSScriptRoot/Get-TeamGroupNames.ps1"
     . "$PSScriptRoot/Get-UniqueString.ps1"
     . "$PSScriptRoot/Get-WafRule.ps1"
+    . "$PSScriptRoot/hashtable-functions.ps1"
     . "$PSScriptRoot/string-functions.ps1"
 
     $hasFailover = ($EnvironmentName -in 'qa', 'rel', 'release') -or ($EnvironmentName -like 'prod*')
@@ -51,26 +55,40 @@ function Get-ResourceConvention {
 
     # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
     # for listing of which azure service are available in which regions see: https://www.azurespeed.com/Information/AzureRegions
-    $azureRegions = switch -Wildcard ($EnvironmentName) {
-        '*-emea' {
-            @{ Name = 'uksouth'; Abbreviation = 'uks' }, @{ Name = 'ukwest'; Abbreviation = 'ukw' }
+    # important: azure regions below are selected based on DR pairing with each other where possible
+    $azureRegions = @{
+        na    =   @{
+            Primary     =   @{ Name = 'eastus'; Abbreviation = 'eus' }
+            Secondary   =   @{ Name = 'westus'; Abbreviation = 'wus' }
         }
-        '*-apac' {
-            @{ Name = 'australiaeast'; Abbreviation = 'ae' }
-            @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
+        emea    =   @{
+            Primary     =   @{ Name = 'uksouth'; Abbreviation = 'uks' }
+            Secondary   =   @{ Name = 'ukwest'; Abbreviation = 'ukw' }
+        }
+        apac    =   @{
+            Primary         =   @{ Name = 'australiaeast'; Abbreviation = 'ae' }
+            Secondary       =   @{ Name = 'australiasoutheast'; Abbreviation = 'ase' }
             # australiasoutheast is not available in azure container apps; this is the closest alternative region to australiaeast
-            @{ Name = 'southeastasia'; Abbreviation = 'sea' }
+            SecondaryAlt    =   @{ Name = 'southeastasia'; Abbreviation = 'sea' }
         }
-        Default {
-            @{ Name = 'eastus'; Abbreviation = 'eus' }, @{ Name = 'westus'; Abbreviation = 'wus' }
+    }   
+
+    if ($null -eq $AzureRegion) {
+        $envRegion = ($EnvironmentName -split '-' | Select-Object -Skip 1 -First 1) ?? $DefaultRegion
+        if ($envRegion -notin $azureRegions.Keys) {
+            throw "Region '$envRegion' is not implemented. Implemented regions are: $($azureRegions.Keys -join ', '). Please supply an AzureRegion parameter instead."
         }
+        $AzureRegion = $azureRegions[$envRegion]
     }
-
+    
+    if ($null -eq $AzureRegion.Primary) {
+        throw 'No azure primary region supplied. Please check the AzureRegion parameter supplied.'
+    }
+    if ($null -eq $AzureRegion.Secondary) {
+        throw 'No azure secondary region supplied. Please check the AzureRegion parameter supplied.'
+    }
+    
     $teamGroupNames = Get-TeamGroupNames $ProductAbbreviation $EnvironmentName
-
-    $azurePrimaryRegion = $azureRegions[0]
-    $azureSecondaryRegion = $azureRegions[1]
-    $azureSecondaryAltRegion = $azureRegions[2]
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
     $isTestEnv = Get-IsTestEnv $EnvironmentName
@@ -96,10 +114,10 @@ function Get-ResourceConvention {
     )
 
     $appInstance = '{0}-{1}' -f $ProductAbbreviation, $EnvironmentName
-    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $ProductAbbreviation, $azurePrimaryRegion.Name
+    $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $ProductAbbreviation, $AzureRegion.Primary.Name
     $appReourceGroup = @{
         ResourceName        =   $appResourceGroupName
-        ResourceLocation    =   $azurePrimaryRegion.Name
+        ResourceLocation    =   $AzureRegion.Primary.Name
         UniqueString        =   Get-UniqueString $appResourceGroupName
         RbacAssignment      =   $resourceGroupRbac
     }
@@ -107,8 +125,8 @@ function Get-ResourceConvention {
     $dataResourceGroup = if ($SeperateDataResourceGroup) {
         @{
             RbacAssignment      =   $resourceGroupRbac
-            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $ProductAbbreviation, $azurePrimaryRegion.Name
-            ResourceLocation    =   $azurePrimaryRegion.Name
+            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $ProductAbbreviation, $AzureRegion.Primary.Name
+            ResourceLocation    =   $AzureRegion.Primary.Name
         }
     } else {
         $appReourceGroup
@@ -176,7 +194,7 @@ function Get-ResourceConvention {
             }
             { $_ -in 'SqlServer', 'SqlDatabase' } {
                 $sqlDbName = ('{0}{1}{2}01' -f $CompanyAbbreviation, $EnvironmentName, $ProductAbbreviation).Replace('-', '')
-                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $azurePrimaryRegion.Name
+                $sqlPrimaryName = '{0}{1}' -f $sqlDbName, $AzureRegion.Primary.Name
                 $adSqlGroupNamePrefix = "sg.arm.sql.$sqlDbName"
                 $sqlAdAdminGroupName = "$adSqlGroupNamePrefix.admin"
 
@@ -184,12 +202,12 @@ function Get-ResourceConvention {
                     'SqlServer' {
                         $sqlPrimaryServer = @{
                             ResourceName        =   $sqlPrimaryName
-                            ResourceLocation    =   $azurePrimaryRegion.Name
+                            ResourceLocation    =   $AzureRegion.Primary.Name
                             DataSource          =   $hasFailover ? "tcp:$sqlDbName-fg.database.windows.net,1433" : "tcp:$sqlPrimaryName.database.windows.net,1433"
                         }
                         $sqlFailoverServer = @{
-                            ResourceName        =   '{0}{1}' -f $sqlDbName, $azureSecondaryRegion.Name
-                            ResourceLocation    =   $azureSecondaryRegion.Name
+                            ResourceName        =   '{0}{1}' -f $sqlDbName, $AzureRegion.Secondary.Name
+                            ResourceLocation    =   $AzureRegion.Secondary.Name
                         }
                         $sqlFirewallRule = @(
                             @{
@@ -291,7 +309,7 @@ function Get-ResourceConvention {
                         @{
                             AadSecurityGroup        =   $dbGroup
                             ResourceName            =   $sqlDbName
-                            ResourceLocation        =   $azurePrimaryRegion.Name
+                            ResourceLocation        =   $AzureRegion.Primary.Name
                             Type                    =   $spInput.Type
                         }
                     }
@@ -360,10 +378,10 @@ function Get-ResourceConvention {
             'AcaEnvironment' {
                 $acaEnvPrefix = 'cae'
                 $acaEnvNameTemplate = "$acaEnvPrefix-{0}-{1}"
-                $acaSecondaryRegion = $azureSecondaryAltRegion ?? $azureSecondaryRegion
+                $acaSecondaryRegion = $AzureRegion.SecondaryAlt ?? $AzureRegion.Secondary
                 $acaEnvPrimary = @{
-                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation
-                    ResourceLocation    =   $azurePrimaryRegion.Name
+                    ResourceName        =   $acaEnvNameTemplate -f $appInstance, $AzureRegion.Primary.Abbreviation
+                    ResourceLocation    =   $AzureRegion.Primary.Name
                 }
                 $acaEnvFailover = @{
                     ResourceName        =   $acaEnvNameTemplate -f $appInstance, $acaSecondaryRegion.Abbreviation
@@ -407,10 +425,10 @@ function Get-ResourceConvention {
                 $acaAppNameTemplate = 'ca-{0}-{1}-{2}'
                 $acaIngressHostnameTemplate = '{0}.ACA_ENV_DEFAULT_DOMAIN'
                 
-                $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $azurePrimaryRegion.Abbreviation, $componentName.ToLower()
+                $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $AzureRegion.Primary.Abbreviation, $componentName.ToLower()
                 $acaAppPrimary = @{
                     ResourceName        =   $primaryAcaResourceName
-                    ResourceLocation    =   $azurePrimaryRegion.Name
+                    ResourceLocation    =   $AzureRegion.Primary.Name
                     AcaEnvResourceName  =   $acaEnv.Primary.ResourceName
                     IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
                     MinReplicas         =   switch -Wildcard ($EnvironmentName) {
@@ -426,7 +444,7 @@ function Get-ResourceConvention {
                     }
                 } + $acaShareSettings
 
-                $acaSecondaryRegion = $azureSecondaryAltRegion ?? $azureSecondaryRegion
+                $acaSecondaryRegion = $AzureRegion.SecondaryAlt ?? $AzureRegion.Secondary
                 $failoverAcaResourceName = $acaAppNameTemplate -f $appInstance, $acaSecondaryRegion.Abbreviation, $componentName.ToLower()
                 $acaAppFailover = @{
                     ResourceName        =   $failoverAcaResourceName
@@ -567,14 +585,14 @@ function Get-ResourceConvention {
                 }
 
                 $tmEndpoints | Where-Object Priority -eq 1 | ForEach-Object {
-                    $_.EndpointLocation = $azurePrimaryRegion.Name
+                    $_.EndpointLocation = $AzureRegion.Primary.Name
                     # health probe monitoring only makes sense if traffic can be routed to a failover cluster in the event the primary becomes unavailable.
                     # therefore when there is no failover, disable health probe (AlwaysServe='Enabled').
                     $_.AlwaysServe =   $hasFailover ? 'Disabled' : 'Enabled'
                 }
 
                 $tmEndpoints | Where-Object Priority -eq 2 | ForEach-Object {
-                    $_.EndpointLocation = $azureSecondaryRegion.Name
+                    $_.EndpointLocation = $AzureRegion.Secondary.Name
                     # disable health probe (AlwaysServe='Enabled') for a failover endpoint, because:
                     # 1) to allow failover to scale to zero / idle (when this is an option)
                     # 2) it doesn't really make sense to test for availability of the failover cluster: if the primary, which is monitored, is marked as 

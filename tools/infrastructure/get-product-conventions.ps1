@@ -19,6 +19,16 @@
             if ($EnvironmentName -notin $environments) {
                 throw "EnvironmentName '$EnvironmentName' is not valid. Valid values are: $($environments -join ', ')"
             }
+
+            # we're deploying to eastus2 mainly because the eastus is often out of capacity for provisioning
+            # Azure SQL databases. The eastus2 region is a good alternative.
+            $envRegion = $EnvironmentName -split '-' | Select-Object -Skip 1 -First 1
+            $azureRegion = if ($null -eq $envRegion -or $envRegion -eq 'na') {
+                @{
+                    Primary     =   @{ Name = 'eastus2'; Abbreviation = 'eus2' }
+                    Secondary   =   @{ Name = 'centralus'; Abbreviation = 'cus' }
+                }
+            }
             
             $conventionsParams = @{
                 CompanyName             =   'CLC Software'
@@ -79,6 +89,7 @@
 #                    Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }
                 Subscriptions           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName subscriptionId
+                AzureRegion             =   $azureRegion
             }
             
             Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
