@@ -45,10 +45,9 @@ This repo contains various powershell scripts (see [tools/dev-scripts directory]
 to automate the deployment tasks above and [github workflows](../.github/workflows) that automate CI/CD pipelines for the same deployments.
 
 > [!Note]
-> For more information on how these github workflows for the project were set up: [Create github workflow to deploy infrastructure](create-github-actions-infrastructure-pipeline.md)
-
-> [!Note]
-> For guidance on how to add another environment to the project: [Add a new environment](add-environment.md)
+> For more information on initial setup see:
+> * [Create initial github environments](create-initial-github-environments.md)
+> * [Add a new environment](add-environment.md)
 
 > [!WARNING]
 > Before running **any** scripts of workflows, you must make sure to have created the service principals responsible for

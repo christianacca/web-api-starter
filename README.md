@@ -15,7 +15,7 @@ See [architecture-and-project-structure.md](docs/architecture-and-project-struct
 
 ## Deployment
 
-* [Create github workflow to deploy infrastructure](create-github-actions-infrastructure-pipeline.md)
-* [Add a new environment](add-environment.md)
+* [Create initial github environments](docs/create-initial-github-environments.md)
+* [Add a new environment](docs/add-environment.md)
 * [How to deploy](docs/deploy-app.md)
 * [Branching / deployment strategy](docs/branch-and-deployment-strategy.md)

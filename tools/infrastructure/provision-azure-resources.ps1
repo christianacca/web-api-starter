@@ -12,7 +12,7 @@
       * Azure Function app x2 ('internalapi', 'testpbi')
       * User assigned managed identity assigned as the identity for Azure function apps
       * Azure AD App registration and associated AD Enterprise app (aka service principal). This App registration is associated with the 
-        Azure Function app 'internalapi' to authentication requests from the Azure container apps
+        Azure Function apps to authentication requests from the Azure container apps
       * Azure SQL database (logical server and single database for a primary and failover region) configured with:
         - Azure AD authentication
         - Azure AD Admin mapped to an Azure AD group
@@ -30,8 +30,8 @@
       * Azure AD role: 'Application developer'
       * Azure AD permission: 'microsoft.directory/groups.security/createAsOwner' (or member of 'sg.aad.role.custom.securitygroupcreator' Azure AD group)
       * MS Graph API permission: 'Application.ReadWrite.OwnedBy'
-      * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
-        (assumed that 'sg.aad.role.custom.azuresqlauthentication' has been assigned MS Graph directory permissions
+      * Owner of Azure AD group 'sg.eid.role.custom.azuresqlauthentication'
+        (assumed that 'sg.eid.role.custom.azuresqlauthentication' has been assigned MS Graph directory permissions
         as described here: https://docs.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-user-assigned-managed-identity?view=azuresql#permissions)
     
       Required permission to run this script as a user:
@@ -41,8 +41,8 @@
         - subscription IF the resource group does not already exist
       * Azure AD role: 'Application administrator'
       * Azure AD permission: 'microsoft.directory/groups.security/createAsOwner' (or member of 'sg.aad.role.custom.securitygroupcreator' Azure AD group)
-      * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
-        (assumed that 'sg.aad.role.custom.azuresqlauthentication' has been assigned MS Graph directory permissions
+      * Owner of Azure AD group 'sg.eid.role.custom.azuresqlauthentication'
+        (assumed that 'sg.eid.role.custom.azuresqlauthentication' has been assigned MS Graph directory permissions
         as described here: https://docs.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-user-assigned-managed-identity?view=azuresql#permissions)
     
     
@@ -173,7 +173,7 @@
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureResourceGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureSqlAADUser.ps1"
-        
+
         $templatePath = Join-Path $PSScriptRoot arm-templates
     }
     process {
@@ -207,7 +207,8 @@
             Write-Information "  INFO | Standalone Bicep version: $($standaloneBicepVs)"
             $azBicepVs = Invoke-Exe { az bicep version } -EA Continue
             Write-Information "  INFO | Azure CLI Bicep version: $($azBicepVs)"
-            
+
+
             #-----------------------------------------------------------------------------------------------
             Write-Information '1. Check resource providers are registered...'
             $resourceProviderName = @(
@@ -299,7 +300,7 @@
             if ($convention.SubProducts.Sql.Firewall.Rule) {
                 $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
             }
-            
+
             Write-Information "  Gathering existing resource information..."
             $acaAppTemplateParams = $convention.SubProducts.GetEnumerator() | Where-Object { $_.value.Type -eq 'AcaApp' } |
                 Select-Object -ExpandProperty Value |
@@ -343,7 +344,7 @@
 
             # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
             $sqlAadAuthGroup = [PsCustomObject]@{
-                Name                =   'sg.aad.role.custom.azuresqlauthentication'
+                Name                =   'sg.eid.role.custom.azuresqlauthentication'
                 Member              = @{
                     ApplicationId       =   $armResources.sqlManagedIdentityClientId.Value
                     Type                =   'ServicePrincipal'

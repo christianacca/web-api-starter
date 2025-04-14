@@ -1,4 +1,4 @@
-# Create github workflow to deploy infrastructure
+# Create initial github environments
 
 1. Create Azure AD app registrations to allow github actions to authenticate to Azure AD.
 
@@ -8,9 +8,9 @@
 
    1. (optional) Adjust the environments setup in [github-setup-environments.yml](../.github/workflows/github-setup-environments.yml)
    2. Go to the Actions tab in the github repo
-   3. Manually run the workflow 'Create Github environments'
+   3. Manually run the workflow 'Github Create Environments'
 
-3. (optional) Add approvals and branch protection policies
+3. Add approvals and branch protection policies
 
    Go to [Settings > Environments](https://github.com/christianacca/web-api-starter/settings/environments) in the github repo
    and select the environments you have just created. Add the branch protection rules as required to each environment.
@@ -27,4 +27,4 @@
 4. Create a convenience azure-login github action
 
    For any action in the github workflow to be able to perform any operation against Azure, the github workflow must sign-in to azure first.
-   As a convenience, create a custom github action like you see in this repo: [azure-login](../.github/actions/azure-login)
+   Create a custom github action like you see in this repo: [azure-login](../.github/actions/azure-login)
