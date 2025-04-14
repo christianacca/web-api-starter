@@ -5,20 +5,9 @@ on:
     inputs:
       environment-name:
         description: 'Environment'
-        required: true
         default: 'dev'
-        type: choice
-        options:
-          - dev
-          - qa
-          - demo
-          - demo-na
-          - demo-emea
-          - demo-apac
-          - staging
-          - prod-na
-          - prod-emea
-          - prod-apac
+        required: true
+        type: environment
       subscription-id:
         description: 'Subscription ID (leave blank to use the default subscription for the Environment)'
         required: false

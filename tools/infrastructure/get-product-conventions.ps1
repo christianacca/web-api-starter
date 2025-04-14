@@ -91,7 +91,7 @@
                 Subscriptions           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName subscriptionId
                 AzureRegion             =   $azureRegion
             }
-            
+
             Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable
 
             # If you need to override conventions, comment out the above line, and follow the example below...

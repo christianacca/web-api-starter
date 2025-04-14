@@ -8,7 +8,7 @@
 
    1. Add the new environment to [github-setup-environments.yml](../.github/workflows/github-setup-environments.yml)
    2. Go to the Actions tab in the github repo
-   3. Manually run the workflow you have adjusted above: [Github create environments](https://github.com/christianacca/web-api-starter/actions/workflows/github-setup-environments.yml)
+   3. Manually run the workflow you have adjusted above: [Github Create Environments](https://github.com/christianacca/web-api-starter/actions/workflows/github-setup-environments.yml)
 
 2. Add approvals and branch protection policies to github environment
 

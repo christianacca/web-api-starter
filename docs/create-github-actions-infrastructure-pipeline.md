@@ -1,4 +1,4 @@
-# Create github workflow to deploy infrastructure
+# Create github workflow to deploy infrastructure and/or app
 
 1. Create Azure AD app registrations to allow github actions to authenticate to Azure AD.
 
@@ -8,7 +8,7 @@
 
    1. (optional) Adjust the environments setup in [github-setup-environments.yml](../.github/workflows/github-setup-environments.yml)
    2. Go to the Actions tab in the github repo
-   3. Manually run the workflow 'Create Github environments'
+   3. Manually run the workflow 'Github Create Environments'
 
 3. (optional) Add approvals and branch protection policies
 
