@@ -3,10 +3,10 @@ function Get-ResourceConvention {
         [Parameter(Mandatory)]
         [string] $ProductName,
         [string] $ProductAbbreviation,
-        
+
         [string] $DefaultRegion = 'na',
         [hashtable] $AzureRegion,
-        
+
         [hashtable] $Domain = @{},
 
         [string] $EnvironmentName = 'dev',
@@ -34,7 +34,6 @@ function Get-ResourceConvention {
     . "$PSScriptRoot/Get-TeamGroupNames.ps1"
     . "$PSScriptRoot/Get-UniqueString.ps1"
     . "$PSScriptRoot/Get-WafRule.ps1"
-    . "$PSScriptRoot/hashtable-functions.ps1"
     . "$PSScriptRoot/string-functions.ps1"
 
     $hasFailover = ($EnvironmentName -in 'qa', 'rel', 'release') -or ($EnvironmentName -like 'prod*')
@@ -49,7 +48,7 @@ function Get-ResourceConvention {
     } else {
         $CompanyAbbreviation = $CompanyAbbreviation.ToLower()
     }
-    
+
     $Domain.CompanyDomain = $Domain.CompanyDomain ?? $CompanyName.Replace(' ', '').ToLower()
     $Domain.ProductDomain = $Domain.ProductDomain ?? $ProductAbbreviation
 
@@ -80,20 +79,20 @@ function Get-ResourceConvention {
         }
         $AzureRegion = $azureRegions[$envRegion]
     }
-    
+
     if ($null -eq $AzureRegion.Primary) {
         throw 'No azure primary region supplied. Please check the AzureRegion parameter supplied.'
     }
     if ($null -eq $AzureRegion.Secondary) {
         throw 'No azure secondary region supplied. Please check the AzureRegion parameter supplied.'
     }
-    
+
     $teamGroupNames = Get-TeamGroupNames $ProductAbbreviation $EnvironmentName
 
     $isEnvProdLike = Get-IsEnvironmentProdLike $EnvironmentName
     $isTestEnv = Get-IsTestEnv $EnvironmentName
     $isScaleToZeroEnv = $EnvironmentName -in 'ff', 'dev', 'staging'
-    
+
     if ($isScaleToZeroEnv -and $hasFailover) {
         throw 'Scale to zero environments cannot have failover. This is because the primary has to be tested for availability before the failover can be promoted, and therefore will need at least one container to serve traffic.'
     }
@@ -121,7 +120,7 @@ function Get-ResourceConvention {
         UniqueString        =   Get-UniqueString $appResourceGroupName
         RbacAssignment      =   $resourceGroupRbac
     }
-    
+
     $dataResourceGroup = if ($SeperateDataResourceGroup) {
         @{
             RbacAssignment      =   $resourceGroupRbac
@@ -398,7 +397,7 @@ function Get-ResourceConvention {
             'AcaApp' {
                 $isMainUI = $spInput.IsMainUI ?? $false
                 $oidcAppProductName = $spInput.OidcAppProductName ?? $ProductName
-                $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : ' API'), $EnvironmentName
+                $oidcAppName = '{0}{1} ({2})' -f $oidcAppProductName, ($isMainUI ? '' : " $componentName"), $EnvironmentName
                 $acaEnv = $subProductsConventions[$spInput.AcaEnv ?? 'Aca']
 
                 $managedId = @{
@@ -407,9 +406,9 @@ function Get-ResourceConvention {
                 if ($spInput.AdditionalManagedId) {
                     @($spInput.AdditionalManagedId) | ForEach-Object {
                         $managedId[$_] = $subProductsConventions.$_.ResourceName
-                    }    
+                    }
                 }
-                
+
                 $acaShareSettings = @{
                     DefaultHealthPath   =   '/health'
                     MaxReplicas         =   switch ($EnvironmentName) {
@@ -424,7 +423,7 @@ function Get-ResourceConvention {
 
                 $acaAppNameTemplate = 'ca-{0}-{1}-{2}'
                 $acaIngressHostnameTemplate = '{0}.ACA_ENV_DEFAULT_DOMAIN'
-                
+
                 $primaryAcaResourceName = $acaAppNameTemplate -f $appInstance, $AzureRegion.Primary.Abbreviation, $componentName.ToLower()
                 $acaAppPrimary = @{
                     ResourceName        =   $primaryAcaResourceName
@@ -563,7 +562,7 @@ function Get-ResourceConvention {
             }
             'TrafficManager' {
                 $targetSubProduct = $subProductsConventions[$spInput.Target]
-                
+
                 $tmEndpoints = switch($targetSubProduct.Type) {
                     'AcaApp' {
                         @{
@@ -668,7 +667,7 @@ function Get-ResourceConvention {
             $_.RbacAssignment = @()
         }
     }
-    
+
     $containerRegistryNamePrefix = $CompanyName.Replace(' ', '').ToLower()
     $containerRegistryProd = @{
         ResourceName        =   "${containerRegistryNamePrefix}devopsprod"
@@ -705,7 +704,7 @@ function Get-ResourceConvention {
         )
         ZoneName                =   $devRootDomain -join '.'
     }
-    
+
     $prodRootDomain = (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
     $prodCert = @{
         KeyVault                =   $sharedKeyVault + @{}

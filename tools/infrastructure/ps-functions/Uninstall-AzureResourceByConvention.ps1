@@ -12,7 +12,7 @@ function Uninstall-AzureResourceByConvention {
       
       * Azure 'Contributor' and 'User Access Administrator' on resource group
       * Azure AD 'Groups administrator' or owner of each Azure AD group to be deleted
-      * Owner of Azure AD group 'sg.aad.role.custom.azuresqlauthentication'
+      * Owner of Azure AD group 'sg.eid.role.custom.azuresqlauthentication'
       
     
       .PARAMETER InputObject
