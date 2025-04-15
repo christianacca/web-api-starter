@@ -7,8 +7,9 @@
   * [5. Adjust infra-as-code provisioning scripts](#5-adjust-infra-as-code-provisioning-scripts)
   * [6. Adjust dev deploy script to deploy new azure container app](#6-adjust-dev-deploy-script-to-deploy-new-azure-container-app)
   * [7. Update dev setup guide](#7-update-dev-setup-guide)
-  * [8. Add app to the solution's CI/CD pipeline](#8-add-app-to-the-solutions-cicd-pipeline)
-  * [9. Implement custom domain for the new app](#9-implement-custom-domain-for-the-new-app)
+  * [8. Update add environment guide](#8-update-add-environment-guide)
+  * [9. Add app to the solution's CI/CD pipeline](#9-add-app-to-the-solutions-cicd-pipeline)
+  * [10. Implement custom domain for the new app](#10-implement-custom-domain-for-the-new-app)
 <!-- TOC -->
 
 # Instructions for adding a new application to the solution
@@ -343,7 +344,12 @@ development.
 
 For an example section to add, see [dev-setup.md](../docs/dev-setup.md#app)
 
-## 8. Add app to the solution's CI/CD pipeline
+## 8. Update add environment guide
+
+Add guidance to the [add-environment.md](../docs/add-environment.md) guide describing any configuration and secrets
+required for the new app
+
+## 9. Add app to the solution's CI/CD pipeline
 
 1. Modify the 'Map variables' step in the [__Application Deployment](../.github/workflows/__app-deploy.yml) github workflow 
    to include the variables required for the new app. At minimum this will be:
@@ -391,7 +397,7 @@ For an example section to add, see [dev-setup.md](../docs/dev-setup.md#app)
    3. Manually run the [Application CI/CD](../.github/workflows/app-ci-cd.yml) github workflow selecting the PR branch
       * This will execute the deployment steps for the new app
 
-## 9. Implement custom domain for the new app
+## 10. Implement custom domain for the new app
 
 1. Create DNS records for the new app
 

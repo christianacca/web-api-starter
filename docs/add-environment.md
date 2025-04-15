@@ -115,6 +115,10 @@
     * Okta Application for each workload service that needs to acquire identity and/or access tokens. For example:
       [Create a confidential client](https://developer.okta.com/docs/guides/sign-into-web-app-redirect/asp-net-core-3/main/#create-an-app-integration-in-the-admin-console)
 
+    Once created you will add in the following steps:
+    * the client id and authorization server url as config values
+    * the client secret as a keyvault secret
+
 12. Set okta variables in the app deployment github workflow
 
     Now that the okta configuration has been created, set the okta variables in [__Application Deployment](../.github/workflows/__app-deploy.yml)  
