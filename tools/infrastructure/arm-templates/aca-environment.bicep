@@ -32,6 +32,7 @@ module acaEnv 'br/public:avm/res/app/managed-environment:0.10.2' = {
     }
     location: location
     logAnalyticsWorkspaceResourceId: sharedSettings.logAnalyticsWorkspaceResourceId
+    publicNetworkAccess: 'Enabled'
     workloadProfiles: [
       {
         name: 'Consumption'

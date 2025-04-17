@@ -123,6 +123,21 @@
       prod-emea SubProducts.Api Hostname emea-api.was.clcsoftware.com
       prod-apac SubProducts.Api Hostname apac-api.was.clcsoftware.com
 
+      .EXAMPLE
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values } -AsArray | ? { $_.Type -in 'AksPod', 'AcaApp' } | Select Env, Name, HostName
+    
+      Description
+      -----------
+      Returns the Hostname setting value of every AksPod or AcaApp as a table. EG:
+      
+      Env       Name  HostName
+      ---       ----  --------
+      dev       Embed dev-embed-mriagorainsights.devtest.mrisoftware.com
+      dev       Api   dev-api-mriagorainsights.devtest.mrisoftware.com
+      dev       Web   dev-mriagorainsights.redmz.mrisoftware.com
+      qa        Embed qa-embed-mriagorainsights.devtest.mrisoftware.com
+      qa        Api   qa-api-mriagorainsights.devtest.mrisoftware.com
+      qa        Web   qa-mriagorainsights.redmz.mrisoftware.com
 
       .EXAMPLE
       @(`
