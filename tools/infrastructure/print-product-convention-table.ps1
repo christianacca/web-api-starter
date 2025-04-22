@@ -124,7 +124,7 @@
       prod-apac SubProducts.Api Hostname apac-api.was.clcsoftware.com
 
       .EXAMPLE
-      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values } -AsArray | ? { $_.Type -in 'AksPod', 'AcaApp' } | Select Env, Name, HostName
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values } -AsArray | ? { $_.Type -in 'AksPod', 'AcaApp', 'FunctionApp' } | Select Env, Name, HostName
     
       Description
       -----------

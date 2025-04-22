@@ -371,6 +371,7 @@ function Get-ResourceConvention {
                     RbacAssignment      =   $rbacAssignment
                     ResourceName        =   $funcResourceName
                     StorageAccountName  =   '{0}{1}' -f ($spInput.StorageAccountNamePrefix ?? 'funcsa'), $appReourceGroup.UniqueString
+                    Name                =   $componentName
                     Type                =   $spInput.Type
                 }
             }
