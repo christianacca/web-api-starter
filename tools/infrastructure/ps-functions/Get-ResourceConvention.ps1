@@ -17,8 +17,6 @@ function Get-ResourceConvention {
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
         [hashtable] $Subscriptions = @{},
-
-        [switch] $SeperateDataResourceGroup,
     
         [switch] $AsHashtable
     )
@@ -119,16 +117,6 @@ function Get-ResourceConvention {
         ResourceLocation    =   $AzureRegion.Primary.Name
         UniqueString        =   Get-UniqueString $appResourceGroupName
         RbacAssignment      =   $resourceGroupRbac
-    }
-
-    $dataResourceGroup = if ($SeperateDataResourceGroup) {
-        @{
-            RbacAssignment      =   $resourceGroupRbac
-            ResourceName        =   'rg-{0}-{1}-{2}-data' -f $EnvironmentName, $ProductAbbreviation, $AzureRegion.Primary.Name
-            ResourceLocation    =   $AzureRegion.Primary.Name
-        }
-    } else {
-        $appReourceGroup
     }
 
     $managedIdentityNamePrefix = "id-$appInstance"
@@ -725,7 +713,6 @@ function Get-ResourceConvention {
             Name            =   $CompanyName
         }
         ContainerRegistries     =   $containerRegistries
-        DataResourceGroup       =   $dataResourceGroup
         EnvironmentName         =   $EnvironmentName
         IsEnvironmentProdLike   =   $isEnvProdLike
         Product                 =   @{

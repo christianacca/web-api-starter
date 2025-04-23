@@ -8,7 +8,6 @@ function Get-RbacRoleAssignment {
 
     $rbacAssignments = @(
         $InputObject.AppResourceGroup.RbacAssignment
-        if ($InputObject.AppResourceGroup -ne $InputObject.DataResourceGroup) { $InputObject.DataResourceGroup.RbacAssignment }
         $InputObject.SubProducts.Values.RbacAssignment
     )
     
