@@ -13,6 +13,10 @@
         . "$PSScriptRoot/ps-functions/Get-ResourceConvention.ps1"
     }
     process {
+        # TIP Use the following script to snapshpt the conventions which you can then compare with another snapshot
+        # after making a change to the conventions:
+        # New-Item ./out/infra-settings -Force -ItemType Directory | Out-Null; & ./tools/infrastructure/get-product-environment-names.ps1 | ForEach-Object { ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $_ > ./out/infra-settings/$_.json }
+
         try {
 
             $environments = & "$PSScriptRoot/get-product-environment-names.ps1"

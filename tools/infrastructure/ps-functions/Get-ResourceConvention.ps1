@@ -68,7 +68,9 @@ function Get-ResourceConvention {
             # australiasoutheast is not available in azure container apps; this is the closest alternative region to australiaeast
             SecondaryAlt    =   @{ Name = 'southeastasia'; Abbreviation = 'sea' }
         }
-    }   
+    }
+
+    $azureDefaultRegion = $azureRegions[$DefaultRegion]
 
     if ($null -eq $AzureRegion) {
         $envRegion = ($EnvironmentName -split '-' | Select-Object -Skip 1 -First 1) ?? $DefaultRegion
@@ -661,7 +663,7 @@ function Get-ResourceConvention {
     $containerRegistryProd = @{
         ResourceName        =   "${containerRegistryNamePrefix}devopsprod"
         ResourceGroupName   =   "rg-prod-$CompanyAbbreviation-sharedservices"
-        SubscriptionId      =   $Subscriptions['global-prod'] ?? $Subscriptions['prod-na']
+        SubscriptionId      =   $Subscriptions['global-prod'] ?? $Subscriptions["prod-$DefaultRegion"]
     }
     $containerRegistryDev = @{
         ResourceName        =   "${containerRegistryNamePrefix}devops"
@@ -673,13 +675,15 @@ function Get-ResourceConvention {
         Prod        = $containerRegistryProd
         Dev         = $containerRegistryDev
     }
+    
+    $sharedResourceGroupName = 'rg-shared-{0}-{1}' -f $ProductAbbreviation, $azureDefaultRegion.Primary.Name
+    $sharedResourceSubscriptionId = $Subscriptions["prod-$DefaultRegion"]
 
-    $sharedKeyVaultLocation = 'eastus'
     $sharedKeyVault = @{
         ResourceName            =   'kv-{0}-shared' -f $ProductAbbreviation
-        ResourceGroupName       =   'rg-shared-{0}-{1}' -f $ProductAbbreviation, $sharedKeyVaultLocation
-        ResourceLocation        =   $sharedKeyVaultLocation
-        SubscriptionId          =   $Subscriptions['prod-na']
+        ResourceGroupName       =   $sharedResourceGroupName
+        ResourceLocation        =   $azureDefaultRegion.Primary.Name
+        SubscriptionId          =   $sharedResourceSubscriptionId
         EnablePurgeProtection   =   $false # consider enabling this for your workloads
     }
 
@@ -726,6 +730,11 @@ function Get-ResourceConvention {
             Prod            =   $prodCert
         }
         IsTestEnv               =   $isTestEnv
+        DefaultRegion           =   $DefaultRegion
+        AzureRegion             =   @{
+            Default         =   $azureDefaultRegion
+            Current         =   $AzureRegion
+        }
     }
     
     if ($AsHashtable) {

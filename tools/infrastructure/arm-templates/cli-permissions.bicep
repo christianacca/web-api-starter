@@ -1,11 +1,8 @@
-@description('The principal/object id of the service principal that is used to deploy this product to the apac environment')
-param apacProdServicePrincipalId string
-
 @description('The principal/object id of the service principal that is used to deploy this product to dev/test environments')
 param devServicePrincipalId string
 
-@description('The principal/object id of the service principal that is used to deploy this product to the emea environment')
-param emeaProdServicePrincipalId string
+@description('The principal/object id of the service principal that is used to deploy this product to the non-default production environment')
+param otherProdServicePrincipalIds array
 
 @description('The settings for all resources. TIP: to find the structure of settings object use: ./tools/infrastructure/get-product-conventions.ps1')
 param settings object
@@ -16,17 +13,13 @@ targetScope = 'subscription'
 // https://github.com/MRI-Software/service-principal-automate
 // and therefore have already been granted permissions to create/update resources in their "home" subscription.
 
-// Note: assumes that the production registry and shared key vault are in the prod-na subscription. thus we are granting
-// permissions to the service principals that do NOT have permission to manage RBAC for resources in the prod-na subscription
+// Note: assumes that the production registry and shared key vault are in the default production subscription. thus we are granting
+// permissions to the service principals that do NOT have permission to manage RBAC for resources in that subscription
 
 var prodRegistry = settings.ContainerRegistries.Prod
 
 // union used to de-dup id's supplied
-var principalsIdsAcrAccess = union([
-  devServicePrincipalId
-  apacProdServicePrincipalId
-  emeaProdServicePrincipalId
-], [])
+var principalsIdsAcrAccess = union([devServicePrincipalId], otherProdServicePrincipalIds)
 
 module acrRbacAssignmentPermissions 'acr-role-assignment.bicep' = [for (id, index) in principalsIdsAcrAccess: {
   name: '${uniqueString(deployment().name)}-${index}-AcrRbacPermission'
@@ -44,10 +37,8 @@ var devTlsCertKeyVault = settings.TlsCertificates.Dev.KeyVault
 var uniqueKeyVaults = union([prodTlsCertKeyVault, devTlsCertKeyVault], [])
 var isSingleSharedVault = length(uniqueKeyVaults) == 1
 
-var principalsIdsKeyVaultAccess = union([
-    apacProdServicePrincipalId
-    emeaProdServicePrincipalId
-  ],
+var principalsIdsKeyVaultAccess = union(
+  otherProdServicePrincipalIds,
   isSingleSharedVault ? [devServicePrincipalId] : []
 )
 
