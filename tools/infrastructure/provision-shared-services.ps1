@@ -82,9 +82,9 @@
                     Location                =   'eastus'
                     TemplateFile            =   Join-Path $templatePath 'cli-permissions.bicep'
                     TemplateParameterObject = @{
-                        devServicePrincipalId       =   Get-AzADServicePrincipal -ApplicationId $clientIds['dev'].Id | Select-Object -Exp Id
-                        apacProdServicePrincipalId  =   Get-AzADServicePrincipal -ApplicationId $clientIds['prod-apac'].Id | Select-Object -Exp Id
-                        emeaProdServicePrincipalId  =   Get-AzADServicePrincipal -ApplicationId $clientIds['prod-emea'].Id | Select-Object -Exp Id
+                        devServicePrincipalId       =   Get-AzADServicePrincipal -ApplicationId $clientIds['dev' | Select-Object -Exp Id
+                        apacProdServicePrincipalId  =   Get-AzADServicePrincipal -ApplicationId $clientIds['prod-apac'] | Select-Object -Exp Id
+                        emeaProdServicePrincipalId  =   Get-AzADServicePrincipal -ApplicationId $clientIds['prod-emea'] | Select-Object -Exp Id
                         settings                    =   $convention
                     }
                 }
