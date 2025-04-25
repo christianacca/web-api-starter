@@ -9,11 +9,14 @@ function Get-RbacRoleAssignment {
     $rbacAssignments = @(
         $InputObject.AppResourceGroup.RbacAssignment
         $InputObject.SubProducts.Values.RbacAssignment
+        $InputObject.TlsCertificates.Dev.KeyVault.RbacAssignment
+        $InputObject.TlsCertificates.Prod.KeyVault.RbacAssignment
     )
     
     $flattenedAssignments = $rbacAssignments  | ForEach-Object {
         $roles = $_.Role
         $members = $_.Member
+        $scope = $_['Scope'] ?? $InputObject.AppResourceGroup.ResourceId
         $roles | ForEach-Object {
             $role = $_
             $members | ForEach-Object {
@@ -34,12 +37,13 @@ function Get-RbacRoleAssignment {
                 }
                 [PsCustomObject]@{
                     MemberName      = $memberName
-                    MemberType      = $_.Type
+                    MemberType      = $member.Type
                     Role            = $role
+                    Scope           = $scope
                 }
             }
         }
-    } | Sort-Object MemberName
+    } | Sort-Object MemberName,Scope,MemberType,Role -Unique
 
     $flattenedAssignments
 }
