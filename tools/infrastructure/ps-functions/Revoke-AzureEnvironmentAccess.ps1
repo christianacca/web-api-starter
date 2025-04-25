@@ -54,7 +54,6 @@ function Revoke-AzureEnvironmentAccess {
 
             $groupToRevoke = $InputObject | Resolve-TeamGroupName -AccessLevel $AccessLevel -SubProductName $SubProductName
             $group = Get-AzAdGroup -DisplayName $groupToRevoke -EA Stop
-            $resourceGroupName = $InputObject.AppResourceGroup.ResourceName
 
             $users | ForEach-Object {
                 $user = $_
@@ -62,18 +61,23 @@ function Revoke-AzureEnvironmentAccess {
                 #------------- Calculate RBAC permissions that will be revoked -------------
                 $allRoleAssignments = Get-RbacRoleAssignment $InputObject
                 $allowedGroupNames = $allRoleAssignments |
-                        Where-Object { $_.MemberType -eq 'Group' -and $_.MemberName -ne $groupToRevoke } |
-                        Select-Object -ExpandProperty MemberName -Unique
+                    Where-Object { $_.MemberType -eq 'Group' -and $_.MemberName -ne $groupToRevoke } |
+                    Select-Object -ExpandProperty MemberName -Unique
                 $assignedGroupNames = $allowedGroupNames |
-                        Where-Object { Get-AzAdGroup -DisplayName $_ | Get-AzADGroupMember | Where-Object Id -eq $user.Id }
+                    Where-Object { Get-AzAdGroup -DisplayName $_ | Get-AzADGroupMember | Where-Object Id -eq $user.Id }
                 $allowedRoles = $allRoleAssignments |
-                        Where-Object MemberName -in $assignedGroupNames |
-                        Select-Object -ExpandProperty Role -Unique
+                    Where-Object MemberName -in $assignedGroupNames |
+                    Select-Object Role, Scope -Unique
 
                 $assignmentsToRevoke = $allRoleAssignments |
-                        Where-Object { $_.MemberName -eq $groupToRevoke -and $_.Role -notin $allowedRoles } |
-                        Resolve-RbacRoleAssignment -ExpandGroupMembership |
-                        Where-Object ObjectId -eq $user.Id
+                    Where-Object {
+                        $assignment = $_
+                        $assignment.MemberName -eq $groupToRevoke -and -not(
+                            $allowedRoles | Where-Object { $_.Role -eq $assignment.Role -and $_.Scope -eq $assignment.Scope  }
+                        )
+                    } |
+                    Resolve-RbacRoleAssignment -ExpandGroupMembership |
+                    Where-Object ObjectId -eq $user.Id
 
 
                 #------------- Remove from AAD group -------------
@@ -89,7 +93,9 @@ function Revoke-AzureEnvironmentAccess {
                 Write-Output "Permissions revoked from '$($user.UserPrincipalName)' (see tables below)"
                 Write-Output 'RBAC Permissions'
                 Write-Output '----------------'
-                $assignmentsToRevoke | Select-Object *, @{ N='Scope'; E={ $resourceGroupName } } | Format-Table
+                $assignmentsToRevoke | Select-Object ObjectId, RoleDefinitionName, `
+                    @{ N='ResourceName'; E={ $_.Scope -split '/' | Select-Object -Last 1 } } |
+                    Format-Table -AutoSize
                 Write-Output 'Security Group Membership'
                 Write-Output '-------------------------'
                 if ($groupMembership) {
