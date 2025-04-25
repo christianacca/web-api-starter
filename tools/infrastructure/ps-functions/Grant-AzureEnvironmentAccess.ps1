@@ -77,9 +77,7 @@ function Grant-AzureEnvironmentAccess {
             $roleAssignments = Get-RbacRoleAssignment $InputObject | Where-Object MemberName -eq $groupName
 
             if ($ApplyCurrentPermissions) {
-                $roleAssignments |
-                    Resolve-RbacRoleAssignment |
-                    Grant-RbacRole -Scope $rg.ResourceId    
+                $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole 
             }
 
             #------------- Summarize work -------------
@@ -91,7 +89,7 @@ function Grant-AzureEnvironmentAccess {
 
             Write-Output 'RBAC Permissions'
             Write-Output '----------------'
-            $roleAssignments | Select-Object MemberName, Role, @{ N='Scope'; E={ $resourceGroupName } } | Format-Table
+            $roleAssignments | Select-Object MemberName, Role, Scope | Format-Table -Wrap
 
             if ($users) {
                 Write-Output 'Security Group Membership'
