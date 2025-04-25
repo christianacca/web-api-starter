@@ -267,7 +267,7 @@
 
 
             #-----------------------------------------------------------------------------------------------
-            Write-Information "5. Set Azure RBAC - for teams to scope '$($rg.ResourceId)'..."
+            Write-Information "5. Set Azure RBAC - for teams..."
             $wait = 15
             Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning RBAC"
             Start-Sleep -Seconds $wait
@@ -275,9 +275,12 @@
             $kvSecretOfficer = $convention.SubProducts.KeyVault.RbacAssignment | Where-Object Role -eq 'Key Vault Secrets Officer'
             $kvSecretOfficer.Member = @($currentUserMember; $kvSecretOfficer.Member)
             $roleAssignments = Get-RbacRoleAssignment $convention
-            $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole -Scope $rg.ResourceId
-            Write-Information 'RBAC permissions granted (see table below)'
-            $roleAssignments | Format-Table
+            $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole
+            Write-Information 'RBAC permissions granted (see lists below)'
+            $roleAssignments |
+                Sort-Object MemberName,MemberType |
+                Format-List Role,Scope -GroupBy @{ n='MemberName|Type'; e={ '{0}|{1}' -f $_.MemberName, $_.MemberType } }
+
 
 
             #-----------------------------------------------------------------------------------------------

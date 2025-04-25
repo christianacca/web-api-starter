@@ -116,6 +116,7 @@ function Get-ResourceConvention {
     $appResourceGroupName = 'rg-{0}-{1}-{2}' -f $EnvironmentName, $ProductAbbreviation, $AzureRegion.Primary.Name
     $appReourceGroup = @{
         ResourceName        =   $appResourceGroupName
+        ResourceId          =   '/subscriptions/{0}/resourceGroups/{1}' -f $Subscriptions[$EnvironmentName], $appResourceGroupName
         ResourceLocation    =   $AzureRegion.Primary.Name
         UniqueString        =   Get-UniqueString $appResourceGroupName
         RbacAssignment      =   $resourceGroupRbac
@@ -675,21 +676,45 @@ function Get-ResourceConvention {
         Prod        = $containerRegistryProd
         Dev         = $containerRegistryDev
     }
-    
-    $sharedResourceGroupName = 'rg-shared-{0}-{1}' -f $ProductAbbreviation, $azureDefaultRegion.Primary.Name
-    $sharedResourceSubscriptionId = $Subscriptions["prod-$DefaultRegion"]
+
+
+    $sharedRgName = 'rg-shared-{0}-{1}' -f $ProductAbbreviation, $azureDefaultRegion.Primary.Name
+    $sharedRgResourceId = '/subscriptions/{0}/resourceGroups/{1}' -f $Subscriptions["prod-$DefaultRegion"], $sharedRgName
+    $sharedRg = @{
+        ResourceGroupName           =   $sharedRgName
+        ResourceLocation            =   $azureDefaultRegion.Primary.Name
+        SubscriptionId              =   $Subscriptions["prod-$DefaultRegion"]
+        RbacAssignment          =   @(
+            @{
+                Role    =   'Reader'
+                Member  =   @(
+                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                    @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
+                    @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+                )
+                Scope   =   $sharedRgResourceId
+            }
+        )
+    }
 
     $sharedKeyVault = @{
         ResourceName            =   'kv-{0}-shared' -f $ProductAbbreviation
-        ResourceGroupName       =   $sharedResourceGroupName
-        ResourceLocation        =   $azureDefaultRegion.Primary.Name
-        SubscriptionId          =   $sharedResourceSubscriptionId
         EnablePurgeProtection   =   $false # consider enabling this for your workloads
-    }
+    } + $sharedRg
+    $sharedKeyVault.RbacAssignment += @(
+        @{
+            Role    =   'Key Vault Reader'
+            Member  =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+            Scope   =   '{0}/providers/Microsoft.KeyVault/vaults/{1}' `
+                        -f $sharedRgResourceId, $sharedKeyVault.ResourceName
+        }
+    )
 
     $devRootDomain = (Get-PublicHostName dev @Domain).Split('.') | Select-Object -Skip 1
+    # note: cloning the keyvault settings here to allow caller to override returned conventions so that a change
+    # to one keyvault setting does not change this value for both dev and prod
     $devCert = @{
-        KeyVault                =   $sharedKeyVault + @{}
+        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
         ResourceName            =   @($devRootDomain; 'wildcardcert') -join '-'
         SubjectAlternateNames   =   @(
             $devRootDomain -join '.'
@@ -700,7 +725,7 @@ function Get-ResourceConvention {
 
     $prodRootDomain = (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
     $prodCert = @{
-        KeyVault                =   $sharedKeyVault + @{}
+        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
         ResourceName            =   @($prodRootDomain; 'wildcardcert') -join '-'
         SubjectAlternateNames   =   @(
             $prodRootDomain -join '.'
