@@ -9,6 +9,9 @@ function Resolve-RbacRoleAssignment {
 
         [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
         [string] $MemberType,
+
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
+        [string] $Scope,
     
         [switch] $ExpandGroupMembership
     )
@@ -27,6 +30,7 @@ function Resolve-RbacRoleAssignment {
                 MemberName  =   $MemberName
                 MemberType  =   $MemberType
                 Role        =   $Role
+                Scope       =   $Scope
             }
         ) + $roleAssignmants
 
@@ -36,6 +40,7 @@ function Resolve-RbacRoleAssignment {
         try {
             $roleAssignmants | ForEach-Object {
                 $role = $_.Role
+                $scope = $_.Scope
                 if ($_.MemberType -eq 'Group' -and $ExpandGroupMembership) {
                     
                     if (-not($membershipByGroupName.ContainsKey($_.MemberName))) {
@@ -47,22 +52,26 @@ function Resolve-RbacRoleAssignment {
                         [PsCustomObject]@{
                             ObjectId            =   $_.Id
                             RoleDefinitionName  =   $role
+                            Scope               =   $scope
                         }
                     }
                 } elseif ($_.MemberType -eq 'Group' -and -not($ExpandGroupMembership)) {
                     [PsCustomObject]@{
                         ObjectId                =   (Get-AzADGroup -DisplayName $_.MemberName -EA Stop).Id
                         RoleDefinitionName      =   $role
+                        Scope                   =   $scope
                     }
                 } elseif ($_.MemberType -eq 'User') {
                     [PsCustomObject]@{
                         ObjectId                =   (Get-AzADUser -UserPrincipalName $_.MemberName -EA Stop).Id
                         RoleDefinitionName      =   $role
+                        Scope                   =   $scope
                     }
                 } elseif ($_.MemberType -eq 'ServicePrincipal') {
                     [PsCustomObject]@{
                         ObjectId                =   (Get-AzADServicePrincipal -ApplicationId $_.MemberName).Id
                         RoleDefinitionName      =   $role
+                        Scope                   =   $scope
                     }
                 }
             }
