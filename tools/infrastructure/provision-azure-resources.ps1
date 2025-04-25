@@ -275,7 +275,7 @@
             $kvSecretOfficer = $convention.SubProducts.KeyVault.RbacAssignment | Where-Object Role -eq 'Key Vault Secrets Officer'
             $kvSecretOfficer.Member = @($currentUserMember; $kvSecretOfficer.Member)
             $roleAssignments = Get-RbacRoleAssignment $convention
-            $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole -Scope $rg.ResourceId
+            $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole
             Write-Information 'RBAC permissions granted (see table below)'
             $roleAssignments | Format-Table
 
