@@ -8,7 +8,6 @@ function Grant-RbacRole {
     
       .PARAMETER Scope
       The Scope of the role assignment. In the format of relative URI. For e.g. "/subscriptions/9004a9fd-d58e-48dc-aeb2-4a4aec58606f/resourceGroups/TestRG". 
-      If not specified, will create the role assignment at subscription level. If specified, it should start with "/subscriptions/{id}
           
       .PARAMETER RoleDefinitionName
       Role that is assigned to the principal i.e. Reader, Contributor, Virtual Network Administrator, etc.
@@ -19,7 +18,7 @@ function Grant-RbacRole {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
+        [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
         [string] $Scope,
 
         [Parameter(Mandatory, ValueFromPipelineByPropertyName)]
@@ -40,7 +39,7 @@ function Grant-RbacRole {
                 return
             }
 
-            Write-Information "Assigning RBAC role '$RoleDefinitionName' to Identity '$ObjectId'"
+            Write-Information "Assigning RBAC role '$RoleDefinitionName' to Identity '$ObjectId' for scope '$Scope'"
             New-AzRoleAssignment -ObjectId $ObjectId -RoleDefinitionName $RoleDefinitionName -Scope $Scope | Out-Null
         }
         catch {
