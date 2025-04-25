@@ -77,21 +77,19 @@ function Grant-AzureEnvironmentAccess {
             $roleAssignments = Get-RbacRoleAssignment $InputObject | Where-Object MemberName -eq $groupName
 
             if ($ApplyCurrentPermissions) {
-                $roleAssignments |
-                    Resolve-RbacRoleAssignment |
-                    Grant-RbacRole -Scope $rg.ResourceId    
+                $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole 
             }
 
             #------------- Summarize work -------------
             if ($ApplyCurrentPermissions) {
                 Write-Output 'RBAC permissions have been reapplied to current Azure resources (see table below)'
             } else {
-                Write-Output "Permissions granted to '$userNames' (see tables below)"
+                Write-Output "Permissions granted to '$userNames' (see tables/lists below)"
             }
 
             Write-Output 'RBAC Permissions'
             Write-Output '----------------'
-            $roleAssignments | Select-Object MemberName, Role, @{ N='Scope'; E={ $resourceGroupName } } | Format-Table
+            $roleAssignments | Format-List
 
             if ($users) {
                 Write-Output 'Security Group Membership'
