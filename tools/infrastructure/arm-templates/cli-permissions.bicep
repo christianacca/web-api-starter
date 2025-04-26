@@ -47,7 +47,7 @@ module keyVaultRbacAssignmentPermissions 'keyvault-role-assignment.bicep' = [for
   scope: resourceGroup((prodTlsCertKeyVault.SubscriptionId ?? subscription().subscriptionId), prodTlsCertKeyVault.ResourceGroupName)
   params: {
     principalId: id
-    resourceName: devTlsCertKeyVault.ResourceName
+    resourceName: prodTlsCertKeyVault.ResourceName
     roleDefinitionId: '8b54135c-b56d-4d72-a534-26097cfdc8d8' // <- Key Vault Data Access Administrator
   }
 }]
