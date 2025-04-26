@@ -11,6 +11,10 @@ function Get-RbacRoleAssignment {
         $InputObject.SubProducts.Values.RbacAssignment
         $InputObject.TlsCertificates.Dev.KeyVault.RbacAssignment
         $InputObject.TlsCertificates.Prod.KeyVault.RbacAssignment
+        $InputObject.ConfigStores.IsDeployed ? @(
+            $InputObject.ConfigStores.Dev.RbacAssignment
+            $InputObject.ConfigStores.Prod.RbacAssignment
+        ) : @()
     )
     
     $flattenedAssignments = $rbacAssignments  | ForEach-Object {
