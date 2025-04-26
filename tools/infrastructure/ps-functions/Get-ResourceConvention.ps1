@@ -17,6 +17,8 @@ function Get-ResourceConvention {
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
         [hashtable] $Subscriptions = @{},
+        
+        [hashtable] $Options = @{},
     
         [switch] $AsHashtable
     )
@@ -659,19 +661,24 @@ function Get-ResourceConvention {
             $_.RbacAssignment = @()
         }
     }
+    
+    $defaultProdEnvName = "prod-$DefaultRegion"
 
     $containerRegistryNamePrefix = $CompanyName.Replace(' ', '').ToLower()
     $containerRegistryProd = @{
         ResourceName        =   "${containerRegistryNamePrefix}devopsprod"
         ResourceGroupName   =   "rg-prod-$CompanyAbbreviation-sharedservices"
-        SubscriptionId      =   $Subscriptions['global-prod'] ?? $Subscriptions["prod-$DefaultRegion"]
+        ResourceLocation    =   $azureDefaultRegion.Primary.Name
+        SubscriptionId      =   $Subscriptions['global-prod'] ?? $Subscriptions[$defaultProdEnvName]
     }
     $containerRegistryDev = @{
         ResourceName        =   "${containerRegistryNamePrefix}devops"
         ResourceGroupName   =   "rg-dev-$CompanyAbbreviation-sharedservices"
+        ResourceLocation    =   $azureDefaultRegion.Primary.Name
         SubscriptionId      =   $Subscriptions['global-dev'] ?? $Subscriptions['dev']
     }
     $containerRegistries = @{
+        IsDeployed  = $Options.DeployContainerRegistry -eq $true
         Available   = $isEnvProdLike ? @($containerRegistryProd) : @($containerRegistryProd, $containerRegistryDev)
         Prod        = $containerRegistryProd
         Dev         = $containerRegistryDev
@@ -679,11 +686,11 @@ function Get-ResourceConvention {
 
 
     $sharedRgName = 'rg-shared-{0}-{1}' -f $ProductAbbreviation, $azureDefaultRegion.Primary.Name
-    $sharedRgResourceId = '/subscriptions/{0}/resourceGroups/{1}' -f $Subscriptions["prod-$DefaultRegion"], $sharedRgName
+    $sharedRgResourceId = '/subscriptions/{0}/resourceGroups/{1}' -f $Subscriptions[$defaultProdEnvName], $sharedRgName
     $sharedRg = @{
         ResourceGroupName           =   $sharedRgName
         ResourceLocation            =   $azureDefaultRegion.Primary.Name
-        SubscriptionId              =   $Subscriptions["prod-$DefaultRegion"]
+        SubscriptionId              =   $Subscriptions[$defaultProdEnvName]
         RbacAssignment          =   @(
             @{
                 Role    =   'Reader'
@@ -714,7 +721,7 @@ function Get-ResourceConvention {
     # note: cloning the keyvault settings here to allow caller to override returned conventions so that a change
     # to one keyvault setting does not change this value for both dev and prod
     $devCert = @{
-        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
         ResourceName            =   @($devRootDomain; 'wildcardcert') -join '-'
         SubjectAlternateNames   =   @(
             $devRootDomain -join '.'
@@ -725,13 +732,74 @@ function Get-ResourceConvention {
 
     $prodRootDomain = (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
     $prodCert = @{
-        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
         ResourceName            =   @($prodRootDomain; 'wildcardcert') -join '-'
         SubjectAlternateNames   =   @(
             $prodRootDomain -join '.'
             @('*'; $prodRootDomain) -join '.'
         )
         ZoneName                =   $prodRootDomain -join '.'
+    }
+
+    $configStoreResourceIdTemplate = '{0}/providers/Microsoft.AppConfiguration/configurationStores/{1}'
+    $configStoreDev = @{
+        EnablePurgeProtection   =   $false
+        ResourceName            =   'appcs-{0}-dev' -f $ProductAbbreviation
+        ReplicaLocations        =   @()
+    } + $sharedRg
+    $configStoreDevResourceId = $configStoreResourceIdTemplate -f $sharedRgResourceId, $configStoreDev.ResourceName
+    $configStoreDev.RbacAssignment += @(
+        @{
+            Role    =   'App Configuration Data Owner'
+            Member  =   @(
+                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+            )
+            Scope   =   $configStoreDevResourceId
+        }
+        @{
+            Role    =   'App Configuration Data Reader'
+            Member  =   @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
+            Scope   =   $configStoreDevResourceId
+        }
+        @{
+            Role    =   'App Configuration Contributor'
+            Member  =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+            Scope   =   $configStoreDevResourceId
+        }
+    )
+
+    $configStoreProd = @{
+        EnablePurgeProtection   =   $false
+        ReplicaLocations        =   ($azureRegions.GetEnumerator() | Where-Object Key -ne $DefaultRegion).Value.Primary.Name
+        ResourceName            =   'appcs-{0}-prod' -f $ProductAbbreviation
+    } + $sharedRg
+    $configStoreProdResourceId = $configStoreResourceIdTemplate -f $sharedRgResourceId, $configStoreProd.ResourceName
+    $configStoreProd.RbacAssignment += @(
+        @{
+            Role    =   'App Configuration Data Owner'
+            Member  =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+            Scope   =   $configStoreProdResourceId
+        }
+        @{
+            Role    =   'App Configuration Data Reader'
+            Member  =   @(
+                @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                @{ Name = $teamGroupNames.Tier1SupportGroup; Type = 'Group' }
+            )
+            Scope   =   $configStoreProdResourceId
+        }
+        @{
+            Role    =   'App Configuration Contributor'
+            Member  =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+            Scope   =   $configStoreProdResourceId
+        }
+    )
+    $configStores = @{
+        IsDeployed  =   $Options.DeployConfigStore -eq $true
+        Current     =   $isEnvProdLike ? $configStoreProd : $configStoreDev
+        Prod        =   $configStoreProd
+        Dev         =   $configStoreDev
     }
 
     $results = @{
@@ -741,6 +809,7 @@ function Get-ResourceConvention {
             Abbreviation    =   $CompanyAbbreviation
             Name            =   $CompanyName
         }
+        ConfigStores            =   $configStores
         ContainerRegistries     =   $containerRegistries
         EnvironmentName         =   $EnvironmentName
         IsEnvironmentProdLike   =   $isEnvProdLike
@@ -750,16 +819,19 @@ function Get-ResourceConvention {
         }
         SubProducts             =   $subProductsConventions
         TlsCertificates         =   @{
+            IsDeployed      =   $Options.DeployTlsCertKeyVault -eq $true
             Current         =   (Get-IsPublicHostNameProdLike $EnvironmentName) ? $prodCert : $devCert
             Dev             =   $devCert
             Prod            =   $prodCert
         }
         IsTestEnv               =   $isTestEnv
         DefaultRegion           =   $DefaultRegion
+        DefaultProdEnvName      =   $defaultProdEnvName
         AzureRegion             =   @{
             Default         =   $azureDefaultRegion
             Current         =   $AzureRegion
         }
+        Subscriptions       = $Subscriptions
     }
     
     if ($AsHashtable) {
