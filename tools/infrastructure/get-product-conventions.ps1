@@ -94,6 +94,19 @@
                 }
                 Subscriptions           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName subscriptionId
                 AzureRegion             =   $azureRegion
+                Options                 = @{
+                    # set to true if your product stores some/all of its configuration in azure configuration store service
+                    DeployConfigStore       =   $true
+                    # Azure container registry (ACR) service is usually a service shared by multiple apps and
+                    # therefore maintained by other teams. However, to for the purposes of demo'ing this starter
+                    # template we're going to deploy these here
+                    DeployContainerRegistry =   $true
+                    # Azure key vault for storing TLS certificates is usally a service shared by multiple apps in 
+                    # the case of a central department managing DNS via say Cloudflare. Therefore a service that is
+                    # maintained by other teams. However, to for the purposes of demo'ing this starter template
+                    # we're going to deploy these here
+                    DeployTlsCertKeyVault   =   $true
+                }                
             }
 
             Get-ResourceConvention @conventionsParams -AsHashtable:$AsHashtable

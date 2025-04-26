@@ -43,12 +43,33 @@ var principalsIdsKeyVaultAccess = union(
 )
 
 module keyVaultRbacAssignmentPermissions 'keyvault-role-assignment.bicep' = [for (id, index) in principalsIdsKeyVaultAccess: {
-  name: '${uniqueString(deployment().name)}-${index}-AcrRbacPermission'
+  name: '${uniqueString(deployment().name)}-${index}-KeyVaultRbacPermission'
   scope: resourceGroup((prodTlsCertKeyVault.SubscriptionId ?? subscription().subscriptionId), prodTlsCertKeyVault.ResourceGroupName)
   params: {
     principalId: id
     resourceName: prodTlsCertKeyVault.ResourceName
     roleDefinitionId: '8b54135c-b56d-4d72-a534-26097cfdc8d8' // <- Key Vault Data Access Administrator
+  }
+}]
+
+var prodConfigStore = settings.ConfigStores.Prod
+var devConfigStore = settings.ConfigStores.Dev
+
+var uniqueConfigStores = union([prodConfigStore, devConfigStore], [])
+var isSingleConfigStore = length(uniqueConfigStores) == 1
+
+var principalsIdsConfigStoreAccess = settings.ConfigStores.IsDeployed ?  union(
+  otherProdServicePrincipalIds,
+  isSingleConfigStore ? [devServicePrincipalId] : []
+) : []
+
+module configStoreRbacAssignmentPermissions 'config-store-role-assignment.bicep' = [for (id, index) in principalsIdsConfigStoreAccess: {
+  name: '${uniqueString(deployment().name)}-${index}-ConfigStoreRbacPermission'
+  scope: resourceGroup((prodConfigStore.SubscriptionId ?? subscription().subscriptionId), prodConfigStore.ResourceGroupName)
+  params: {
+    principalId: id
+    resourceName: prodConfigStore.ResourceName
+    roleDefinitionId: 'f58310d9-a9f6-439a-9e8d-f62e7b41a168' // <- Role Based Access Control Administrator
   }
 }]
 
@@ -68,7 +89,15 @@ var resourceGroupDeployments = union(
     }
     resourceGroupName: prodTlsCertKeyVault.ResourceGroupName
     resourceGroupSubscriptionId: prodTlsCertKeyVault.SubscriptionId
-  }))
+  })),
+  map(principalsIdsConfigStoreAccess, principalId => ({
+      principal: {
+        principalId: principalId
+        principalType: 'ServicePrincipal'
+      }
+      resourceGroupName: prodConfigStore.ResourceGroupName
+      resourceGroupSubscriptionId: prodConfigStore.SubscriptionId
+    }))
 )
 
 

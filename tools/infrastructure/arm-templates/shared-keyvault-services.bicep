@@ -6,14 +6,20 @@ param certMaintainerGroupId string
 
 targetScope = 'subscription'
 
-var keyVaultSettings = filter(
+var uniqueKeyVaults = filter(
   // dev and prod key vaults can be the same instance, therefore we use union to de-dup
   union(tlsCertificateKeyVaults, []), 
   kv => empty(kv.SubscriptionId) || kv.SubscriptionId == subscription().subscriptionId
 )
 
 // dev and prod key vault resource groups can be same, therefore we use union to de-dup
-var resourceGroupNames = union(map(keyVaultSettings, kv => kv.ResourceGroupName), [])
+var resourceGroupSettings = union(
+  map(uniqueKeyVaults, kv => {
+    ResourceGroupName: kv.ResourceGroupName
+    ResourceLocation: kv.ResourceLocation
+  }),
+  []
+)
 
 var certMaintainerPrincipals = [
   {
@@ -22,25 +28,17 @@ var certMaintainerPrincipals = [
   }
 ]
 
-module resourceGroups 'br/public:avm/res/resources/resource-group:0.4.0' = [for (name, index) in resourceGroupNames: {
-  name: '${uniqueString(deployment().name)}-${index}-ResourceGroup'
-  params: {
-    name: name
-  }
-}]
 
-
-module readerPermissions 'resource-group-role-assignment.bicep' = [for (name, index) in resourceGroupNames: {
+module readerPermissions 'resource-group-role-assignment.bicep' = [for (rg, index) in resourceGroupSettings: {
   name: '${uniqueString(deployment().name)}-${index}-ReaderPermission'
-  scope: resourceGroup(name)
+  scope: resourceGroup(rg.ResourceGroupName)
   params: {
     principals: certMaintainerPrincipals
     roleDefinitionId: 'acdd72a7-3385-48ef-bd42-f606fba81ae7' // <- Reader
   }
-  dependsOn: [resourceGroups]
 }]
 
-module keyVaults 'br/public:avm/res/key-vault/vault:0.11.0' = [for (kv, index) in keyVaultSettings: {
+module keyVaults 'br/public:avm/res/key-vault/vault:0.11.0' = [for (kv, index) in uniqueKeyVaults: {
   name: '${uniqueString(deployment().name)}-${index}-KeyVault'
   scope: resourceGroup(kv.ResourceGroupName)
   params: {
@@ -57,5 +55,4 @@ module keyVaults 'br/public:avm/res/key-vault/vault:0.11.0' = [for (kv, index) i
       roleDefinitionIdOrName: 'Key Vault Certificates Officer'
     })
   }
-  dependsOn: [resourceGroups]
 }]
