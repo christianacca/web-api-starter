@@ -20,6 +20,10 @@ module appEnvVars 'desired-env-vars.bicep' = {
   params: {
     envVars: [
       {
+        name: 'Api__ConfigStore__Uri'
+        value: 'https://${sharedSettings.configStoreSettings.HostName}'
+      }
+      {
         name: 'Api__Database__DataSource'
         value: sharedSettings.subProductsSettings.Sql.Primary.DataSource
       }
@@ -135,6 +139,16 @@ module app 'br/public:avm/res/app/container-app:0.11.0' = {
       name: 'http-scaling'
     }]
     workloadProfileName: 'Consumption'
+  }
+}
+
+
+module configStoreRbacAssignmentPermission 'config-store-role-assignment.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-ConfigStorePermission'
+  params: {
+    principalId: sharedSettings.managedIdentities.default.principalId
+    resourceName: sharedSettings.configStoreSettings.ResourceName
+    roleDefinitionId: '175b81b9-6e0d-490a-85e4-0d422273c10c' // <- App Configuration Reader
   }
 }
 
