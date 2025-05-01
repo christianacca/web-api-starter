@@ -276,8 +276,8 @@
             $kvSecretOfficer.Member = @($currentUserMember; $kvSecretOfficer.Member)
             $roleAssignments = Get-RbacRoleAssignment $convention
             $roleAssignments | Resolve-RbacRoleAssignment | Grant-RbacRole
-            Write-Information 'RBAC permissions granted (see table below)'
-            $roleAssignments | Select-Object MemberName, Role, ResourceName | Format-Table -AutoSize
+            Write-Information 'RBAC permissions granted (see lists below)'
+            $roleAssignments | Format-List
 
 
 #            #-----------------------------------------------------------------------------------------------

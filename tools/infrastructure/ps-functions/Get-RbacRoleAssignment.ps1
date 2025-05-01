@@ -44,7 +44,6 @@ function Get-RbacRoleAssignment {
                     MemberType      = $member.Type
                     Role            = $role
                     Scope           = $scope
-                    ResourceName    = $scope -split '/' | Select-Object -Last 1
                 }
             }
         }

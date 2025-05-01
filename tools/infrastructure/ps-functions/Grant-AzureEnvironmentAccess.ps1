@@ -84,12 +84,12 @@ function Grant-AzureEnvironmentAccess {
             if ($ApplyCurrentPermissions) {
                 Write-Output 'RBAC permissions have been reapplied to current Azure resources (see table below)'
             } else {
-                Write-Output "Permissions granted to '$userNames' (see tables below)"
+                Write-Output "Permissions granted to '$userNames' (see tables/lists below)"
             }
 
             Write-Output 'RBAC Permissions'
             Write-Output '----------------'
-            $roleAssignments | Select-Object MemberName, Role, ResourceName | Format-Table -AutoSize
+            $roleAssignments | Format-List
 
             if ($users) {
                 Write-Output 'Security Group Membership'

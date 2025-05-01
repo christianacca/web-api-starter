@@ -90,12 +90,10 @@ function Revoke-AzureEnvironmentAccess {
                 }
 
                 #------------- Summarize work -------------
-                Write-Output "Permissions revoked from '$($user.UserPrincipalName)' (see tables below)"
+                Write-Output "Permissions revoked from '$($user.UserPrincipalName)' (see lists below)"
                 Write-Output 'RBAC Permissions'
                 Write-Output '----------------'
-                $assignmentsToRevoke | Select-Object ObjectId, RoleDefinitionName, `
-                    @{ N='ResourceName'; E={ $_.Scope -split '/' | Select-Object -Last 1 } } |
-                    Format-Table -AutoSize
+                $assignmentsToRevoke | Format-List
                 Write-Output 'Security Group Membership'
                 Write-Output '-------------------------'
                 if ($groupMembership) {
