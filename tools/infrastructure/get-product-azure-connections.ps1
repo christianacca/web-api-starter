@@ -4,7 +4,7 @@
 #>
 
 param(
-    [ValidateSet('subscriptionId', 'clientId', 'tenantId')]
+    [ValidateSet('subscriptionId', 'clientId', 'principalId', 'tenantId')]
     [string] $PropertyName
 )
 

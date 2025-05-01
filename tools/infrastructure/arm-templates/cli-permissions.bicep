@@ -1,9 +1,3 @@
-@description('The principal/object id of the service principal that is used to deploy this product to dev/test environments')
-param devServicePrincipalId string
-
-@description('The principal/object id of the service principal that is used to deploy this product to the non-default production environment')
-param otherProdServicePrincipalIds array
-
 @description('The settings for all resources. TIP: to find the structure of settings object use: ./tools/infrastructure/get-product-conventions.ps1')
 param settings object
 
@@ -13,8 +7,17 @@ targetScope = 'subscription'
 // https://github.com/MRI-Software/service-principal-automate
 // and therefore have already been granted permissions to create/update resources in their "home" subscription.
 
-// Note: assumes that the production registry and shared key vault are in the default production subscription. thus we are granting
+// Note: assumes that the shared services are in the default production subscription. thus we are granting
 // permissions to the service principals that do NOT have permission to manage RBAC for resources in that subscription
+
+// The principal/object id of the service principal that is used to deploy this product to dev/test environments
+var devServicePrincipalId = settings.CliPrincipals.dev
+
+// The principal/object id of the service principal that is used to deploy this product to the non-default production environment
+var otherProdServicePrincipalIds = map(
+  filter(items(settings.CliPrincipals), item => startsWith(item.key, 'prod-') && item.key != settings.DefaultProdEnvName),
+  item => item.value
+)
 
 var prodRegistry = settings.ContainerRegistries.Prod
 
