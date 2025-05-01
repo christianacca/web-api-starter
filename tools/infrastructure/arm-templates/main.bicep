@@ -198,15 +198,18 @@ resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
 var acrPullIdentityInfo = {
   resourceId: acrPullManagedId.id
   clientId: acrPullManagedId.properties.clientId
+  principalId: acrPullManagedId.properties.principalId
 }
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
+  configStoreSettings: settings.ConfigStores.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   managedIdentities: {
     default: {
       resourceId: apiManagedId.id
       clientId: apiManagedId.properties.clientId
+      principalId: apiManagedId.properties.principalId
     }
     others: [acrPullIdentityInfo]
   }
@@ -262,11 +265,13 @@ resource appManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
 var appSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
+  configStoreSettings: settings.ConfigStores.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   managedIdentities: {
     default: {
       resourceId: appManagedId.id
       clientId: appManagedId.properties.clientId
+      principalId: appManagedId.properties.principalId
     }
     others: [acrPullIdentityInfo]
   }

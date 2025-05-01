@@ -6,7 +6,8 @@
   * [Shared services](#shared-services)
     * [Azure container registry](#azure-container-registry)
     * [Azure key vault for TLS certificates](#azure-key-vault-for-tls-certificates)
-    * [Grant RBAC management permission for shared services](#grant-rbac-management-permission-for-shared-services)
+    * [Azure configuration store](#azure-configuration-store)
+    * [Deploy shared services](#deploy-shared-services)
   * [Register DNS records](#register-dns-records)
   * [Add whitelists to Cloudflare Web Application Firewall (WAF)](#add-whitelists-to-cloudflare-web-application-firewall-waf)
   * [Add TLS certificates to shared key vault](#add-tls-certificates-to-shared-key-vault)
@@ -60,29 +61,75 @@ to automate the deployment tasks above and [github workflows](../.github/workflo
 The shared services required for the app are:
 * Azure container registry (ACR)
 * Azure key vault for TLS certificates
+* Azure configuration store
 
 > [!Note]
-> If there are multiple shared services for the same type required (for example two Azure container registries), you will
-> need to run the workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml)
-> multiple times, picking the appropriate shared service and environment to deploy each time.
+> Depending on the conventions used for the app, the shared services may be created in separate Azure subscriptions for dev/test
+> and production. The shared infrastructure deployment script and accompanying github workflow will know to create the shared 
+> services in the relevant subscription(s).
+
+> [!Important]
+> It's critical that the shared services are deployed before the app is deployed. Also critical, that the shared
+> services for the production environment are deployed first before the shared services for the dev/test environments.
+> This is because [cli-permissions.bicep](../tools/infrastructure/arm-templates/cli-permissions.bicep) 
+> will assign the service principal for dev/test environments with necessary RBAC permissions it needs to access shared
+> resources in the production environment.
 
 ### Azure container registry
 
-Azure container registry (ACR) services are maintained by other teams and are not part of the deployment process for the app. However,
-if you do need to deploy the shared services, you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
-with the 'Create shared container registry?' parameter selected.
+By default, it's assumed that Azure container registry (ACR) services are maintained by other teams and are not part of 
+the deployment process for the app. However, if you do need to deploy the shared services, modify 
+[get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1), setting the convention option:
+
+```pwsh
+Options = @{
+    DeployContainerRegistry = $true
+}             
+```
 
 ### Azure key vault for TLS certificates
 
-Azure key vault for TLS certificates may be maintained by other teams, but if you need to deploy this shared key vault(s),
-you can do so by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
-with the 'Create shared key vault?' parameter selected.
+By default, it's assumed that Azure key vault for TLS certificates are maintained by other teams. However, if you need
+to deploy this shared service, modify [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1),
+setting the convention option:
 
-### Grant RBAC management permission for shared services
+```pwsh
+Options = @{
+    DeployTlsCertKeyVault = $true
+}             
+```
 
-Once shared services have been created, you will need to assign the appropriate RBAC permissions to the shared services 
-to allow for role assignments to be made. This can be done by running the following github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml) 
-with the 'Grant RBAC management permission to provisioning service principals?' parameter selected.
+### Azure configuration store
+
+Azure configuration store services is an optional service. If your product stores some/all of its configuration in 
+azure configuration store service, modify [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1),
+setting the convention option:
+
+```pwsh
+Options = @{
+    DeployConfigStore = $true
+}             
+```
+
+### Deploy shared services
+
+> [!Note]
+> It might not be necessary to explicitly run the workflow below to deploy the shared services to 'dev/test' as these
+> services will be created when deploying to 'prod'. If in doubt, **do** run for 'dev/test' - it will not cause
+> any issues when already deployed using 'prod'.
+
+> [!Important]
+> The github workflow to deploye the shared services will fail when run for the first time under the following circumstances:
+> * Azure configuration store is being deployed with more than one replica
+> The error returned: `Only one replica may be provisioned at a time. (Code:Conflict)`
+> This appears to be a problem with the azure verified module. An issue has been raised: [#5137](https://github.com/Azure/bicep-registry-modules/issues/5137)
+> In the meantime, the workaround is to run the workflow again, and it will succeed
+
+1. Run the github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
+   selecting the option "Environment type" to 'prod'
+2. Run the github workflow [Infrastructure Deploy Shared Services](../.github/workflows/infra-deploy-shared-services.yml),
+   selecting the option "Environment type" to 'dev/test'
+
 
 ## Register DNS records
 
@@ -216,6 +263,7 @@ into a shared key vault accessible by the app:
 3. Download the Cloudflare Origin cert and private key as a PEM file
 4. Import the Cloudflare Origin cert PEM file into the shared key vault
    * see [Azure Key Vault | Import a certificate](https://learn.microsoft.com/en-us/azure/key-vault/certificates/tutorial-import-certificate?tabs=azure-portal)
+   * use the scripts below to identity the key vault and name of the certificate entry to create in that key vault
    * **IMPORTANT**: the PEM file that you can download from the cloudflare site might not contain the private key section. In which case you will
      need to generate a new origin cert from Cloudflare and then download that
 
@@ -246,6 +294,8 @@ To find the origin SSL certificates required to cover production environments, r
    @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
    @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
 ```
+
+The field `CertificateName` in the script output should be used as the name of the entry in the key vault
 
 ## Infrastructure
 
