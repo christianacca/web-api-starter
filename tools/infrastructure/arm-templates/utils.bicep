@@ -17,6 +17,8 @@ type managedIdentityInfoType = {
   resourceId: string
   @description('Required. The client/app id of the managed identity.')
   clientId: string
+  @description('Required. The object/principal id of the managed identity.')
+  principalId: string
 }
 
 @export()
@@ -30,6 +32,7 @@ type acaManagedIdentitiesType = {
 type acaSharedSettingsType = {
   appInsightsConnectionString: string
   certSettings: object
+  configStoreSettings: object
   isCustomDomainEnabled: bool
   managedIdentities: acaManagedIdentitiesType
   subProductsSettings: object
