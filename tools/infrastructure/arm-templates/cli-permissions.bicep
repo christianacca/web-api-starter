@@ -43,7 +43,7 @@ var principalsIdsKeyVaultAccess = union(
 )
 
 module keyVaultRbacAssignmentPermissions 'keyvault-role-assignment.bicep' = [for (id, index) in principalsIdsKeyVaultAccess: {
-  name: '${uniqueString(deployment().name)}-${index}-AcrRbacPermission'
+  name: '${uniqueString(deployment().name)}-${index}-KeyVaultRbacPermission'
   scope: resourceGroup((prodTlsCertKeyVault.SubscriptionId ?? subscription().subscriptionId), prodTlsCertKeyVault.ResourceGroupName)
   params: {
     principalId: id
@@ -51,6 +51,38 @@ module keyVaultRbacAssignmentPermissions 'keyvault-role-assignment.bicep' = [for
     roleDefinitionId: '8b54135c-b56d-4d72-a534-26097cfdc8d8' // <- Key Vault Data Access Administrator
   }
 }]
+
+var prodConfigStore = settings.ConfigStores.Prod
+var devConfigStore = settings.ConfigStores.Dev
+
+var uniqueConfigStores = union([prodConfigStore, devConfigStore], [])
+var isSingleConfigStore = length(uniqueConfigStores) == 1
+
+var principalsIdsConfigStoreAccess = settings.ConfigStores.IsDeployed ?  union(
+  otherProdServicePrincipalIds,
+  isSingleConfigStore ? [devServicePrincipalId] : []
+) : []
+
+module configStoreRbacAssignmentProdPermissions 'config-store-role-assignment.bicep' = [for (id, index) in principalsIdsConfigStoreAccess: {
+  name: '${uniqueString(deployment().name)}-${index}-ConfigStoreRbacProdPermission'
+  scope: resourceGroup((prodConfigStore.SubscriptionId ?? subscription().subscriptionId), prodConfigStore.ResourceGroupName)
+  params: {
+    principalId: id
+    resourceName: prodConfigStore.ResourceName
+    roleDefinitionId: 'f58310d9-a9f6-439a-9e8d-f62e7b41a168' // <- Role Based Access Control Administrator
+  }
+}]
+
+var isDevStoreInProdSubscription = prodConfigStore.SubscriptionId == devConfigStore.SubscriptionId
+module configStoreRbacAssignmentDevPermission 'config-store-role-assignment.bicep' = if (!isSingleConfigStore && isDevStoreInProdSubscription) {
+  name: '${uniqueString(deployment().name)}-ConfigStoreRbacDevPermission'
+  scope: resourceGroup((devConfigStore.SubscriptionId ?? subscription().subscriptionId), devConfigStore.ResourceGroupName)
+  params: {
+    principalId: devServicePrincipalId
+    resourceName: devConfigStore.ResourceName
+    roleDefinitionId: 'f58310d9-a9f6-439a-9e8d-f62e7b41a168' // <- Role Based Access Control Administrator
+  }
+}
 
 var resourceGroupDeployments = union(
   map(principalsIdsAcrAccess, principalId => ({
@@ -68,7 +100,15 @@ var resourceGroupDeployments = union(
     }
     resourceGroupName: prodTlsCertKeyVault.ResourceGroupName
     resourceGroupSubscriptionId: prodTlsCertKeyVault.SubscriptionId
-  }))
+  })),
+  map(principalsIdsConfigStoreAccess, principalId => ({
+      principal: {
+        principalId: principalId
+        principalType: 'ServicePrincipal'
+      }
+      resourceGroupName: prodConfigStore.ResourceGroupName
+      resourceGroupSubscriptionId: prodConfigStore.SubscriptionId
+    }))
 )
 
 

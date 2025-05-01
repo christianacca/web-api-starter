@@ -30,6 +30,7 @@ type acaManagedIdentitiesType = {
 type acaSharedSettingsType = {
   appInsightsConnectionString: string
   certSettings: object
+  configStoreSettings: object
   isCustomDomainEnabled: bool
   managedIdentities: acaManagedIdentitiesType
   subProductsSettings: object

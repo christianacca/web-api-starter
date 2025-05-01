@@ -172,15 +172,21 @@
       Returns multiple sections as an array that is projected, filtered, output as csv, and saved to a file
 
       .EXAMPLE
-      Write-Host '## RBAC (sub-products)' -ForegroundColor Blue; `
+      Write-Host '## RBAC: sub-products (scoped to resource group)' -ForegroundColor Blue; `
       ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Values.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
         select @{ n='Env'; e={ $role.Env }}, @{ n='RoleName'; e={ $role.Role }}, @{ n='Member'; e={ $memb.Name }} | ft; `
-      Write-Host '## RBAC (resource group)' -ForegroundColor Blue; `
+      Write-Host '## RBAC: resource group' -ForegroundColor Blue; `
       ./tools/infrastructure/print-product-convention-table.ps1 { $_.AppResourceGroup.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
         select @{ n='Env'; e={ $role.Env }}, @{ n='RoleName'; e={ $role.Role }}, @{ n='Member'; e={ $memb.Name }} | ft; `
+      Write-Host '## RBAC: shared key vault' -ForegroundColor Blue; `
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.TlsCertificates.Current.KeyVault.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
+        select @{ n='Env'; e={ $role.Env }}, @{ n='RoleName'; e={ $role.Role }}, @{ n='Scope'; e={ $role.Scope -split '/' | select -Last 1 }}, @{ n='Member'; e={ $memb.Name }} | ft; `
+      Write-Host '## RBAC: shared app configuration store' -ForegroundColor Blue; `
+      ./tools/infrastructure/print-product-convention-table.ps1 { $_.ConfigStores.Current.RbacAssignment } -AsArray | select * -pv role | select -Exp Member -pv memb |
+        select @{ n='Env'; e={ $role.Env }}, @{ n='RoleName'; e={ $role.Role }}, @{ n='Scope'; e={ $role.Scope -split '/' | select -Last 1 }}, @{ n='Member'; e={ $memb.Name }} | ft; `
       Write-Host '## Azure AAD groups (Db)' -ForegroundColor Blue; `
       ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Db.AadSecurityGroup } -AsArray | select * -pv grp | select -Exp Member -pv memb |
-        select @{ n='Env'; e={ $grp.Env }}, @{ n='GroupName'; e={ $grp.Name }}, @{ n='Member'; e={ $memb.Name }} | ft; `
+        select @{ n='Env'; e={ $grp.Env }}, @{ n='GroupName'; e={ $grp.Name }}, @{ n='Member'; e={ $memb.Name }} | ft
     
       Description
       -----------

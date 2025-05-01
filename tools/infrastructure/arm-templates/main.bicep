@@ -202,6 +202,7 @@ var acrPullIdentityInfo = {
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
+  configStoreSettings: settings.ConfigStores.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   managedIdentities: {
     default: {
@@ -249,6 +250,22 @@ module apiTrafficManager 'traffic-manager-profile.bicep' = {
   }
 }
 
+var configStoreRgScope = resourceGroup(
+  (settings.ConfigStores.Current.SubscriptionId ?? subscription().subscriptionId),
+  settings.ConfigStores.Current.ResourceGroupName
+)
+var configStoreReaderRbacRole = '175b81b9-6e0d-490a-85e4-0d422273c10c' // <- App Configuration Reader
+
+module apiConfigStorePermission 'config-store-role-assignment.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-ApiConfigStorePermission'
+  scope: configStoreRgScope
+  params: {
+    principalId: apiManagedId.properties.principalId
+    resourceName: settings.ConfigStores.Current.ResourceName
+    roleDefinitionId: configStoreReaderRbacRole
+  }
+}
+
 // ---------- End: Template.Api -----------
 
 
@@ -262,6 +279,7 @@ resource appManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
 var appSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
+  configStoreSettings: settings.ConfigStores.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
   managedIdentities: {
     default: {
@@ -306,6 +324,16 @@ module appTrafficManager 'traffic-manager-profile.bicep' = {
       ...settings.SubProducts.AppTrafficManager
       Endpoints: appTmEndpoints
     }
+  }
+}
+
+module appConfigStorePermission 'config-store-role-assignment.bicep' = {
+  name: '${uniqueString(deployment().name, location)}-AppConfigStorePermission'
+  scope: configStoreRgScope
+  params: {
+    principalId: appManagedId.properties.principalId
+    resourceName: settings.ConfigStores.Current.ResourceName
+    roleDefinitionId: configStoreReaderRbacRole
   }
 }
 

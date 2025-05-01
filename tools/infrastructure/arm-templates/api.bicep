@@ -20,6 +20,10 @@ module appEnvVars 'desired-env-vars.bicep' = {
   params: {
     envVars: [
       {
+        name: 'Api__ConfigStore__Uri'
+        value: 'https://${sharedSettings.configStoreSettings.HostName}'
+      }
+      {
         name: 'Api__Database__DataSource'
         value: sharedSettings.subProductsSettings.Sql.Primary.DataSource
       }

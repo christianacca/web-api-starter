@@ -1,3 +1,18 @@
+<#
+    .SYNOPSIS
+    This function retrieves all Azure RBAC role assignments given the set of conventions for a specific environment
+    
+    .EXAMPLE
+    . ./tools/infrastructure/ps-functions/Get-RbacRoleAssignment.ps1
+    $convention = & "tools/infrastructure/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
+    $convention | Get-RbacRoleAssignment | Sort-Object MemberName,MemberType,Scope | Format-List Role,Scope -GroupBy @{ n='MemberName|Type'; e={ '{0}|{1}' -f $_.MemberName, $_.MemberType } }
+    
+    Description
+    -----------
+    Returns the Azure RBAC role assignments for the dev environment, grouping the results by member name and type, and then outputting the result as a list.
+#>
+
+
 function Get-RbacRoleAssignment {
     [CmdletBinding()]
     param(
@@ -9,8 +24,8 @@ function Get-RbacRoleAssignment {
     $rbacAssignments = @(
         $InputObject.AppResourceGroup.RbacAssignment
         $InputObject.SubProducts.Values.RbacAssignment
-        $InputObject.TlsCertificates.Dev.KeyVault.RbacAssignment
-        $InputObject.TlsCertificates.Prod.KeyVault.RbacAssignment
+        $InputObject.TlsCertificates.Current.KeyVault.RbacAssignment
+        $InputObject.ConfigStores.IsDeployed ? $InputObject.ConfigStores.Current.RbacAssignment : @()
     )
     
     $flattenedAssignments = $rbacAssignments  | ForEach-Object {
