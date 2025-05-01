@@ -16,6 +16,7 @@ function Get-ResourceConvention {
         [string] $CompanyAbbreviation,
 
         [Collections.Specialized.OrderedDictionary] $SubProducts = @{},
+        [hashtable] $CliPrincipals = @{},
         [hashtable] $Subscriptions = @{},
         
         [hashtable] $Options = @{},
@@ -846,6 +847,7 @@ function Get-ResourceConvention {
             Default         =   $azureDefaultRegion
             Current         =   $AzureRegion
         }
+        CliPrincipals       = $CliPrincipals
         Subscriptions       = $Subscriptions
     }
     

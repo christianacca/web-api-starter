@@ -37,9 +37,8 @@
 
             # Tip: you can also print out listing for the conventions. See the examples in ./tools/infrastructure/print-product-convention-table.ps1
             $initialConvention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
-            $defaultProdEnvName = $initialConvention.DefaultProdEnvName
 
-            $environmentName = $EnvironmentType -eq 'prod' ? $defaultProdEnvName : 'dev'
+            $environmentName = $EnvironmentType -eq 'prod' ? $initialConvention.DefaultProdEnvName : 'dev'
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $environmentName -AsHashtable
 
             Set-AzureAccountContext -Login:$Login -SubscriptionId $convention.Subscriptions[$environmentName]
@@ -47,25 +46,15 @@
             Write-Information "Ensuring Entra-ID secruity group exists with name: '$CertificateMaintainerGroupName'"
             $group = Set-AADGroup $CertificateMaintainerGroupName
             
-            $templateParamsObj = @{
-                certMaintainerGroupId   =   $group.Id
-                # Granting RBAC management is only required (and supported) when deploying to the default prod environment
-                grantRbacManagement     =   $EnvironmentType -eq 'prod'
-                settings                =   $convention
-            }
-            if ($templateParamsObj.grantRbacManagement) {
-                $clientIds = & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName clientId
-                $templateParamsObj.otherProdServicePrincipalIds = $clientIds.GetEnumerator() |
-                    Where-Object { ($_.Key -like 'prod-*') -and ($_.key -ne $defaultProdEnvName) } |
-                    Select-Object -Exp Value -Unique |
-                    ForEach-Object { Get-AzADServicePrincipal -ApplicationId $_ -EA stop | Select-Object -Exp Id }
-                $templateParamsObj.devServicePrincipalId = Get-AzADServicePrincipal -ApplicationId $clientIds['dev'] | Select-Object -Exp Id
-            }
-
             $sharedServicesParams = @{
                 Location                =   $convention.AzureRegion.Default.Primary.Name
                 TemplateFile            =   Join-Path $templatePath 'main-shared-services.bicep'
-                TemplateParameterObject =   $templateParamsObj
+                TemplateParameterObject =   @{
+                    certMaintainerGroupId   =   $group.Id
+                    # Granting RBAC management is only required (and supported) when deploying to the default prod environment
+                    grantRbacManagement     =   $EnvironmentType -eq 'prod'
+                    settings                =   $convention
+                }
             }
             Write-Information 'Creating shared services and assigning RBAC management permissions in current azure subscription'
             New-AzDeployment @sharedServicesParams -EA Stop | Out-Null            

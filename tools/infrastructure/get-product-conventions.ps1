@@ -92,6 +92,7 @@
                     KeyVault            =   @{ Type = 'KeyVault' }
 #                    Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }
+                CliPrincipals           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName principalId
                 Subscriptions           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName subscriptionId
                 AzureRegion             =   $azureRegion
                 Options                 = @{
