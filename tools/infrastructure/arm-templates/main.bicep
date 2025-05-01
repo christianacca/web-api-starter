@@ -18,7 +18,7 @@ param settings object
 @description('The Object ID of the SQL AAD Admin security group.')
 param sqlAdAdminGroupObjectId string
 
-import { objectValues } from 'utils.bicep'
+import { objectValues, toManagedIdentityInfo } from 'utils.bicep'
 
 
 var kvSettings = settings.SubProducts.KeyVault
@@ -199,13 +199,12 @@ var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
-  managedIdentityClientIds: {
-    default: apiManagedId.properties.clientId
+  managedIdentities: {
+    default: toManagedIdentityInfo(apiManagedId)
+    others: [
+      toManagedIdentityInfo(acrPullManagedId)
+    ]
   }
-  managedIdentityResourceIds: [
-    apiManagedId.id
-    acrPullManagedId.id
-  ]
   registries: acaContainerRegistries
   subProductsSettings: settings.SubProducts
 }
@@ -259,13 +258,12 @@ var appSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
-  managedIdentityClientIds: {
-    default: appManagedId.properties.clientId
+  managedIdentities: {
+    default: toManagedIdentityInfo(appManagedId)
+    others: [
+      toManagedIdentityInfo(acrPullManagedId)
+    ]
   }
-  managedIdentityResourceIds: [
-    appManagedId.id
-    acrPullManagedId.id
-  ]
   registries: acaContainerRegistries
   subProductsSettings: settings.SubProducts
 }
