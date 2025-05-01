@@ -10,3 +10,28 @@ func unionBy(firstArray array, secondArray array, key string) array => [
 
 @export()
 func objectValues(obj object) array => map(items(obj), x => x.value)
+
+@export()
+type managedIdentityInfoType = {
+  @description('Required. The resource id of the managed identity.')
+  resourceId: string
+  @description('Required. The client/app id of the managed identity.')
+  clientId: string
+}
+
+@export()
+type acaManagedIdentitiesType = {
+  @description('Required. The the managed identity used as the default/primary identity for the container app.')
+  default: managedIdentityInfoType
+  others: managedIdentityInfoType[]?
+}
+
+@export()
+type acaSharedSettingsType = {
+  appInsightsConnectionString: string
+  certSettings: object
+  isCustomDomainEnabled: bool
+  managedIdentities: acaManagedIdentitiesType
+  subProductsSettings: object
+  registries: array
+}
