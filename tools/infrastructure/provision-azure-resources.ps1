@@ -280,120 +280,120 @@
             $roleAssignments | Format-List MemberType,Role,Scope -GroupBy MemberName
 
 
-            #-----------------------------------------------------------------------------------------------
-            Write-Information '6. Set AAD groups - for Azure resource (pre-resource creation)...'
-            $sqlAdAdminGroup = Set-AADGroup $convention.SubProducts.Sql.AadAdminGroupName -EA Stop
-
-
-            #-----------------------------------------------------------------------------------------------
-            Write-Information '7. Set Azure resources...'
-            $currentIpRule = if (-not($SkipIncludeCurrentIPAddressInSQLFirewall)) {
-                $currentIPAddress = ((Invoke-WebRequest -Uri https://icanhazip.com).Content).Trim()
-                @{
-                    StartIpAddress  =   $currentIPAddress
-                    EndIpAddress    =   $currentIPAddress
-                    Name            =   'ProvisioningMachine'
-                }
-            } else {
-                @()
-            }
-            if ($convention.SubProducts.Sql.Firewall.Rule) {
-                $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
-            }
-
-            Write-Information "  Gathering existing resource information..."
-            $acaAppTemplateParams = $convention.SubProducts.GetEnumerator() | Where-Object { $_.value.Type -eq 'AcaApp' } |
-                Select-Object -ExpandProperty Value |
-                Get-AcaAppInfoVars -ResourceGroupName $appResourceGroup.ResourceName | Join-Hashtable
-            $mainArmParams = @{
-                ResourceGroupName       =   $appResourceGroup.ResourceName
-                TemplateParameterObject =   @{
-                    settings                    =   $convention
-                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
-                } + $acaAppTemplateParams
-                TemplateFile            =   Join-Path $templatePath main.bicep
-            }
-            if ($WhatIfAzureResourceDeployment) {
-                Write-Information '  Print Azure resource desired state changes only...'
-                New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
-                return
-            }
-            Write-Information '  Creating desired resource state'
-            $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
-            Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
-            Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
-            Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
-            Write-Information "  INFO | 'Azure SQL Managed Identity Client Id':- $($armResources.sqlManagedIdentityClientId.Value)"
-
-
-            #-----------------------------------------------------------------------------------------------
-            Write-Information '8. Set AAD groups - for resources (post-resource creation)...'
-
-            $wait = 15
-            Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
-            Start-Sleep -Seconds $wait
-
-#            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
-#            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
-#            $pbiAppGroup.Member = @(
+#            #-----------------------------------------------------------------------------------------------
+#            Write-Information '6. Set AAD groups - for Azure resource (pre-resource creation)...'
+#            $sqlAdAdminGroup = Set-AADGroup $convention.SubProducts.Sql.AadAdminGroupName -EA Stop
+#
+#
+#            #-----------------------------------------------------------------------------------------------
+#            Write-Information '7. Set Azure resources...'
+#            $currentIpRule = if (-not($SkipIncludeCurrentIPAddressInSQLFirewall)) {
+#                $currentIPAddress = ((Invoke-WebRequest -Uri https://icanhazip.com).Content).Trim()
+#                @{
+#                    StartIpAddress  =   $currentIPAddress
+#                    EndIpAddress    =   $currentIPAddress
+#                    Name            =   'ProvisioningMachine'
+#                }
+#            } else {
+#                @()
+#            }
+#            if ($convention.SubProducts.Sql.Firewall.Rule) {
+#                $convention.SubProducts.Sql.Firewall.Rule = @($convention.SubProducts.Sql.Firewall.Rule; $currentIpRule)
+#            }
+#
+#            Write-Information "  Gathering existing resource information..."
+#            $acaAppTemplateParams = $convention.SubProducts.GetEnumerator() | Where-Object { $_.value.Type -eq 'AcaApp' } |
+#                Select-Object -ExpandProperty Value |
+#                Get-AcaAppInfoVars -ResourceGroupName $appResourceGroup.ResourceName | Join-Hashtable
+#            $mainArmParams = @{
+#                ResourceGroupName       =   $appResourceGroup.ResourceName
+#                TemplateParameterObject =   @{
+#                    settings                    =   $convention
+#                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
+#                } + $acaAppTemplateParams
+#                TemplateFile            =   Join-Path $templatePath main.bicep
+#            }
+#            if ($WhatIfAzureResourceDeployment) {
+#                Write-Information '  Print Azure resource desired state changes only...'
+#                New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
+#                return
+#            }
+#            Write-Information '  Creating desired resource state'
+#            $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
+#            Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
+#            Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
+#            Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"
+#            Write-Information "  INFO | 'Azure SQL Managed Identity Client Id':- $($armResources.sqlManagedIdentityClientId.Value)"
+#
+#
+#            #-----------------------------------------------------------------------------------------------
+#            Write-Information '8. Set AAD groups - for resources (post-resource creation)...'
+#
+#            $wait = 15
+#            Write-Information "Waitinng $wait secconds for new identities and/or groups to be propogated before assigning group membership"
+#            Start-Sleep -Seconds $wait
+#
+##            $pbiGroups = $convention.SubProducts.Pbi.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+##            $pbiAppGroup = $pbiGroups | Where-Object Name -like "*.app"
+##            $pbiAppGroup.Member = @(
+##                @{
+##                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
+##                    Type                =   'ServicePrincipal'
+##                }
+##            ) + $pbiAppGroup.Member
+#
+#            # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
+#            $sqlAadAuthGroup = [PsCustomObject]@{
+#                Name                =   'sg.eid.role.custom.azuresqlauthentication'
+#                Member              = @{
+#                    ApplicationId       =   $armResources.sqlManagedIdentityClientId.Value
+#                    Type                =   'ServicePrincipal'
+#                }
+#            }
+#
+#            $dbCrudMembership = @(
 #                @{
 #                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
 #                    Type                =   'ServicePrincipal'
 #                }
-#            ) + $pbiAppGroup.Member
-
-            # assign delgated RBAC permissions to sql server managed identity to authenticate sql users against Azure AD
-            $sqlAadAuthGroup = [PsCustomObject]@{
-                Name                =   'sg.eid.role.custom.azuresqlauthentication'
-                Member              = @{
-                    ApplicationId       =   $armResources.sqlManagedIdentityClientId.Value
-                    Type                =   'ServicePrincipal'
-                }
-            }
-
-            $dbCrudMembership = @(
-                @{
-                    ApplicationId       =   $armResources.apiManagedIdentityClientId.Value
-                    Type                =   'ServicePrincipal'
-                }
-                @{
-                    ApplicationId       =   $armResources.appManagedIdentityClientId.Value
-                    Type                =   'ServicePrincipal'
-                }
-                @{
-                    ApplicationId       =   $armResources.internalApiManagedIdentityClientId.Value
-                    Type                =   'ServicePrincipal'
-                }
-            )
-
-            $sqlServer = $convention.SubProducts.Sql
-            $sqlDatabase = $convention.SubProducts.Db
-            $sqlGroups = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
-            if (-not($SkipIncludeCurrentUserInAADSqlAdminGroup)) {
-                $sqlGroups |
-                    Where-Object Name -eq ($sqlServer.AadAdminGroupName) |
-                    Add-Member -MemberType NoteProperty -Name IncludeCurrentUser -Value $true
-            }
-            $sqlGroups |
-                Where-Object Name -like '*.crud' |
-                ForEach-Object { $_.Member = $dbCrudMembership + $_.Member }
-
-#            @($pbiGroups; $sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
-            @($sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
-
-
-            #-----------------------------------------------------------------------------------------------
-            Write-Information '9. Set Data plane operations...'
-
-            # Azure SQL users
-            Write-Information 'Setting Azure SQL users logins...'
-            $dbUsers = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
-            $dbConnectionParams = @{
-                SqlServerName               =   $sqlServer.Primary.ResourceName
-                DatabaseName                =   $sqlDatabase.ResourceName
-                AccessTokenCredential       =   $sqlAccessTokenCreds
-            }
-            $dbUsers | Set-AzureSqlAADUser @dbConnectionParams
+#                @{
+#                    ApplicationId       =   $armResources.appManagedIdentityClientId.Value
+#                    Type                =   'ServicePrincipal'
+#                }
+#                @{
+#                    ApplicationId       =   $armResources.internalApiManagedIdentityClientId.Value
+#                    Type                =   'ServicePrincipal'
+#                }
+#            )
+#
+#            $sqlServer = $convention.SubProducts.Sql
+#            $sqlDatabase = $convention.SubProducts.Db
+#            $sqlGroups = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+#            if (-not($SkipIncludeCurrentUserInAADSqlAdminGroup)) {
+#                $sqlGroups |
+#                    Where-Object Name -eq ($sqlServer.AadAdminGroupName) |
+#                    Add-Member -MemberType NoteProperty -Name IncludeCurrentUser -Value $true
+#            }
+#            $sqlGroups |
+#                Where-Object Name -like '*.crud' |
+#                ForEach-Object { $_.Member = $dbCrudMembership + $_.Member }
+#
+##            @($pbiGroups; $sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
+#            @($sqlGroups; $sqlAadAuthGroup) | Set-AADGroup | Out-Null
+#
+#
+#            #-----------------------------------------------------------------------------------------------
+#            Write-Information '9. Set Data plane operations...'
+#
+#            # Azure SQL users
+#            Write-Information 'Setting Azure SQL users logins...'
+#            $dbUsers = $sqlDatabase.AadSecurityGroup | ForEach-Object { [PsCustomObject]$_ }
+#            $dbConnectionParams = @{
+#                SqlServerName               =   $sqlServer.Primary.ResourceName
+#                DatabaseName                =   $sqlDatabase.ResourceName
+#                AccessTokenCredential       =   $sqlAccessTokenCreds
+#            }
+#            $dbUsers | Set-AzureSqlAADUser @dbConnectionParams
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA
