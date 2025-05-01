@@ -195,17 +195,21 @@ resource apiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
   location: location
 }
 
+var acrPullIdentityInfo = {
+  resourceId: acrPullManagedId.id
+  clientId: acrPullManagedId.properties.clientId
+}
 var apiSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
-  managedIdentityClientIds: {
-    default: apiManagedId.properties.clientId
+  managedIdentities: {
+    default: {
+      resourceId: apiManagedId.id
+      clientId: apiManagedId.properties.clientId
+    }
+    others: [acrPullIdentityInfo]
   }
-  managedIdentityResourceIds: [
-    apiManagedId.id
-    acrPullManagedId.id
-  ]
   registries: acaContainerRegistries
   subProductsSettings: settings.SubProducts
 }
@@ -259,13 +263,13 @@ var appSharedSettings = {
   appInsightsConnectionString: azureMonitor.outputs.appInsightsConnectionString
   certSettings: settings.TlsCertificates.Current
   isCustomDomainEnabled: settings.SubProducts.Aca.IsCustomDomainEnabled
-  managedIdentityClientIds: {
-    default: appManagedId.properties.clientId
+  managedIdentities: {
+    default: {
+      resourceId: appManagedId.id
+      clientId: appManagedId.properties.clientId
+    }
+    others: [acrPullIdentityInfo]
   }
-  managedIdentityResourceIds: [
-    appManagedId.id
-    acrPullManagedId.id
-  ]
   registries: acaContainerRegistries
   subProductsSettings: settings.SubProducts
 }
