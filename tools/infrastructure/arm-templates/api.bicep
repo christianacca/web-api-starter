@@ -1,6 +1,8 @@
+import { acaSharedSettingsType } from 'utils.bicep'
+
 param instanceSettings object
 param exists bool
-param sharedSettings sharedSettingsType
+param sharedSettings acaSharedSettingsType
 
 var location = instanceSettings.ResourceLocation
 
@@ -27,11 +29,11 @@ module appEnvVars 'desired-env-vars.bicep' = {
       }
       {
         name: 'Api__Database__UserID'
-        value: sharedSettings.managedIdentityClientIds.default
+        value: sharedSettings.managedIdentities.default.clientId
       }
       {
         name: 'Api__DefaultAzureCredentials__ManagedIdentityClientId'
-        value: sharedSettings.managedIdentityClientIds.default
+        value: sharedSettings.managedIdentities.default.clientId
       }
       {
         name: 'Api__FunctionsAppQueue__ServiceUri'
@@ -104,7 +106,10 @@ module app 'br/public:avm/res/app/container-app:0.11.0' = {
     ] : []
     environmentResourceId: acaEnv.id
     managedIdentities: {
-      userAssignedResourceIds: sharedSettings.managedIdentityResourceIds
+      userAssignedResourceIds: union(
+        [sharedSettings.managedIdentities.default.resourceId],
+        map(sharedSettings.managedIdentities.?others ?? [], identity => identity.resourceId)
+      )
     }
     ingressAllowInsecure: false
     ingressTargetPort: exposedContainerPort
@@ -140,24 +145,4 @@ resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing 
 
 resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
   name: instanceSettings.ResourceName
-}
-
-// =============== //
-//   Definitions   //
-// =============== //
-
-type managedIdentyClientIdsType = {
-  @description('Required. The client id of the managed identity used as the default/primary identity for the container app.')
-  default: string
-}
-
-
-type sharedSettingsType = {
-  appInsightsConnectionString: string
-  certSettings: object
-  isCustomDomainEnabled: bool
-  managedIdentityResourceIds: array
-  managedIdentityClientIds: managedIdentyClientIdsType
-  subProductsSettings: object
-  registries: array
 }
