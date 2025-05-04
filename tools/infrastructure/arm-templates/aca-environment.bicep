@@ -11,19 +11,10 @@ resource kv 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   resource cert 'secrets' existing = { name: sharedSettings.certSettings.ResourceName }
 }
 
-var certificate = sharedSettings.isCustomDomainEnabled ? {
-  certificateKeyVaultProperties: {
-    identityResourceId: sharedSettings.managedIdentityResourceId
-    keyVaultUrl: kv::cert.properties.secretUri
-  }
-  name: sharedSettings.certSettings.ResourceName  
-} : {}
-
 module acaEnv 'br/public:avm/res/app/managed-environment:0.10.2' = {
   name: '${uniqueString(deployment().name, location)}-AcaEnv'
   params: {
     name: instanceSettings.ResourceName
-    certificate: certificate
     managedIdentities: {
       systemAssigned: false
       userAssignedResourceIds: [
@@ -40,6 +31,19 @@ module acaEnv 'br/public:avm/res/app/managed-environment:0.10.2' = {
       }
     ]
     zoneRedundant: false
+  }
+}
+
+module acaCert 'aca-certificate.bicep' = if (sharedSettings.isCustomDomainEnabled) {
+  name: '${uniqueString(deployment().name, location)}-AcaCert'
+  params: {
+    name: sharedSettings.certSettings.ResourceName
+    location: location
+    managedEnvironmentName: acaEnv.outputs.name
+    certificateKeyVaultProperties: {
+      identityResourceId: sharedSettings.managedIdentityResourceId
+      keyVaultUrl: kv::cert.properties.secretUri
+    }
   }
 }
 
