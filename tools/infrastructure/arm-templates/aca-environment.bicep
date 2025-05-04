@@ -3,6 +3,13 @@ param sharedSettings sharedSettingsType
 
 var location = instanceSettings.ResourceLocation
 
+// todo: switch to azure verified module once keyvault certificate integration is supported for failover (see https://github.com/Azure/bicep-registry-modules/issues/5145)
+
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (!empty(sharedSettings.logAnalyticsWorkspaceResourceId)) {
+  name: last(split(sharedSettings.logAnalyticsWorkspaceResourceId, '/'))!
+  scope: resourceGroup(split(sharedSettings.logAnalyticsWorkspaceResourceId, '/')[2], split(sharedSettings.logAnalyticsWorkspaceResourceId, '/')[4])
+}
+
 var kvSettings = sharedSettings.certSettings.KeyVault
 resource kv 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   name: kvSettings.ResourceName
@@ -11,28 +18,23 @@ resource kv 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   resource cert 'secrets' existing = { name: sharedSettings.certSettings.ResourceName }
 }
 
-var certificate = sharedSettings.isCustomDomainEnabled ? {
-  certificateKeyVaultProperties: {
-    identityResourceId: sharedSettings.managedIdentityResourceId
-    keyVaultUrl: kv::cert.properties.secretUri
-  }
-  name: sharedSettings.certSettings.ResourceName  
-} : {}
-
-module acaEnv 'br/public:avm/res/app/managed-environment:0.10.2' = {
-  name: '${uniqueString(deployment().name, location)}-AcaEnv'
-  params: {
-    name: instanceSettings.ResourceName
-    certificate: certificate
-    managedIdentities: {
-      systemAssigned: false
-      userAssignedResourceIds: [
-        sharedSettings.managedIdentityResourceId
-      ]
+resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
+  name: instanceSettings.ResourceName
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${sharedSettings.managedIdentityResourceId}': {}
     }
-    location: location
-    logAnalyticsWorkspaceResourceId: sharedSettings.logAnalyticsWorkspaceResourceId
-    publicNetworkAccess: 'Enabled'
+  }
+  properties: {
+    appLogsConfiguration: {
+      destination: 'log-analytics'
+      logAnalyticsConfiguration: {
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
+      }
+    }
     workloadProfiles: [
       {
         name: 'Consumption'
@@ -41,10 +43,21 @@ module acaEnv 'br/public:avm/res/app/managed-environment:0.10.2' = {
     ]
     zoneRedundant: false
   }
+
+  resource acaEnvCert 'certificates' = if (sharedSettings.isCustomDomainEnabled) {
+    name: sharedSettings.certSettings.ResourceName
+    location: location
+    properties: {
+      certificateKeyVaultProperties: {
+        identity: sharedSettings.managedIdentityResourceId
+        keyVaultUrl: kv::cert.properties.secretUri
+      }
+    }
+  }
 }
 
-output defaultDomain string = acaEnv.outputs.defaultDomain
-output resourceId string = acaEnv.outputs.resourceId
+output defaultDomain string = acaEnv.properties.defaultDomain
+output resourceId string = acaEnv.id
 
 
 // =============== //
