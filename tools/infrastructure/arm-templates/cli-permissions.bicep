@@ -1,12 +1,3 @@
-@description('The principal/object id of the service principal that is used to deploy this product to the apac environment')
-param apacProdServicePrincipalId string
-
-@description('The principal/object id of the service principal that is used to deploy this product to dev/test environments')
-param devServicePrincipalId string
-
-@description('The principal/object id of the service principal that is used to deploy this product to the emea environment')
-param emeaProdServicePrincipalId string
-
 @description('The settings for all resources. TIP: to find the structure of settings object use: ./tools/infrastructure/get-product-conventions.ps1')
 param settings object
 
@@ -16,17 +7,22 @@ targetScope = 'subscription'
 // https://github.com/MRI-Software/service-principal-automate
 // and therefore have already been granted permissions to create/update resources in their "home" subscription.
 
-// Note: assumes that the production registry and shared key vault are in the prod-na subscription. thus we are granting
-// permissions to the service principals that do NOT have permission to manage RBAC for resources in the prod-na subscription
+// Note: assumes that the shared services are in the default production subscription. thus we are granting
+// permissions to the service principals that do NOT have permission to manage RBAC for resources in that subscription
+
+// The principal/object id of the service principal that is used to deploy this product to dev/test environments
+var devServicePrincipalId = settings.CliPrincipals.dev
+
+// The principal/object id of the service principal that is used to deploy this product to the non-default production environment
+var otherProdServicePrincipalIds = map(
+  filter(items(settings.CliPrincipals), item => startsWith(item.key, 'prod-') && item.key != settings.DefaultProdEnvName),
+  item => item.value
+)
 
 var prodRegistry = settings.ContainerRegistries.Prod
 
 // union used to de-dup id's supplied
-var principalsIdsAcrAccess = union([
-  devServicePrincipalId
-  apacProdServicePrincipalId
-  emeaProdServicePrincipalId
-], [])
+var principalsIdsAcrAccess = union([devServicePrincipalId], otherProdServicePrincipalIds)
 
 module acrRbacAssignmentPermissions 'acr-role-assignment.bicep' = [for (id, index) in principalsIdsAcrAccess: {
   name: '${uniqueString(deployment().name)}-${index}-AcrRbacPermission'
@@ -44,22 +40,52 @@ var devTlsCertKeyVault = settings.TlsCertificates.Dev.KeyVault
 var uniqueKeyVaults = union([prodTlsCertKeyVault, devTlsCertKeyVault], [])
 var isSingleSharedVault = length(uniqueKeyVaults) == 1
 
-var principalsIdsKeyVaultAccess = union([
-    apacProdServicePrincipalId
-    emeaProdServicePrincipalId
-  ],
+var principalsIdsKeyVaultAccess = union(
+  otherProdServicePrincipalIds,
   isSingleSharedVault ? [devServicePrincipalId] : []
 )
 
 module keyVaultRbacAssignmentPermissions 'keyvault-role-assignment.bicep' = [for (id, index) in principalsIdsKeyVaultAccess: {
-  name: '${uniqueString(deployment().name)}-${index}-AcrRbacPermission'
+  name: '${uniqueString(deployment().name)}-${index}-KeyVaultRbacPermission'
   scope: resourceGroup((prodTlsCertKeyVault.SubscriptionId ?? subscription().subscriptionId), prodTlsCertKeyVault.ResourceGroupName)
   params: {
     principalId: id
-    resourceName: devTlsCertKeyVault.ResourceName
+    resourceName: prodTlsCertKeyVault.ResourceName
     roleDefinitionId: '8b54135c-b56d-4d72-a534-26097cfdc8d8' // <- Key Vault Data Access Administrator
   }
 }]
+
+var prodConfigStore = settings.ConfigStores.Prod
+var devConfigStore = settings.ConfigStores.Dev
+
+var uniqueConfigStores = union([prodConfigStore, devConfigStore], [])
+var isSingleConfigStore = length(uniqueConfigStores) == 1
+
+var principalsIdsConfigStoreAccess = settings.ConfigStores.IsDeployed ?  union(
+  otherProdServicePrincipalIds,
+  isSingleConfigStore ? [devServicePrincipalId] : []
+) : []
+
+module configStoreRbacAssignmentProdPermissions 'config-store-role-assignment.bicep' = [for (id, index) in principalsIdsConfigStoreAccess: {
+  name: '${uniqueString(deployment().name)}-${index}-ConfigStoreRbacProdPermission'
+  scope: resourceGroup((prodConfigStore.SubscriptionId ?? subscription().subscriptionId), prodConfigStore.ResourceGroupName)
+  params: {
+    principalId: id
+    resourceName: prodConfigStore.ResourceName
+    roleDefinitionId: 'f58310d9-a9f6-439a-9e8d-f62e7b41a168' // <- Role Based Access Control Administrator
+  }
+}]
+
+var isDevStoreInProdSubscription = prodConfigStore.SubscriptionId == devConfigStore.SubscriptionId
+module configStoreRbacAssignmentDevPermission 'config-store-role-assignment.bicep' = if (!isSingleConfigStore && isDevStoreInProdSubscription) {
+  name: '${uniqueString(deployment().name)}-ConfigStoreRbacDevPermission'
+  scope: resourceGroup((devConfigStore.SubscriptionId ?? subscription().subscriptionId), devConfigStore.ResourceGroupName)
+  params: {
+    principalId: devServicePrincipalId
+    resourceName: devConfigStore.ResourceName
+    roleDefinitionId: 'f58310d9-a9f6-439a-9e8d-f62e7b41a168' // <- Role Based Access Control Administrator
+  }
+}
 
 var resourceGroupDeployments = union(
   map(principalsIdsAcrAccess, principalId => ({
@@ -77,7 +103,15 @@ var resourceGroupDeployments = union(
     }
     resourceGroupName: prodTlsCertKeyVault.ResourceGroupName
     resourceGroupSubscriptionId: prodTlsCertKeyVault.SubscriptionId
-  }))
+  })),
+  map(principalsIdsConfigStoreAccess, principalId => ({
+      principal: {
+        principalId: principalId
+        principalType: 'ServicePrincipal'
+      }
+      resourceGroupName: prodConfigStore.ResourceGroupName
+      resourceGroupSubscriptionId: prodConfigStore.SubscriptionId
+    }))
 )
 
 

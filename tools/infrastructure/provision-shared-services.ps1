@@ -1,15 +1,10 @@
     [CmdletBinding()]
     param(
-        [string] $EnvironmentName = 'dev',
-        
-        [switch] $GrantRbacManagement,
-        [switch] $CreateSharedContainerRegistry,
-        [switch] $CreateSharedKeyVault,
+        [ValidateSet('dev/test', 'prod')]
+        [string] $EnvironmentType,  
         
         [string] $CertificateMaintainerGroupName = 'sg.role.it.itops.cloud',
-
         [switch] $Login,
-        [string] $SubscriptionId,
         [switch] $ListModuleRequirementsOnly,
         [switch] $SkipInstallModules
     )
@@ -28,70 +23,41 @@
     }
     process {
         try {
-            
-            if ($GrantRbacManagement -and $EnvironmentName -ne 'prod-na') {
-                throw 'Granting RBAC management is only required (and supported) in prod-na environment'
-            }
-
             $modules = @(Get-AzModuleInfo)
             if ($ListModuleRequirementsOnly) {
                 Get-ScriptDependencyList -Module $modules
                 return
-            } else {
-                Install-ScriptDependency -ImportOnly:$SkipInstallModules -Module $modules
             }
-
-            Set-AzureAccountContext -Login:$Login -SubscriptionId $SubscriptionId
+            
+            if ($null -eq $EnvironmentType) {
+                throw "EnvironmentType is required"
+            }
+            
+            Install-ScriptDependency -ImportOnly:$SkipInstallModules -Module $modules
 
             # Tip: you can also print out listing for the conventions. See the examples in ./tools/infrastructure/print-product-convention-table.ps1
-            $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            
-            if ($CreateSharedContainerRegistry) {
-                $acrParams = @{
-                    Location                =   'eastus'
-                    TemplateFile            =   Join-Path $templatePath 'shared-acr-services.bicep'
-                    TemplateParameterObject =   @{
-                        containerRegistries =   $convention.ContainerRegistries.Available
-                    }
-                }
-                Write-Information 'Creating shared Azure container registries in current azure subscription'
-                New-AzDeployment @acrParams -EA Stop | Out-Null
-            }
+            $initialConvention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName dev -AsHashtable
 
-            if ($CreateSharedKeyVault) {
-                Write-Information "Ensuring Entra-ID secruity group exists with name: '$CertificateMaintainerGroupName'"
-                $group = Set-AADGroup $CertificateMaintainerGroupName
-                $kvParams = @{
-                    Location                =   'eastus'
-                    TemplateFile            =   Join-Path $templatePath 'shared-keyvault-services.bicep'
-                    TemplateParameterObject =   @{
-                        certMaintainerGroupId   =   $group.Id
-                        tlsCertificateKeyVaults =   @(
-                            $convention.TlsCertificates.Dev.KeyVault
-                            $convention.TlsCertificates.Prod.KeyVault
-                        )
-                    }
-                }
-                Write-Information 'Creating shared Azure key vaults in current azure subscription'
-                New-AzDeployment @kvParams -EA Stop | Out-Null
-            }
+            $environmentName = $EnvironmentType -eq 'prod' ? $initialConvention.DefaultProdEnvName : 'dev'
+            $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $environmentName -AsHashtable
+
+            Set-AzureAccountContext -Login:$Login -SubscriptionId $convention.Subscriptions[$environmentName]
+
+            Write-Information "Ensuring Entra-ID secruity group exists with name: '$CertificateMaintainerGroupName'"
+            $group = Set-AADGroup $CertificateMaintainerGroupName
             
-            if ($GrantRbacManagement) {
-                $clientIds = & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName clientId
-                $rbacParams = @{
-                    Location                =   'eastus'
-                    TemplateFile            =   Join-Path $templatePath 'cli-permissions.bicep'
-                    TemplateParameterObject = @{
-                        devServicePrincipalId       =   Get-AzADServicePrincipal -ApplicationId $clientIds['dev'].Id | Select-Object -Exp Id
-                        apacProdServicePrincipalId  =   Get-AzADServicePrincipal -ApplicationId $clientIds['prod-apac'].Id | Select-Object -Exp Id
-                        emeaProdServicePrincipalId  =   Get-AzADServicePrincipal -ApplicationId $clientIds['prod-emea'].Id | Select-Object -Exp Id
-                        settings                    =   $convention
-                    }
+            $sharedServicesParams = @{
+                Location                =   $convention.AzureRegion.Default.Primary.Name
+                TemplateFile            =   Join-Path $templatePath 'main-shared-services.bicep'
+                TemplateParameterObject =   @{
+                    certMaintainerGroupId   =   $group.Id
+                    # Granting RBAC management is only required (and supported) when deploying to the default prod environment
+                    grantRbacManagement     =   $EnvironmentType -eq 'prod'
+                    settings                =   $convention
                 }
-                Write-Information 'Granting RBAC management permissions to service principals'
-                New-AzDeployment @rbacParams -EA Stop | Out-Null
             }
-            
+            Write-Information 'Creating shared services and assigning RBAC management permissions in current azure subscription'
+            New-AzDeployment @sharedServicesParams -EA Stop | Out-Null            
         }
         catch {
             Write-Error "$_`n$($_.ScriptStackTrace)" -EA $callerEA
