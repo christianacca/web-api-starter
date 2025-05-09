@@ -25,7 +25,7 @@ public class KeyVaultSettings {
   public TimeSpan? KeyVaultReloadInterval { get; set; }
 
   /// <summary>
-  /// Filter the keys to load based so that only keys belonging to specific configuration sections are loaded
+  /// Filter the keys to load so that only keys belonging to specific configuration sections are loaded
   /// </summary>
   /// <remarks>
   /// <em>IMPORTANT</em>: best practice says to use a separate keyvault per application per environment. Therefore,

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
+using Microsoft.FeatureManagement;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Mri.AppInsights.AspNetCore.Configuration;
 using Mri.Azure.ManagedIdentity;
@@ -20,6 +21,7 @@ using Template.Api.Shared;
 using Template.Api.Shared.ExceptionHandling;
 using Template.Api.Shared.Mvc;
 using Template.Api.Shared.Proxy;
+using Template.Shared.Azure.ConfigStore;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 using Template.Shared.Util;
@@ -61,7 +63,9 @@ finally {
 
 void ConfigureConfiguration(ConfigurationManager configuration, IHostEnvironment environment) {
   if (!EF.IsDesignTime) {
-    configuration.AddAzureKeyVault(configuration, "Api", includeSectionName: true);
+    configuration
+      .AddAzureKeyVault(configuration, "Api", includeSectionName: true)
+      .AddAzureAppConfig(configuration, "Api", includeSectionName: true);
   }
 }
 
@@ -105,6 +109,10 @@ void ConfigureLogging(IHostBuilder host) {
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
   services.AddHttpContextAccessor();
+  
+  services
+    .AddAzureAppConfiguration()
+    .AddFeatureManagement();
 
   services.AddDbContext<AppDatabase>(options => {
     options.UseSqlServer(configuration.GetSection("Api").GetDefaultConnectionString(), sqlOptions =>
@@ -211,6 +219,11 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
 void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHostEnvironment environment) {
   app.UseProblemDetails();
+
+  var appStoreSettings = services.GetRequiredService<IConfiguration>().GetSection("Api").Get<AppConfigStoreSettings>();
+  if (appStoreSettings is { IsEnabled: true }) {
+    app.UseAzureAppConfiguration();
+  }
 
   if (environment.IsDevelopment()) {
     app.UseSwagger();
