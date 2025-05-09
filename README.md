@@ -19,3 +19,7 @@ See [architecture-and-project-structure.md](docs/architecture-and-project-struct
 * [Add a new environment](docs/add-environment.md)
 * [How to deploy](docs/deploy-app.md)
 * [Branching / deployment strategy](docs/branch-and-deployment-strategy.md)
+
+## Guides
+
+* [Dynamic config and feature flags](docs/configs-and-feature-flags.md)

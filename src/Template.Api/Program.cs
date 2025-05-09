@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
+using Microsoft.FeatureManagement;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Mri.AppInsights.AspNetCore.Configuration;
 using Mri.Azure.ManagedIdentity;
@@ -20,6 +21,7 @@ using Template.Api.Shared;
 using Template.Api.Shared.ExceptionHandling;
 using Template.Api.Shared.Mvc;
 using Template.Api.Shared.Proxy;
+using Template.Shared.Azure.ConfigStore;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 using Template.Shared.Util;
@@ -42,7 +44,7 @@ try {
   var app = builder.Build();
 
   await using (var scope = app.Services.CreateAsyncScope()) {
-    ConfigureMiddleware(app, scope.ServiceProvider, app.Environment);
+    ConfigureMiddleware(app);
     await MigrateDbAsync(scope.ServiceProvider, app.Environment);
   }
 
@@ -61,7 +63,9 @@ finally {
 
 void ConfigureConfiguration(ConfigurationManager configuration, IHostEnvironment environment) {
   if (!EF.IsDesignTime) {
-    configuration.AddAzureKeyVault(configuration, "Api", includeSectionName: true);
+    configuration
+      .AddAzureKeyVault(configuration, "Api", includeSectionName: true)
+      .AddAzureAppConfig(configuration, "Api", includeSectionName: true);
   }
 }
 
@@ -105,6 +109,10 @@ void ConfigureLogging(IHostBuilder host) {
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
   services.AddHttpContextAccessor();
+  
+  services
+    .AddAzureAppConfiguration()
+    .AddFeatureManagement();
 
   services.AddDbContext<AppDatabase>(options => {
     options.UseSqlServer(configuration.GetSection("Api").GetDefaultConnectionString(), sqlOptions =>
@@ -209,10 +217,15 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   }
 }
 
-void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHostEnvironment environment) {
+void ConfigureMiddleware(WebApplication app) {
   app.UseProblemDetails();
 
-  if (environment.IsDevelopment()) {
+  var appStoreSettings = app.Configuration.GetSection("Api").Get<AppConfigStoreSettings>();
+  if (appStoreSettings is { IsEnabled: true }) {
+    app.UseAzureAppConfiguration();
+  }
+
+  if (app.Environment.IsDevelopment()) {
     app.UseSwagger();
     app.UseSwaggerUI();
   }
@@ -233,11 +246,9 @@ void ConfigureMiddleware(IApplicationBuilder app, IServiceProvider services, IHo
     // app2.UseXxx();
   });
   
-  app.UseEndpoints(endpoints => {
-    endpoints.MapControllers().RequireAuthorization();
-    endpoints.MapHealthChecks("/health");
-    endpoints.MapReverseProxy();
-  });
+  app.MapControllers().RequireAuthorization();
+  app.MapHealthChecks("/health");
+  app.MapReverseProxy();
 }
 
 async Task MigrateDbAsync(IServiceProvider services, IHostEnvironment environment) {

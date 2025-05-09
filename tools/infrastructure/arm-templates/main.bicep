@@ -254,7 +254,7 @@ var configStoreRgScope = resourceGroup(
   (settings.ConfigStores.Current.SubscriptionId ?? subscription().subscriptionId),
   settings.ConfigStores.Current.ResourceGroupName
 )
-var configStoreReaderRbacRole = '175b81b9-6e0d-490a-85e4-0d422273c10c' // <- App Configuration Reader
+var configStoreReaderRbacRole = '516239f1-63e1-4d78-a4de-a74fb236a071' // <- App Configuration Data Reader
 
 module apiConfigStorePermission 'config-store-role-assignment.bicep' = {
   name: '${uniqueString(deployment().name, location)}-ApiConfigStorePermission'

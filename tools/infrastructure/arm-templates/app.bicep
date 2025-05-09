@@ -20,7 +20,7 @@ module appEnvVars 'desired-env-vars.bicep' = {
   params: {
     envVars: [
       {
-        name: 'App__ConfigStore__Uri'
+        name: 'App__ConfigStoreUri'
         value: 'https://${sharedSettings.configStoreSettings.HostName}'
       }
       {
