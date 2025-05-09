@@ -50,10 +50,8 @@
    1. Create a new service principal. Follow the section "Create automation service principals" as described in the repo
       [service-principal-automate](https://github.com/MRI-Software/service-principal-automate/tree/main?tab=readme-ov-file#create-automation-service-principals)
    2. Modify [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1) 
-      with the details of the new subscription and service principal client id
-   3. Modify [cli-permissions.bicep](../tools/infrastructure/arm-templates/cli-permissions.bicep) and 
-      [provision-shared-services.ps1](../tools/infrastructure/provision-shared-services.ps1) for the new service principal
-   4. Follow the section [Grant RBAC management permission for shared services](deploy-app.md#grant-rbac-management-permission-for-shared-services)
+      with the details of the new subscription and service principal client id and principal id
+   3. [Deploy shared services](./deploy-app.md#deploy-shared-services) to ensure the new service principal is assigned the required permissions
  
    For new or exiting service principals, you will need to create a federated credential for the new environment for the
    service principal that will deploy to the new environment.
@@ -207,8 +205,18 @@
    ```pwsh
    ./tools/infrastructure/print-product-convention-table.ps1 { $_.SubProducts.Keyvault } -AsArray | Select Env, ResourceName
    ```
+   
+2. Add a "SentinelKey" key value to the Azure app configuration service that is used by one or more workload services
 
-2. Deploy the application to the new environment
+   A sentinel key is a key that is used to trigger a refresh of the configuration values in the Azure app configuration service.
+   This step is only required if you are using the Azure app configuration service to store configuration keys for the workload services.
+
+   1. Find the store that the new environment will use (see [Store used for an environment](configs-and-feature-flags.md#store-used-for-an-environment))
+   2. Follow the guidance in [Adding, deleting, or modifying configuration keys](configs-and-feature-flags.md#adding-deleting-or-modifying-configuration-keys)
+      to add a new value to the key named "SentinelKey" in the Azure app configuration service that workload services use to get their configuration values.
+      Make sure to label the new value with the name of the new environment.
+
+3. Deploy the application to the new environment
 
    Follow the guidance [Deploying app from CI/CD](./deploy-app.md#deploying-app-from-cicd) to deploy the application code for the new environment
 

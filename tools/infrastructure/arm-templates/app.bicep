@@ -20,7 +20,11 @@ module appEnvVars 'desired-env-vars.bicep' = {
   params: {
     envVars: [
       {
-        name: 'App__ConfigStore__Uri'
+        name: 'App__ConfigStoreReplicaDiscoveryEnabled'
+        value: length(sharedSettings.configStoreSettings.ReplicaLocations) > 0 ? 'true' : 'false'
+      }
+      {
+        name: 'App__ConfigStoreUri'
         value: 'https://${sharedSettings.configStoreSettings.HostName}'
       }
       {

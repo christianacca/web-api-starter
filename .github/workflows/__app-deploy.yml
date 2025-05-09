@@ -99,6 +99,8 @@ jobs:
               },
               ".*": {
                 "ApplicationInsights_AutoCollectActionArgs": "${{ env.Convention_IsTestEnv }}",
+                "Api_ConfigStoreEnvironmentLabelFilter": "${{ inputs.environment-name }}",
+                "App_ConfigStoreEnvironmentLabelFilter": "${{ inputs.environment-name }}",
                 "gha_step_deploy_api_envVarsSelector": "Api_*,ApplicationInsights_*,CentralIdentity_*,EnvironmentInfo_*",
                 "gha_step_deploy_api_imageToDeploy": "${{ inputs.docker-registry }}/${{ env.Convention_SubProducts_Api_ImageName }}:${{ inputs.docker-image-tag }}",
                 "gha_step_deploy_app_envVarsSelector": "App_*,ApplicationInsights_*",

@@ -428,26 +428,36 @@ _Example workflow run:_
 1. development
    * dev, qa, rel:
      * admin access to AIG Azure SQL db
-     * contributor access to Azure resources (_including_ access to keyvault)
+     * contributor access to Azure resources
+     * read/write access to secrets in keyvault
+     * read/write access to config data in shared dev/test Azure config store
      * admin access to power-bi client workspaces
    * demo:
      * data read/write access to AIG Azure SQL db
-     * contributor access to Azure resources (no access to keyvault)
+     * contributor access to Azure resources
+     * no access to objects in keyvault
+     * read/write access to config data in shareddev/test Azure config store
      * contributor access to power-bi client workspaces
    * staging and prod:
      * data read access to AIG Azure SQL db
-     * contributor access to Azure monitor, read access to all other Azure resources (no access to keyvault)
+     * contributor access to Azure monitor, read access to all other Azure resources 
+     * no access to objects in keyvault
+     * read access to config data in shared prod Azure config store
      * no access to power-bi client workspace
 2. GPS / support-tier-1
    * demo, staging and prod environments:
      * data read access to AIG Azure SQL db
-     * read access to Azure (no access to keyvault)
+     * read access to Azure
+     * no access to objects in keyvault
+     * read access to config data in shared dev/test and prod Azure config stores
      * contributor rights to power-bi client _report_ workspaces
      * viewer rights to power-bi client _dataset_ workspaces
 3. App Admin / support-tier-2
    * demo, staging and prod environments:
      * contributor access to AIG Azure SQL db
-     * contributor access to Azure (_including_ access to keyvault)
+     * contributor access to Azure
+     * read/write access to secrets in keyvault
+     * read/write access to config data in shared dev/test and prod Azure config stores
      * admin rights to power-bi client _report_ workspaces
      * admin rights to power-bi client _dataset_ workspaces
 
