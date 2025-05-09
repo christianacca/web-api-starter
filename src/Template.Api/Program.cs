@@ -61,7 +61,7 @@ finally {
 
 void ConfigureConfiguration(ConfigurationManager configuration, IHostEnvironment environment) {
   if (!EF.IsDesignTime) {
-    configuration.AddAzureKeyVault(configuration.GetSection("Api"));  
+    configuration.AddAzureKeyVault(configuration, "Api", includeSectionName: true);
   }
 }
 

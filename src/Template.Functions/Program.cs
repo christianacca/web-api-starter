@@ -32,7 +32,7 @@ internal class Program {
           new ConfigurationBuilder().SetBasePath(hostContext.HostingEnvironment.ContentRootPath);
         var initialConfigs = AddJsonFiles(initialConfigsBuilder).AddUserSecrets<Program>().Build();
         AddJsonFiles(configuration)
-          .AddAzureKeyVault(initialConfigs.GetSection("InternalApi"))
+          .AddAzureKeyVault(initialConfigs, "InternalApi", includeSectionName: true)
           .AddUserSecrets<Program>();
       })
       .ConfigureFunctionsWebApplication()
