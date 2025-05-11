@@ -17,6 +17,7 @@ using Mri.Azure.ManagedIdentity;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using Template.Api.Endpoints.Configurations;
 using Template.Api.Shared;
 using Template.Api.Shared.ExceptionHandling;
 using Template.Api.Shared.Mvc;
@@ -156,6 +157,10 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   ConfigureProxyServices();
   
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
+  services
+    .AddOptions<ExampleSettings>()
+    .BindConfiguration("Api:Example")
+    .ValidateDataAnnotations();
 
   var aiSettings = configuration.GetSection("ApplicationInsights").Get<ApplicationInsightsSettings>();
   if (aiSettings != null) {
