@@ -24,12 +24,14 @@ public static class ConfigurationBuilderExtensions {
   ) {
     if (settings is not { IsEnabled: true }) return builder;
 
-    builder.AddAzureAppConfiguration(opts => settings
-      .ApplyConnection(opts)
-      .ApplyKeySelectors(opts)
-      .ApplyRefreshStrategy(opts)
-      .ApplyFeatureFlags(opts)
-    );
+    builder.AddAzureAppConfiguration(opts => {
+      opts.ReplicaDiscoveryEnabled = settings.ConfigStoreReplicaDiscoveryEnabled;
+      settings
+        .ApplyConnection(opts)
+        .ApplyKeySelectors(opts)
+        .ApplyRefreshStrategy(opts)
+        .ApplyFeatureFlags(opts);
+    });
 
     return builder;
   }
@@ -85,20 +87,20 @@ public static class ConfigurationBuilderExtensions {
   private static AppConfigStoreSettings ApplyRefreshStrategy(
     this AppConfigStoreSettings settings, AzureAppConfigurationOptions options
   ) {
-    if (settings.ConfigStoreRefresh.Strategy == AzureConfigStoreRefreshStrategy.None) return settings;
+    if (settings.ConfigStoreRefresh.Strategy == AppConfigStoreRefreshStrategy.None) return settings;
 
     options.ConfigureRefresh(refreshOptions => {
       refreshOptions.SetRefreshInterval(settings.ConfigStoreRefresh.RefreshInterval);
       switch (settings.ConfigStoreRefresh.Strategy) {
-        case AzureConfigStoreRefreshStrategy.RefreshAll:
+        case AppConfigStoreRefreshStrategy.RefreshAll:
           refreshOptions.RegisterAll();
           break;
-        case AzureConfigStoreRefreshStrategy.SentinelKey: {
+        case AppConfigStoreRefreshStrategy.SentinelKey: {
           var sentinelKey = settings.SentinelKeySelector;
           refreshOptions.Register(sentinelKey.KeyFilter, sentinelKey.LabelFilter, refreshAll: true);
           break;
         }
-        case AzureConfigStoreRefreshStrategy.SpecificKeys:
+        case AppConfigStoreRefreshStrategy.SpecificKeys:
           settings.KeysToRefreshSelectors.ToList().ForEach(filter => {
             refreshOptions.Register(filter.KeyFilter, filter.LabelFilter);
           });

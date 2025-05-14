@@ -1,6 +1,6 @@
 namespace Template.Shared.Azure.ConfigStore;
 
-public enum AzureConfigStoreRefreshStrategy {
+public enum AppConfigStoreRefreshStrategy {
   /// <summary>
   /// Do not refresh keys on an interval
   /// </summary>

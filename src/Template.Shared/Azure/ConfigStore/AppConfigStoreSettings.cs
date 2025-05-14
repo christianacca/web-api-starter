@@ -14,9 +14,9 @@ public class AppConfigStoreSettings {
     public ICollection<string> Keys { get; set; } = new HashSet<string>();
 
     /// <summary>
-    /// Controls how the config store is refreshed. Defaults to <see cref="AzureConfigStoreRefreshStrategy.SentinelKey"/>
+    /// Controls how the config store is refreshed. Defaults to <see cref="AppConfigStoreRefreshStrategy.SentinelKey"/>
     /// </summary>
-    public AzureConfigStoreRefreshStrategy Strategy { get; set; } = AzureConfigStoreRefreshStrategy.SentinelKey;
+    public AppConfigStoreRefreshStrategy Strategy { get; set; } = AppConfigStoreRefreshStrategy.SentinelKey;
 
     /// <summary>
     /// The interval at which the config store is refreshed. The default is 30 seconds
@@ -57,6 +57,7 @@ public class AppConfigStoreSettings {
 
   public FeatureOptions ConfigStoreFeatureFlags { get; } = new();
   public RefreshOptions ConfigStoreRefresh { get; } = new();
+  public bool ConfigStoreReplicaDiscoveryEnabled { get; set; }
 
   /// <summary>
   /// Filter the keys to load based so that only keys belonging to specific configuration sections are loaded
@@ -110,8 +111,8 @@ public class AppConfigStoreSettings {
   public IEnumerable<KeyValueSelector> FeatureFlagSelectors => GetKeySectionSelectors(ConfigStoreFeatureFlags.Sections);
 
   /// <summary>
-  /// A selector that matches the sentinel key used to trigger a refresh of all keys when <see cref="AzureConfigStoreRefreshStrategy"/>
-  /// is set to <see cref="AzureConfigStoreRefreshStrategy.SentinelKey"/>
+  /// A selector that matches the sentinel key used to trigger a refresh of all keys when <see cref="AppConfigStoreRefreshStrategy"/>
+  /// is set to <see cref="AppConfigStoreRefreshStrategy.SentinelKey"/>
   /// </summary>
   /// <remarks>
   /// If set, a key with a label matching <see cref="ConfigStoreEnvironmentLabelFilter"/> will be monitored, otherwise
