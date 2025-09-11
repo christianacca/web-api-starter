@@ -25,7 +25,7 @@ public class ExampleTimer {
     // run twice a day at midnight and mid-day
     [TimerTrigger("0 0 */12 * * *")] TimerInfo myTimer,
     // [TimerTrigger("0 0 */12 * * *", RunOnStartup = true)] TimerInfo myTimer,
-    // next line shows the standard way to get a typed entity from table storage, but it's not working as of version 1.2.0 of Microsoft.Azure.Functions.Worker.Extensions.Tables
+    // next line shows the standard way to get a typed entity from table storage, but it will not work when the table does not exist
     // [TableInput(AppState.TableName, StoragePartitionKey, StorageRowKey)] MyState? state,
     [TableInput(AppState.TableName)] TableClient tableClient,
     FunctionContext context,
@@ -33,8 +33,8 @@ public class ExampleTimer {
     var log = context.GetLogger<ExampleTimer>();
     log.LogInformation("C# Timer trigger function executed at: {UtcNow}", DateTime.UtcNow);
 
-    // note: we're having to explicitly fetch the entity from table storage because the TableInput attribute is not
-    // working (see above)
+    // note: we're having to explicitly fetch the entity from table storage because the TableInput attribute does
+    // not handle the case where the table does not exist (see note above)
     var state = await tableClient
       .GetEntityIfExistsAsync<MyState>(StoragePartitionKey, StorageRowKey, cancellationToken: ct);
     var currentState = MyState.GetOrCreate(state.HasValue ? state.Value : null);
@@ -49,7 +49,6 @@ public class ExampleTimer {
     // last time the trigger ran successfully
 
     // as of version 1.2.0 of Microsoft.Azure.Functions.Worker.Extensions.Tables, we need to explicitly create table ourselves
-    // hopefully that will not be required in future version of the extension
     await tableClient.CreateIfNotExistsAsync(ct);
     await tableClient.UpsertEntityAsync(currentState, TableUpdateMode.Replace, CancellationToken.None);
   }

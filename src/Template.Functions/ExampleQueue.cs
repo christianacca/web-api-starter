@@ -22,11 +22,19 @@ public class ExampleQueue {
   /// Handle messages of type <see cref="MessageBody"/>
   /// </summary>
   /// <remarks>
+  /// <para>
+  /// Note: assumes that the queue named 'default-queue' has already been provisioned along with an associated
+  /// dead-letter queue (aka poison message queue) named 'default-queue-poison'.
+  /// For local testing purposes you can create these two queue's in azurite using the Azure Storage Explorer.
+  /// For details of configuring and using Azure Storage Explorer, see: tools/azurite/README.md
+  /// </para>
+  /// <para>
   /// Try the following to see how the function handles messages:
   /// <list type="bullet">
   /// <item>{ "Id": "3554CA0A-C0BD-4A71-824E-A3E0D7FA47E4", "Data": "throw", "Metadata": { "MessageType": "SimpleMessage" } }</item>
   /// <item>{ "Id": "2F7CAD53-6CA6-498A-830E-C3F303F62653", "Data": "{\u0022SomeStringProp\u0022:\u0022throw\u0022,\u0022SomeBooleanProp\u0022:true}", "Metadata": { "MessageType": "ExampleMessageData" } }</item>
   /// </list>
+  /// </para>
   /// </remarks>
   [Function(nameof(ExampleQueue))]
   public async Task RunAsync(
@@ -55,7 +63,6 @@ public class ExampleQueue {
       // store exception dto so that the details are available to the queue trigger handling the poison message queue...
 
       // as of version 1.2.0 of Microsoft.Azure.Functions.Worker.Extensions.Tables, we need to explicitly create table ourselves
-      // hopefully that will not be required in future version of the extension
       await tableClient.CreateIfNotExistsAsync(ct);
 
       await tableClient
