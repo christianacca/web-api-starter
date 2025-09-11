@@ -1,6 +1,7 @@
 using Azure.Core;
 using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
@@ -12,82 +13,80 @@ using Template.Functions.Shared;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 
-namespace Template.Functions;
+var builder = FunctionsApplication.CreateBuilder(args);
 
-internal class Program {
-  private static async Task Main(/*string[] args*/) {
-    var host = new HostBuilder()
-      .ConfigureAppConfiguration((hostContext, configuration) => {
-        IConfigurationBuilder AddJsonFiles(IConfigurationBuilder configurationBuilder) {
-          configurationBuilder
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-            .AddJsonFile(
-              $"appsettings.{hostContext.HostingEnvironment.EnvironmentName}.json", optional: true,
-              reloadOnChange: false
-            );
-          return configurationBuilder;
-        }
+ConfigureAppConfiguration(builder.Configuration, builder.Environment);
+ConfigureServices(builder.Services, builder.Configuration, builder.Environment);
+ConfigureLogging(builder.Logging);
 
-        var initialConfigsBuilder =
-          new ConfigurationBuilder().SetBasePath(hostContext.HostingEnvironment.ContentRootPath);
-        var initialConfigs = AddJsonFiles(initialConfigsBuilder).AddUserSecrets<Program>().Build();
-        AddJsonFiles(configuration)
-          .AddAzureKeyVault(initialConfigs, "InternalApi", includeSectionName: true)
-          .AddUserSecrets<Program>();
-      })
-      .ConfigureFunctionsWebApplication()
-      .ConfigureServices((context, services) => {
-        services
-          .AddHttpContextAccessor()
-          .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>();
+var app = builder.Build();
+await app.RunAsync();
+return;
 
-        services.AddApplicationInsightsTelemetryWorkerService();
-        services.ConfigureFunctionsApplicationInsights();
-
-        services.AddDbContext<AppDatabase>(options => {
-          var configuration = context.Configuration.GetSection("InternalApi");
-          options.UseSqlServer(configuration.GetDefaultConnectionString(), sqlOptions =>
-            sqlOptions.EnableRetryOnFailure(
-              maxRetryCount: 3,
-              maxRetryDelay: TimeSpan.FromSeconds(10),
-              errorNumbersToAdd: null)
-          );
-          if (context.HostingEnvironment.IsDevelopment()) {
-            options.EnableSensitiveDataLogging();
-          }
-        });
-        
-        services.AddEnvironmentInfoOptions(context.HostingEnvironment.IsDevelopment());
-
-        ConfigureAzureClients(context, services);
-      }).ConfigureLogging(logging => {
-        logging.Services.Configure<LoggerFilterOptions>(options => {
-          // remove the default rule to capture information level logs in Application Insights
-          var defaultRule = options.Rules
-            .FirstOrDefault(r => r.ProviderName == "Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider");
-          if (defaultRule is not null) {
-            options.Rules.Remove(defaultRule);
-          }
-        });
-      })
-      .Build();
-
-    await host.RunAsync();
+void ConfigureAppConfiguration(IConfigurationBuilder configuration, IHostEnvironment environment) {
+  IConfigurationBuilder AddJsonFiles(IConfigurationBuilder configurationBuilder) {
+    configurationBuilder
+      .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+      .AddJsonFile(
+        $"appsettings.{environment.EnvironmentName}.json", optional: true, reloadOnChange: false
+      );
+    return configurationBuilder;
   }
 
-  private static void ConfigureAzureClients(HostBuilderContext context, IServiceCollection services) {
-    services.AddAzureClientsCore(enableLogForwarding: true);
-    services.AddAzureClients(cfg => {
-      // see: https://github.com/Azure/azure-sdk-for-net/blob/Microsoft.Extensions.Azure_1.4.0/sdk/extensions/Microsoft.Extensions.Azure/README.md
+  var initialConfigsBuilder = new ConfigurationBuilder().SetBasePath(environment.ContentRootPath);
+  var initialConfigs = AddJsonFiles(initialConfigsBuilder).AddUserSecrets<Program>().Build();
+  AddJsonFiles(configuration)
+    .AddAzureKeyVault(initialConfigs, "InternalApi", includeSectionName: true)
+    .AddUserSecrets<Program>();
+}
 
-      cfg.ConfigureDefaults(opts => { opts.Retry.Mode = RetryMode.Exponential; });
+void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
+  services
+    .AddHttpContextAccessor()
+    .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>();
 
-      cfg.UseCredential(sp => new DefaultAzureCredential(
-        sp.GetRequiredService<IOptionsMonitor<DefaultAzureCredentialOptions>>().CurrentValue
-      ));
+  services.AddApplicationInsightsTelemetryWorkerService();
+  services.ConfigureFunctionsApplicationInsights();
 
-      cfg.AddBlobServiceClient(context.Configuration.GetSection("InternalApi:ReportBlobStorage"))
-        .WithName("ReportStorageService");
-    });
-  }
+  services.AddDbContext<AppDatabase>(options => {
+    var internalApiConfig = configuration.GetSection("InternalApi");
+    options.UseSqlServer(internalApiConfig.GetDefaultConnectionString(), sqlOptions =>
+      sqlOptions.EnableRetryOnFailure(
+        maxRetryCount: 3,
+        maxRetryDelay: TimeSpan.FromSeconds(10),
+        errorNumbersToAdd: null)
+    );
+    if (environment.IsDevelopment()) {
+      options.EnableSensitiveDataLogging();
+    }
+  });
+
+  services.AddEnvironmentInfoOptions(environment.IsDevelopment());
+
+  ConfigureAzureClients(configuration, services);
+}
+
+void ConfigureAzureClients(IConfiguration configuration, IServiceCollection services) {
+  services.AddAzureClientsCore(enableLogForwarding: true);
+  services.AddAzureClients(cfg => {
+    cfg.ConfigureDefaults(opts => { opts.Retry.Mode = RetryMode.Exponential; });
+
+    cfg.UseCredential(sp => new DefaultAzureCredential(
+      sp.GetRequiredService<IOptionsMonitor<DefaultAzureCredentialOptions>>().CurrentValue
+    ));
+
+    cfg.AddBlobServiceClient(configuration.GetSection("InternalApi:ReportBlobStorage"))
+      .WithName("ReportStorageService");
+  });
+}
+
+void ConfigureLogging(ILoggingBuilder logging) {
+  logging.Services.Configure<LoggerFilterOptions>(options => {
+    var defaultRule = options.Rules
+      .FirstOrDefault(r =>
+        r.ProviderName == "Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider");
+    if (defaultRule is not null) {
+      options.Rules.Remove(defaultRule);
+    }
+  });
 }
