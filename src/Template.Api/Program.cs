@@ -61,6 +61,7 @@ finally {
   Log.Information("Shut down complete");
   Log.CloseAndFlush();
 }
+return;
 
 void ConfigureConfiguration(ConfigurationManager configuration, IHostEnvironment environment) {
   if (!EF.IsDesignTime) {
