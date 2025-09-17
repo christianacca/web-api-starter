@@ -10,12 +10,15 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Template.Functions.Shared;
+using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
+
+builder.UseFunctionContextAccessor();
 
 ConfigureAppConfiguration(builder.Configuration, builder.Environment);
 ConfigureServices(builder.Services, builder.Configuration, builder.Environment);
@@ -45,6 +48,7 @@ void ConfigureAppConfiguration(IConfigurationBuilder configuration, IHostEnviron
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
   services
     .AddHttpContextAccessor()
+    .AddFunctionContextAccessor()
     .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>();
 
   services.AddApplicationInsightsTelemetryWorkerService();
