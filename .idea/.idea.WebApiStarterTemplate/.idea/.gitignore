@@ -12,3 +12,6 @@
 /dataSources/
 /dataSources.local.xml
 misc.xml
+
+# Copilot generated files that are machine specific
+copilot.data.migration.*
