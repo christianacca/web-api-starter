@@ -1,0 +1,40 @@
+# Copilot Instructions for MRI Web API Starter Template
+
+## Architecture Overview
+- **Multi-project .NET Solution**: Includes ASP.NET Core API (`Template.Api`), Azure Functions (`Template.Functions`), shared code (`Template.Shared`), and managed identity utilities (`Azure.ManagedIdentity`).
+- **API Gateway Pattern**: Uses [YARP](https://microsoft.github.io/reverse-proxy/index.html) for request proxying and [ProblemDetails](https://www.nuget.org/packages/Hellang.Middleware.ProblemDetails/) for error formatting.
+- **Serverless Integration**: Azure Functions handle async/background jobs and endpoints better suited for serverless.
+- **Managed Identity & Security**: Azure Managed Identity is used for secure service-to-service and database access. Azure AD authentication is required for SQL DB.
+- **Feature Flags & Config**: Dynamic config and feature flags are managed via Azure App Configuration. See `docs/configs-and-feature-flags.md` for label/priority rules.
+
+## Key Developer Workflows
+- **Local Dev Setup**: Follow `docs/dev-setup.md` for prerequisites, Azure login, and local secrets setup. Use PowerShell Core for scripts.
+- **Build & Run**:
+  - API: `dotnet build src/Template.Api` then `dotnet run --project src/Template.Api`
+  - Functions: `dotnet build src/Template.Functions` then use Azure Functions Core Tools (`func start` in the output dir)
+- **EF Core Migrations**: See `docs/CONTRIBUTING.md` for migration commands. Migrations are managed in `src/Template.Shared` and applied via `src/Template.Api`.
+- **CI/CD & Branching**: Master is always deployable. Release branches are short-lived and used for production hardening. See `docs/branch-and-deployment-strategy.md`.
+
+## Project Conventions & Patterns
+- **Domain Logic**: Encapsulate business logic in domain entities or validators (FluentValidation).
+- **Service Composition**: Design services for composability and transactional consistency.
+- **Idempotency**: Prefer idempotent API endpoints unless conflicting with concurrency control.
+- **Async & Cancellation**: Use async methods and support cancellation tokens where possible.
+- **Database Access**: Minimize DB calls and data fetched. Prefer `Single`/`SingleOrDefault` over `First`/`FirstOrDefault` for fail-fast behavior.
+- **Feature Flags**: Guard in-progress features with flags. Remove flags once features are fully released.
+
+## Integration Points
+- **Azure App Configuration**: Used for dynamic config and feature flags. Scripts for managing config are in `tools/infrastructure/`.
+- **Application Insights**: Pre-configured for telemetry.
+- **CI/CD**: Automated via GitHub Actions and scripts in `tools/ci-cd/`.
+
+## Key Files & Directories
+- `src/Template.Api/` – Main API project
+- `src/Template.Functions/` – Azure Functions project
+- `src/Template.Shared/` – Shared models, mapping, and logic
+- `src/Azure.ManagedIdentity/` – Managed identity helpers
+- `docs/` – Architecture, setup, and workflow documentation
+- `tools/` – Scripts for infrastructure, dev, and CI/CD
+
+---
+For more, see `docs/architecture-and-project-structure.md`, `docs/CONTRIBUTING.md`, and `docs/dev-setup.md`.
