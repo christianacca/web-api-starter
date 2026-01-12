@@ -15,9 +15,6 @@ on:
       environment-name:
         required: true
         type: string
-      git-tag:
-        required: true
-        type: string
       create-release:
         required: true
         type: boolean
@@ -60,8 +57,14 @@ jobs:
         shell: pwsh
         run: ./tools/ci-cd/scripts/create-published-artifacts-directory.ps1
         
-      - name: Zip artifacts
-        run: tar -zcvf ./publish/release.tar.gz -C ./out .
+      - name: Upload release artifacts
+        if: inputs.create-release == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: ./out
+          if-no-files-found: error
+          retention-days: 10  
 
       - name: Azure login
         if: inputs.create-release == true
@@ -73,7 +76,7 @@ jobs:
         run: az acr login -n ${{ inputs.azure-container-registry }}
       - uses: ./.github/actions/export-convention-vars
         with:
-          environment-name: ${{ inputs.environment-name }}  
+          environment-name: dev
       - name: Build and push docker images
         shell: pwsh
         run: |
@@ -83,15 +86,4 @@ jobs:
             BuildNumber             = '${{ inputs.build-tag }}'
             PushImages              = '${{ inputs.create-release }}' -eq 'true'
           }
-          ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 @params
-
-      - name: Create github release
-        if: inputs.create-release == true
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
-        with:
-          tag_name: ${{ inputs.git-tag }}
-          files: ./publish/release.tar.gz
-          target_commitish: ${{ github.sha }}
-          prerelease: true
-          fail_on_unmatched_files: true
- 
+          ./tools/ci-cd/scripts/create-and-push-docker-images.ps1 @params 

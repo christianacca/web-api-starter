@@ -23,6 +23,7 @@ jobs:
 #    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: demo
@@ -38,6 +39,7 @@ jobs:
 #    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: demo-na
@@ -53,6 +55,7 @@ jobs:
 #    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: demo-emea
@@ -68,6 +71,7 @@ jobs:
 #    if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: demo-apac
@@ -83,6 +87,7 @@ jobs:
     if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: staging
@@ -98,6 +103,7 @@ jobs:
     if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: prod-na
@@ -113,6 +119,7 @@ jobs:
     if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: prod-emea
@@ -128,6 +135,7 @@ jobs:
     if:  ${{ needs.globalvars.outputs.buildType == 'release' }}
     uses: ./.github/workflows/__app-deploy.yml
     with:
+      artifact-source: release
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: prod-apac

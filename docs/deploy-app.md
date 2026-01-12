@@ -56,6 +56,7 @@ to automate the deployment tasks above and [github workflows](../.github/workflo
 > in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1)
 > This is because the `prod-na` subscription is used to create some/all of the shared services required by the app
 
+
 ## Shared services
 
 The shared services required for the app are:
@@ -142,7 +143,7 @@ Options = @{
 Each container app will be assigned a custom domain that will be used to access that app over https. The DNS records for
 these custom domains must be registered in the DNS zone for that custom domain.
 
-There are two DNS records that need to be registered _for each service_ (eg our API) hosted in Azure container apps, 
+There are two DNS records that need to be registered _for each service_ (eg our API) hosted in Azure container apps,
 _for each environment_ that this service is being deployed to:
 
 * `TXT` record required to validate domain ownership, EG name:`asuid.dev-api-was`; content:`xxxxxxxxx`
@@ -165,6 +166,7 @@ To find the values for these DNS record for all environments for a specific comp
 ./tools/infrastructure/print-custom-dns-record-table.ps1 -Component 'Api' -Login
 ```
 
+
 ## Add whitelists to Cloudflare Web Application Firewall (WAF)
 
 > [!Note]
@@ -176,7 +178,7 @@ To find the values for these DNS record for all environments for a specific comp
 The custom domains used by the container apps are proxied by Cloudflare. Cloudflare provides a Web Application Firewall (WAF).
 This WAF will likely need to be tuned to not block legitimate traffic to the container apps.
 
-Define the list of paths for a container app that should not be blocked in [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1).
+Define the list of paths for a container app that should not be blocked here: [get-product-conventions.ps1](../tools/infrastructure/get-product-conventions.ps1).
 For example:
 
 ```pwsh
@@ -313,12 +315,20 @@ The field `CertificateName` in the script output should be used as the name of t
 > To discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
 
 1. Trigger build by _either_:
-   * Touching any file in tools/infrastructure on the `master` branch (via a PR)
+   * Change any file in tools/infrastructure on the `master` branch (via a PR)
    * Manually running [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow
-   * Create a `release/*` branch (eg release/2022.01). Note: this is the only method to deploy to staging and prod environments as explained in [Branch and deployment strategy](branch-and-deployment-strategy.md)
-2. Deploy to dev: [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) will trigger *automatically* to deploy infrastructure to dev environment (ie you don't need to do anything)
-3. Deploy to qa: once deployed to the dev environment, the [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow will queue up a deployment for the infrastructure to the qa environment.
+   * Create a `release/*` branch (eg release/2022.01), or make a change to any file in tools/infrastructure on a `release/*` branch (via a PR).
+     Note: this is the only method to deploy to staging and prod environments as explained in [Branch and deployment strategy](branch-and-deployment-strategy.md)
+2. Deploy to dev: when changes are made to the `master` branch or manually running [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml), 
+   infrastructure will deploy to the dev environment (you don't need to approve this deployment)
+3. Deploy to qa:
+   * when a `release/*` branch (eg release/2022.01) is created, or changing any file in tools/infrastructure on a `release/*` branch (via a PR),
+     infrastructure will deploy to the qa environment (you don't need to approve this deployment)
+   * alternatively, once the deployment to `dev` above has completed successfully, the [Infrastructure CI/CD](../.github/workflows/infra-ci-cd.yml) workflow will queue up a deployment for the
+     infrastructure to the qa environment.
+
    ![queued deployment](./assets/infra-ci-queued.png)
+
    This deployment will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
 4. Deploy to demo, staging, prod-xxx environments:
    1. Go to the [Releases list](https://github.com/MRI-Software/web-api-startery/releases) in the github repo
@@ -343,12 +353,19 @@ The field `CertificateName` in the script output should be used as the name of t
 > To discover the configuration values used during deployment run: `./tools/infrastructure/get-product-conventions.ps1`
 
 1. Trigger build by _either_:
-   * Touching any file in tools/infrastructure on the `master` branch (via a PR)
+   * Changing any file in src/ or tests/ on the `master` branch (via a PR)
    * Manually running [Application CI/CD](../.github/workflows/app-ci-cd.yml) workflow
-   * Create a `release/*` branch (eg release/2022.01). Note: this is the only method to deploy to staging and prod environments as explained in [Branch and deployment strategy](branch-and-deployment-strategy.md)
-2. Deploy to dev: [Application CI/CD](../.github/workflows/app-ci-cd.yml) will trigger *automatically* to deploy app to dev environment (ie you don't need to do anything)
-3. Deploy to qa: once deployed to the dev environment, the [Application CI/CD](../.github/workflows/app-ci-cd.yml) workflow will queue up a deployment for the app to the qa environment.
-   ![queued deployment](./assets/app-ci-queued.png)
+   * Create a `release/*` branch (eg release/2022.01), or make a change to any file in src/ or tests/ on a `release/*` branch (via a PR).
+     Note: this is the only method to deploy to staging and prod environments as explained in [Branch and deployment strategy](branch-and-deployment-strategy.md)
+2. Deploy to dev: when changes are made to the `master` branch or manually running [Application CI/CD](../.github/workflows/app-ci-cd.yml), app will deploy to the dev environment (you don't need to approve this deployment)
+3. Deploy to qa:
+    * when a `release/*` branch (eg release/2022.01) is created, or changing any file in src/ or tests/ on a `release/*` branch (via a PR),
+      app will deploy to the qa environment (you don't need to approve this deployment)
+    * alternatively, once the deployment to `dev` above has completed successfully, the [Application CI/CD](../.github/workflows/app-ci-cd.yml) workflow will queue up a deployment for the
+      app to the qa environment.
+
+   ![queued deployment](./assets/infra-ci-queued.png)
+
    This deployment will need to be reviewed then [approved in github](https://docs.github.com/en/actions/managing-workflow-runs/reviewing-deployments)
 4. Deploy application to demo, staging, prod-xxx environments:
    1. Go to the [Releases list](https://github.com/MRI-Software/web-api-starter/releases) in the github repo
@@ -430,36 +447,36 @@ _Example workflow run:_
      * admin access to AIG Azure SQL db
      * contributor access to Azure resources
      * read/write access to secrets in keyvault
-     * read/write access to config data in shared dev/test Azure config store
+     * read/write access to config data in shared dev/test Azure app config store
      * admin access to power-bi client workspaces
    * demo:
      * data read/write access to AIG Azure SQL db
      * contributor access to Azure resources
      * no access to objects in keyvault
-     * read/write access to config data in shareddev/test Azure config store
+     * read/write access to config data in shareddev/test Azure app config store
      * contributor access to power-bi client workspaces
    * staging and prod:
      * data read access to AIG Azure SQL db
-     * contributor access to Azure monitor, read access to all other Azure resources 
+     * contributor access to Azure monitor, read access to all other Azure resources
      * no access to objects in keyvault
-     * read access to config data in shared prod Azure config store
+     * read access to config data in shared prod Azure app config store
      * no access to power-bi client workspace
 2. GPS / support-tier-1
    * demo, staging and prod environments:
      * data read access to AIG Azure SQL db
      * read access to Azure
      * no access to objects in keyvault
-     * read access to config data in shared dev/test and prod Azure config stores
-     * contributor rights to power-bi client _report_ workspaces
-     * viewer rights to power-bi client _dataset_ workspaces
+     * read/write access to config data in shared dev/test and prod Azure app config stores
+     * contributor access to power-bi client _report_ workspaces
+     * viewer access to power-bi client _dataset_ workspaces
 3. App Admin / support-tier-2
    * demo, staging and prod environments:
      * contributor access to AIG Azure SQL db
      * contributor access to Azure
      * read/write access to secrets in keyvault
-     * read/write access to config data in shared dev/test and prod Azure config stores
-     * admin rights to power-bi client _report_ workspaces
-     * admin rights to power-bi client _dataset_ workspaces
+     * read/write access to config data in shared dev/test and prod Azure app config stores
+     * admin access to power-bi client _report_ workspaces
+     * admin access to power-bi client _dataset_ workspaces
 
 ***pbi* only access:**
 
@@ -491,7 +508,7 @@ specifically, the example with the description "Returns tables describing all Az
 ### Prerequisites
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to run dev scripts
-* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs 0.29.45**). **IMPORTANT**, ensure you have the minimum version installed as the
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs v0.31.92**). **IMPORTANT**, ensure you have the minimum version installed as the
   standalone cli and the one packaged by az-cli.
   * Both standalone and packed version are required and can be installed by following the [official guide](https://learn.microsoft.com/en-gb/azure/azure-resource-manager/bicep/install))
   * To upgrade the packaged version run: `az bicep upgrade`
@@ -523,8 +540,8 @@ In practice the only way to run these scripts from a dev machine is:
    3. uncomment `ProductAbbreviation` (line 40) and make it globally unique (eg replace `-cc` with your initials)
    4. Review `Domain` settings (starting line 41) and adjust as required. At minimum replace 'codingdemo' with the value of a custom domain you own
    5. Set `Aca.IsCustomDomainEnabled` to `$false`. In order to have this set to true you will need
-       * a custom domain as explained in the section above "Register DNS records"
-       * a TLS certificate for the custom domain as explained in the section above "Add TLS certificates to shared key vault"
+      * a custom domain as explained in the section above "Register DNS records" 
+      * a TLS certificate for the custom domain as explained in the section above "Add TLS certificates to shared key vault"
 2. Update the subscription and service principal details in [set-azure-connection-variables.ps1](../.github/actions/azure-login/set-azure-connection-variables.ps1) to match your own
 3. Setup shared infrastructure:
    ```pwsh
@@ -552,6 +569,7 @@ In practice the only way to run these scripts from a dev machine is:
    ````
 7. Test that it worked:
    * browse to the "Api Url" printed to the console
+   * browse to the "App Url" printed to the console
    * Import the postman [collection](../tests/postman/api.postman_collection.json) and [environment](../tests/postman/api-dev.postman_environment.json),
      change the baseUrl postman variable to the "Api Url" printed to the console. Run the requests in the collection
 
@@ -583,6 +601,11 @@ When running `provision-azure-resources.ps1`, you might receive an error with th
 ```cmd
 Login failed for user '<token-identified principal>'
 ```
+or
+```cmd
+Server identity does not have the required permissions to access the MS graph
+```
+
 To resolve the problem try re-running the provisioning script again (it's safe to do so). If this still does not work try
 waiting for somewhere between 15-60 minutes and re-run the script.
 
@@ -591,23 +614,7 @@ waiting for somewhere between 15-60 minutes and re-run the script.
 When running `provision-azure-resources.ps1`, you might receive an error with a _similar_ message to the following:
 
 ```cmd
-7. Set Azure resources...
-  Gathering existing resource information...
-  Creating desired resource state
-
-Write-Error: /home/runner/work/_temp/18abd4a5-7265-4ba2-a12f-9e2013b9649f.ps1:2
-Line |
-   2 |  ./tools/infrastructure/provision-azure-resources.ps1 -EnvironmentName …
-     |  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | 12:45:07 - The deployment 'd2933a88-733d-4b65-afd6-6f8b76eb6546' failed
-     | with error(s). Showing 2 out of 2 error(s). Status Message:
-     | {"error":{"code":"BadRequest","target":"/resources/appReg","message":"Another object with the same value for property 
-uniqueName already exists. Graph client request id: ed2e5d64-4a96-417b-b5ec-109288d212b9. Graph request timestamp: 2024-11-28T12:42:10Z."}} 
-(Code:DeploymentOperationFailed)  Status Message: At least one resource deployment operation failed. Please list deployment operations for 
-details. Please see https://aka.ms/arm-deployment-operations for usage details. (Code: DeploymentFailed)
-  - {"error":{"code":"BadRequest","target":"/resources/appReg","message":"Another object with the same value for property uniqueName already exists.
-Graph client request id: ed2e5d64-4a96-417b-b5ec-109288d212b9. Graph request timestamp: 2024-11-28T12:42:10Z."}} (Code:)   
-CorrelationId: 5a5d3700-d51d-441b-9a8e-c9634f3a5221 at <ScriptBlock><Process>, /home/runner/work/web-api-starter/web-api-starter/tools/infrastructure/provision-azure-resources.ps1: line 318 at <ScriptBlock>, /home/runner/work/_temp/18abd4a5-7265-4ba2-a12f-9e2013b9649f.ps1: line 2 at <ScriptBlock>, <No file>: line 1
+Another object with the same value for property uniqueName already exists. Graph client request id xxxx
 ```
 
 To resolve:

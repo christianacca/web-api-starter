@@ -33,6 +33,7 @@ jobs:
           git-tag-suffix: infra
     outputs:
       buildFullVersion: ${{ steps.vars.outputs.buildFullVersion }}
+      buildType: ${{ steps.vars.outputs.buildType }}
       gitTag: ${{ steps.vars.outputs.gitTag }}
       createRelease: ${{ steps.vars.outputs.createRelease }}
       runBuild: ${{ steps.vars.outputs.runBuild }}
@@ -46,17 +47,25 @@ jobs:
       contents: write
     
     steps:
-      - name: Create github release
-        if: needs.globalvars.outputs.createRelease == 'true'
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
+      - run: echo "No build steps for infrastructure - skipping"
+  
+  auto_approve-deploy-qa:
+    runs-on: ubuntu-latest
+    needs: [globalvars, build]
+    if: needs.globalvars.outputs.createRelease == 'true' && needs.globalvars.outputs.buildType == 'release'
+    steps:
+      - name: Sleep for 30 seconds # wait for jobs that require approval to start and enter pending state
+        run: sleep 30s
+      - name: Auto Approve Deployments qa
+        uses: activescott/automate-environment-deployment-approval@10179fc61443cb28b95e807814d9dfce60a9e230 # <- v1.1.0
         with:
-          tag_name: ${{ needs.globalvars.outputs.gitTag }}
-          target_commitish: ${{ github.sha }}
-          prerelease: true
+          github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
+          environment_allow_list: qa
+          run_id_allow_list: ${{ github.run_id }} # only approve the current run of THIS workflow only
       
   deploy-dev:
     needs: [globalvars, build]
-    if: needs.globalvars.outputs.createRelease == 'true'
+    if: needs.globalvars.outputs.createRelease == 'true' && needs.globalvars.outputs.buildType == 'ci'
     uses: ./.github/workflows/__infra-deploy.yml
     with:
       environment-name: dev
@@ -66,13 +75,59 @@ jobs:
       contents: read
       id-token: write
       
-  deploy-qa:
+  release-dev:
     needs: [globalvars, deploy-dev]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Create github release
+        if: needs.globalvars.outputs.createRelease == 'true'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
+        with:
+          tag_name: ${{ needs.globalvars.outputs.gitTag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+      
+  deploy-qa:
+    needs: [globalvars, build]
+    # IMPORTANT: we do WANT to allow builds for master branch and manually triggered runs to be *available* to deploy to QA
+    # Therefore we WILL deploy to qa automatically BUT we assume that the qa github environment is set up to require manual
+    # approval before the job runs. For builds from release branch, our workflow job above 'auto_approve-deploy-qa', will
+    # approve this gated deployment rather than having to wait on someone to remember to have to do this.
+    # In essence, with our setup we get:
+    # 1. commits to the release branch deploying automatically to QA (ie continuous deployment (CD) to qa)
+    # 2. commits to the master branch and manually triggered runs, deploying automatically to dev (ie continuous deployment (CD) to dev)
+    # 3. commits to the master branch and manually triggered runs, being available to deploy to QA via a manual approval via the github UI
+    if: needs.globalvars.outputs.createRelease == 'true'
     uses: ./.github/workflows/__infra-deploy.yml
     with:
+      # we require cancellation of pending workflow runs to allow the auto_approve-deploy-qa job to work. without this,
+      # if there is a pending deployment to qa, the auto approval will not happen as the deployment cannot be approved until 
+      # the pending one is dealt with
+      cancel-in-progress: true
       environment-name: qa
       build-version: ${{ needs.globalvars.outputs.buildFullVersion }}
     permissions:
       actions: read
       contents: read
       id-token: write
+  
+  release-qa:
+    needs: [ globalvars, deploy-qa ]
+    # we could be arriving here after deploying master branch to dev. In that case we've already created the github release
+    # for the workflow, so make sure only to create the github release when building from the release branch
+    if: needs.globalvars.outputs.buildType == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Create github release
+        if: needs.globalvars.outputs.createRelease == 'true'
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
+        with:
+          tag_name: ${{ needs.globalvars.outputs.gitTag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
