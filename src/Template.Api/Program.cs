@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Text.Json.Serialization;
 using Azure.Core;
 using Azure.Identity;
 using Hellang.Middleware.ProblemDetails;
@@ -18,6 +16,8 @@ using Mri.Azure.ManagedIdentity;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
+using System.Reflection;
+using System.Text.Json.Serialization;
 using Template.Api.Endpoints.Configurations;
 using Template.Api.Shared;
 using Template.Api.Shared.ExceptionHandling;
@@ -26,6 +26,7 @@ using Template.Api.Shared.Proxy;
 using Template.Shared.Azure.ConfigStore;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
+using Template.Shared.Github;
 using Template.Shared.Util;
 
 // ReSharper disable UnusedParameter.Local
@@ -112,7 +113,9 @@ void ConfigureLogging(IHostBuilder host) {
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
   services.AddHttpContextAccessor();
-  
+
+  services.AddGithubAppOptions("Github");
+
   services
     .AddAzureAppConfiguration()
     .AddFeatureManagement();
@@ -157,7 +160,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   ConfigureAzureClients();
   ConfigureAzureIdentityServices();
   ConfigureProxyServices();
-  
+
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
   services
     .AddOptions<ExampleSettings>()
@@ -238,11 +241,12 @@ void ConfigureMiddleware(WebApplication app) {
     });
     app.UseSwaggerUI();
   }
-  
+
   app.UseMiddleware<ApiVsResponseHeaderMiddleware>();
+  app.UseMiddleware<GithubWebhookMiddleware>();
 
   app.UseRouting();
-  
+
   app.UseCors(); // critical: this MUST be before UseAuthentication and UseAuthorization
 
   app.UseAuthentication();
@@ -254,7 +258,7 @@ void ConfigureMiddleware(WebApplication app) {
     // middleware that only runs for http requests that are NOT being proxied
     // app2.UseXxx();
   });
-  
+
   app.MapControllers().RequireAuthorization();
   app.MapHealthChecks("/health");
   app.MapReverseProxy();
