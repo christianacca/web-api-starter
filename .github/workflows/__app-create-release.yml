@@ -1,0 +1,33 @@
+name: __Application Create Github Release
+
+on:
+  workflow_call:
+    inputs:
+      git-tag:
+        required: true
+        type: string
+
+jobs:
+
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: release-artifacts
+          path: ./out
+          
+      - name: Zip artifacts
+        run: mkdir ./publish && tar -zcvf ./publish/release.tar.gz -C ./out .
+
+      - name: Create github release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # <- 2.0.8
+        with:
+          tag_name: ${{ inputs.git-tag }}
+          files: ./publish/release.tar.gz
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          fail_on_unmatched_files: true

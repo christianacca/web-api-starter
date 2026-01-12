@@ -31,31 +31,31 @@ point your project will not need a release branch, thus simplifying your deliver
   graph LR;
       code(branch:master) --> dev;
       dev -- approved? --> qa;
+      dev -- approved? --> demo-*;
 ```
 
-* Deployed to dev automatically (no approval required)
-* Wait on release approval before deploying to QA:
-  * Allows qa to test changes at their own pace
+* Deployed to `dev` automatically (no approval required)
+* Wait on release approval before deploying to `qa`:
+  * `qa` deployment from master branch is not normally required as QA testing for current cards merged to master typically occurs in
+     `dev` environment. However, QA might want to do testing in `qa` which is a more stable environment than `dev`.
+     In that case, they can manually approve the deployment to `qa`
   * Avoid a deploy from release branch being overwritten by a deploy from master
+* Wait on release approval before deploying to `demo`:
+    * `demo` deployment from master branch is rare and usually only after stakeholder approval
 
 ### Code committed to release branch
 
 ```mermaid
   graph LR;
-      code(branch:release) --> dev;
-      dev -- approved? --> qa;
-      dev -- approved? --> demo;
-      dev -- approved? --> staging;
-      staging -- approved? --> prod-na;
-      staging -- approved? --> prod-emea;
-      staging -- approved? --> prod-apac;
+      code(branch:release) --> qa;
+      qa -- approved? --> staging;
+      qa -- approved? --> demo-*;
+      staging -- approved? --> prod-*;
 ```
 
-* Deployed to dev automatically (no approval required)
-* Wait on release approval before deploying to QA
-* Wait on release approval before deploying to demo
-* Wait on release approval before deploying to staging
-* Once deployed to staging, wait on release approval before deploying to prod environments
+* Deployed to `qa` automatically (no approval required)
+* Wait on release approval before deploying to `staging`
+* Once deployed to `staging`, wait on release approval before deploying to `demo` and `prod` environments
 
 ### Code merged from release branch to master
 

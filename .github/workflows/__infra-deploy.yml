@@ -6,6 +6,9 @@ on:
       build-version:
         required: true
         type: string
+      cancel-in-progress:
+        type: boolean
+        default: false
       environment-name:
         required: true
         type: string    
@@ -15,11 +18,13 @@ on:
     
 jobs:
   run:
-    concurrency: infra_deploy_${{ inputs.environment-name }}
+    concurrency:
+      group: infra_deploy_${{ inputs.environment-name }}
+      cancel-in-progress: ${{ inputs.cancel-in-progress }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment-name }}
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
           
       - name: Set powershell module list
         shell: pwsh
