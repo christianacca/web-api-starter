@@ -14,6 +14,7 @@ using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Functions.Shared.HttpContextAccessor;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
+using Template.Shared.Github;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
@@ -69,6 +70,8 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   });
 
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
+  
+  services.AddGithubServices("Github");
 
   ConfigureAzureClients(configuration, services);
 }
