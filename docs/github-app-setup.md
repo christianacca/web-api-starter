@@ -236,11 +236,11 @@ The API application uses header-based routing to direct webhook requests to the 
 
 1. **Webhook Flow**: GitHub sends webhook events to `POST /api/workflow/webhook`
 2. **Middleware Validation**: The `GithubWebhookMiddleware` validates the HMAC signature
-3. **Header Injection**: After successful validation, middleware adds `X-Correlation-Id: InternalApi` header
+3. **Header Injection**: After successful validation, middleware adds the correlation ID header (defined as `GithubHeaderNames.WorkflowCorrelationId` constant with value `"X-Correlation-Id"`) set to `InternalApi`
 4. **Routing**: The reverse proxy (YARP) routes requests with this header to the Functions webhook endpoint
 5. **Security**: This ensures only validated, internal webhook calls reach the Functions orchestration logic
 
-This header-based routing pattern is configured in `appsettings.json` under `ReverseProxy.Routes.WorkflowWebhookFunctions`.
+This header-based routing pattern is configured in `appsettings.json` under `ReverseProxy.Routes.WorkflowWebhookFunctions`. The header name in the configuration must match the value of `GithubHeaderNames.WorkflowCorrelationId` defined in `src/Template.Shared/Github/GithubHeaderNames.cs`.
 
 ---
 
