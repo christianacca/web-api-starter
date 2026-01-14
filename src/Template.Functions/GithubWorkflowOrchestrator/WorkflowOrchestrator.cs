@@ -42,21 +42,18 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
 
     var runId = await context.WaitForExternalEvent<long>(WorkflowWebhook.WorkflowInProgressEvent, input.Timeout);
 
-    if (runId == 0) return;
+    if (runId == 0) {
+      throw new TimeoutException($"Workflow did not start within timeout period of {input.Timeout}");
+    }
 
-    var currentAttempt = 1;
+    var currentAttempt = 1; // Already ran once (initial dispatch)
 
     var success = await context.WaitForExternalEvent<bool>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout);
 
-    if (success) return;
-
-    while (currentAttempt <= input.MaxAttempts) {
-      await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), runId);
+    while (!success && currentAttempt < input.MaxAttempts) {
       currentAttempt++;
-
+      await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), runId);
       success = await context.WaitForExternalEvent<bool>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout);
-
-      if (success) break;
     }
   }
 }

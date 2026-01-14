@@ -16,11 +16,13 @@ public class RerunFailedJobActivity(
     var options = optionsMonitor.CurrentValue;
 
     try {
-      await client.Actions.Workflows.Runs.Rerun(options.Owner, options.Repo, runId);
+      // Use RerunFailedJobs to only rerun failed jobs, not all jobs
+      var endpoint = new Uri($"repos/{options.Owner}/{options.Repo}/actions/runs/{runId}/rerun-failed-jobs", UriKind.Relative);
+      await client.Connection.Post(endpoint, new object(), "application/vnd.github+json");
       return true;
     } catch (Exception ex) {
       logger.LogError(ex, 
-        "Failed to rerun workflow run {RunId} for {Owner}/{Repo}", 
+        "Failed to rerun failed jobs for workflow run {RunId} in {Owner}/{Repo}", 
         runId, options.Owner, options.Repo);
       return false;
     }

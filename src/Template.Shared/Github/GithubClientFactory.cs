@@ -43,8 +43,8 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
     };
 
     var tokenResponse = await appClient.GitHubApps.CreateInstallationToken(appOptions.InstallationId);
-    // Token will be valid only for a maximum of 1 hour
-    _tokenExpiry = DateTimeOffset.UtcNow.AddHours(1);
+    // Use GitHub's actual token expiry time instead of hardcoding
+    _tokenExpiry = tokenResponse.ExpiresAt;
 
     return tokenResponse.Token;
   }
