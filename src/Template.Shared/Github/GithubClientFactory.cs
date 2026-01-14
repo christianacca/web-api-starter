@@ -25,7 +25,8 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
     if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
       await _tokenLock.WaitAsync();
       try {
-        var expiryWithBuffer = _tokenExpiry - _refreshBuffer;
+        // Double-check after acquiring lock
+        expiryWithBuffer = _tokenExpiry - _refreshBuffer;
         if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
           _cachedToken = await CreateInstallationTokenAsync(options.CurrentValue);
           _singletonClient = new GitHubClient(new ProductHeaderValue(_productHeaderValue)) {

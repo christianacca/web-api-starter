@@ -17,7 +17,10 @@ public class RerunFailedJobActivity(
 
     try {
       // Use RerunFailedJobs to only rerun failed jobs, not all jobs
-      var endpoint = new Uri($"repos/{options.Owner}/{options.Repo}/actions/runs/{runId}/rerun-failed-jobs", UriKind.Relative);
+      // URL encode owner and repo for safety (though they come from validated config)
+      var owner = Uri.EscapeDataString(options.Owner);
+      var repo = Uri.EscapeDataString(options.Repo);
+      var endpoint = new Uri($"repos/{owner}/{repo}/actions/runs/{runId}/rerun-failed-jobs", UriKind.Relative);
       await client.Connection.Post(endpoint, new object(), "application/vnd.github+json");
       return true;
     } catch (Exception ex) {
