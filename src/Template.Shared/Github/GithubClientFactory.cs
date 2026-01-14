@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Octokit;
+using System.Reflection;
 using System.Security.Cryptography;
 
 namespace Template.Shared.Github;
@@ -13,6 +14,7 @@ public interface IGitHubClientFactory {
 public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IGitHubClientFactory {
   private readonly SemaphoreSlim _tokenLock = new(1, 1);
   private readonly TimeSpan _refreshBuffer = TimeSpan.FromMinutes(5);
+  private readonly string _productHeaderValue = Assembly.GetExecutingAssembly().GetName().Name ?? "AzureFunctionApp";
 
   private GitHubClient? _singletonClient;
   private string? _cachedToken;
@@ -26,7 +28,7 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
         var expiryWithBuffer = _tokenExpiry - _refreshBuffer;
         if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
           _cachedToken = await CreateInstallationTokenAsync(options.CurrentValue);
-          _singletonClient = new GitHubClient(new ProductHeaderValue("MyAzureFunction")) {
+          _singletonClient = new GitHubClient(new ProductHeaderValue(_productHeaderValue)) {
             Credentials = new Credentials(_cachedToken)
           };
         }
@@ -41,7 +43,7 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
 
   private async Task<string> CreateInstallationTokenAsync(GithubAppOptions appOptions) {
     var jwt = CreateJwt(appOptions.AppId, appOptions.PrivateKeyPem);
-    var appClient = new GitHubClient(new ProductHeaderValue("MyAzureFunction")) {
+    var appClient = new GitHubClient(new ProductHeaderValue(_productHeaderValue)) {
       Credentials = new Credentials(jwt, AuthenticationType.Bearer)
     };
 

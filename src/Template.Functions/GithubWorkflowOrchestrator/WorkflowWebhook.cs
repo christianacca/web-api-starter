@@ -87,7 +87,8 @@ public class WorkflowWebhook(
 
     if (workflowEvent.Action == WorkflowRunAction.Completed &&
         workflowEvent.WorkflowRun.Status == WorkflowRunStatus.Completed) {
-      var success = workflowEvent.WorkflowRun.Conclusion == WorkflowRunConclusion.Success;
+      var success = workflowEvent.WorkflowRun.Conclusion.HasValue && 
+                    workflowEvent.WorkflowRun.Conclusion.Value == WorkflowRunConclusion.Success;
       await client.RaiseEventAsync(instanceId, WorkflowCompletedEvent, success);
     }
   }
