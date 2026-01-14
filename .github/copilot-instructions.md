@@ -36,5 +36,14 @@
 - `docs/` – Architecture, setup, and workflow documentation
 - `tools/` – Scripts for infrastructure, dev, and CI/CD
 
+## GitHub Workflows Troubleshooting
+- **Fetching Workflow Logs**: Use the GitHub API to download logs as a zip file, not `gh run view` which opens a pager:
+  ```bash
+  gh api repos/christianacca/web-api-starter/actions/runs/<RUN_ID>/logs > /tmp/workflow-logs.zip
+  unzip -o /tmp/workflow-logs.zip -d /tmp
+  cat /tmp/<job-log-file>.txt
+  ```
+  Search for errors: `cat /tmp/<job-log-file>.txt | grep -A 20 -i "error\|fail"`
+
 ---
 For more, see `docs/architecture-and-project-structure.md`, `docs/CONTRIBUTING.md`, and `docs/dev-setup.md`.

@@ -16,7 +16,7 @@ process {
                 subscriptionId  =   '402f88b4-9dd2-49e3-9989-96c788e93372'
             }
         }
-        ({$PSItem -in 'staging', 'prod-na', 'prod'}) {
+        ({$PSItem -in 'prod-artifacts', 'staging', 'prod-na', 'prod'}) {
             @{
                 # cli-nadevopsproduction-prod-web-api-starter-arm
                 clientId        =   '6a3a29da-76bf-4ee2-b2fc-a65ccf22f33e'
