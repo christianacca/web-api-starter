@@ -72,11 +72,11 @@ public class WorkflowWebhook(
   }
 
   private string? ExtractInstanceId(string workflowRunName) {
-    var parts = workflowRunName.Split('-');
-    if (parts.Length != 2) {
+    var prefix = $"{FunctionAppIdentifiers.InternalApi}-";
+    if (!workflowRunName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
       return null;
     }
-    return parts[1];
+    return workflowRunName.Substring(prefix.Length);
   }
 
   private async Task ProcessWorkflowEvent(string instanceId, GitHubWorkflowRunEvent workflowEvent, DurableTaskClient client) {

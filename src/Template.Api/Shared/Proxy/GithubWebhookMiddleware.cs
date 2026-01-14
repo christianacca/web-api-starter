@@ -64,6 +64,9 @@ public class GithubWebhookMiddleware(
     var correlationId = TryGetWorkflowRunName(jsonDocument);
 
     if (!request.Headers.ContainsKey(GithubHeaderNames.WorkflowCorrelationId) && !string.IsNullOrEmpty(correlationId)) {
+      // For routing to correct Function App
+      request.Headers.TryAdd(GithubHeaderNames.FunctionAppId, "InternalApi");
+      // For correlation/tracing
       request.Headers.TryAdd(GithubHeaderNames.WorkflowCorrelationId, correlationId);
     }
   }

@@ -12,16 +12,19 @@ public interface IGitHubClientFactory {
 
 public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IGitHubClientFactory {
   private readonly SemaphoreSlim _tokenLock = new(1, 1);
+  private readonly TimeSpan _refreshBuffer = TimeSpan.FromMinutes(5);
 
   private GitHubClient? _singletonClient;
   private string? _cachedToken;
   private DateTimeOffset _tokenExpiry = DateTimeOffset.MinValue;
 
   public async Task<GitHubClient> GetOrCreateClientAsync() {
-    if (_cachedToken == null || _singletonClient == null || _tokenExpiry <= DateTimeOffset.UtcNow) {
+    var expiryWithBuffer = _tokenExpiry - _refreshBuffer;
+    if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
       await _tokenLock.WaitAsync();
       try {
-        if (_cachedToken == null || _singletonClient == null || _tokenExpiry <= DateTimeOffset.UtcNow) {
+        var expiryWithBuffer = _tokenExpiry - _refreshBuffer;
+        if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
           _cachedToken = await CreateInstallationTokenAsync(options.CurrentValue);
           _singletonClient = new GitHubClient(new ProductHeaderValue("MyAzureFunction")) {
             Credentials = new Credentials(_cachedToken)
