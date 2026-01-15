@@ -17,7 +17,7 @@ public class GithubAppOptions {
 
   public int MaxAttempts { get; set; } = 5;
   
-  public int WorkflowTimeoutHours { get; set; } = 12;
+  private int WorkflowTimeoutHours { get; set; } = 12;
   
   public TimeSpan WorkflowTimeout => TimeSpan.FromHours(WorkflowTimeoutHours);
 }
