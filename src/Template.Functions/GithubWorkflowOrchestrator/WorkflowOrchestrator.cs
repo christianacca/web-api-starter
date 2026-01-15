@@ -46,7 +46,7 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
       throw new TimeoutException($"Workflow did not start within timeout period of {input.Timeout}");
     }
 
-    var currentAttempt = 1; // Already ran once (initial dispatch)
+    var currentAttempt = 1;
 
     var success = await context.WaitForExternalEvent<bool>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout);
 

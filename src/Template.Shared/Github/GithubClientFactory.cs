@@ -25,7 +25,6 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
     if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
       await _tokenLock.WaitAsync();
       try {
-        // Double-check after acquiring lock
         expiryWithBuffer = _tokenExpiry - _refreshBuffer;
         if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
           _cachedToken = await CreateInstallationTokenAsync(options.CurrentValue);
@@ -49,7 +48,6 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
     };
 
     var tokenResponse = await appClient.GitHubApps.CreateInstallationToken(appOptions.InstallationId);
-    // Use GitHub's actual token expiry time instead of hardcoding
     _tokenExpiry = tokenResponse.ExpiresAt;
 
     return tokenResponse.Token;
