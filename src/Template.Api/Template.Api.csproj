@@ -22,8 +22,7 @@
         <PackageReference Include="Mri.AppInsights.AspNetCore" Version="7.2.1" />
         <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
         <PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="5.0.0" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
-        <PackageReference Include="System.Linq.Async" Version="6.0.1" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
         <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
     </ItemGroup>
 
