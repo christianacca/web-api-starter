@@ -25,38 +25,25 @@ public static class GithubWebhookSignatureValidator {
       return false;
     }
 
-    var signature = signatureHeader[Sha256Prefix.Length..];
+    var signatureHex = signatureHeader[Sha256Prefix.Length..];
     var expectedSignature = ComputeSignature(payload, secret);
 
-    return ConstantTimeEquals(signature, expectedSignature);
+    try {
+      var isEqual = CryptographicOperations.FixedTimeEquals(expectedSignature, Convert.FromHexString(signatureHex));
+      return isEqual;
+    }
+    catch (Exception) {
+      return false;
+    }
   }
 
   /// <summary>
   /// Computes the HMAC-SHA256 signature for the given payload and secret
   /// </summary>
-  private static string ComputeSignature(string payload, string secret) {
+  private static byte[] ComputeSignature(string payload, string secret) {
     var keyBytes = Encoding.UTF8.GetBytes(secret);
     var payloadBytes = Encoding.UTF8.GetBytes(payload);
 
-    using var hmac = new HMACSHA256(keyBytes);
-    var hashBytes = hmac.ComputeHash(payloadBytes);
-
-    return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-  }
-
-  /// <summary>
-  /// Constant-time string comparison to prevent timing attacks
-  /// </summary>
-  private static bool ConstantTimeEquals(string a, string b) {
-    if (a.Length != b.Length) {
-      return false;
-    }
-
-    var result = 0;
-    for (var i = 0; i < a.Length; i++) {
-      result |= a[i] ^ b[i];
-    }
-
-    return result == 0;
+    return HMACSHA256.HashData(keyBytes, payloadBytes);
   }
 }

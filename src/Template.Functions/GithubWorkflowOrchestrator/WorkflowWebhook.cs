@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Template.Shared.Proxy;
 using Template.Shared.Github;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;

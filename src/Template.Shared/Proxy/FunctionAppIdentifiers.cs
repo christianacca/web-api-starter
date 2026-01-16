@@ -1,4 +1,4 @@
-namespace Template.Functions.Shared;
+namespace Template.Shared.Proxy;
 
 /// <summary>
 /// Function app identifier constants used for correlation tracking

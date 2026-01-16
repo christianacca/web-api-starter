@@ -5,8 +5,8 @@ namespace Template.Shared.Github;
 public static class ServiceCollectionExtensions {
   public static IServiceCollection AddGithubAppOptions(this IServiceCollection services, string configurationSection) {
     services.AddOptions<GithubAppOptions>()
-          .BindConfiguration(configurationSection)
-          .ValidateDataAnnotations().ValidateOnStart();
+      .BindConfiguration(configurationSection)
+      .ValidateDataAnnotations();
 
     return services;
   }

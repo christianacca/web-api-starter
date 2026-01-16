@@ -1,7 +1,7 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Options;
 using Octokit;
-using Template.Functions.Shared;
+using Template.Shared.Proxy;
 using Template.Shared.Github;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
