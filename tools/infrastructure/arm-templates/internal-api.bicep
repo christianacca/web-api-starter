@@ -86,7 +86,7 @@ module functionApp 'br/public:avm/res/web/site:0.11.1' = {
       WEBSITE_RUN_FROM_PACKAGE: '1'
     }
     siteConfig: {
-      netFrameworkVersion: 'v8.0'
+      netFrameworkVersion: 'v10.0'
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials
