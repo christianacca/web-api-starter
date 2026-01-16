@@ -59,6 +59,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
    # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
    az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
    ```
+   * **Note**: If prompted to select a subscription, just press Enter to accept the default. The subscription choice doesn't affect local development authentication.
 2. Restore nuget packages from azure artifacts:
    * `dotnet restore --interactive`
    * follow onscreen prompts to sign-in using the device flow
@@ -84,6 +85,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
    # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
    az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
    ```
+   * **Note**: If prompted to select a subscription, just press Enter to accept the default. The subscription choice doesn't affect local development authentication.
 2. Ensure connection string is pointing to the SQL Server instance
    * Review the connection string in App/appsettings.Development.json
      (**tip**: the default is intended to work with localdb installed by Visual Studio on a windows machine)
@@ -102,6 +104,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
    # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
    az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
    ```
+   * **Note**: If prompted to select a subscription, just press Enter to accept the default. The subscription choice doesn't affect local development authentication.
 2. Enable API -> function app messaging by modifying appsettings in the _Api project_:
     * run:  `dotnet user-secrets set Api:DevFeatureFlags:EnableQueues true --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 3. Ensure connection string in the _Functions project_ is pointing to the SQL Server instance
