@@ -16,11 +16,11 @@ public class RerunFailedJobActivity(
     var options = optionsMonitor.CurrentValue;
 
     try {
-      await client.Actions.Workflows.Runs.Rerun(options.Owner, options.Repo, runId);
+      await client.Actions.Workflows.Runs.RerunFailedJobs(options.Owner, options.Repo, runId);
       return true;
     } catch (Exception ex) {
       logger.LogError(ex, 
-        "Failed to rerun workflow run {RunId} for {Owner}/{Repo}", 
+        "Failed to rerun failed jobs for workflow run {RunId} in {Owner}/{Repo}", 
         runId, options.Owner, options.Repo);
       return false;
     }
