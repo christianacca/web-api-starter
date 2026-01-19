@@ -64,7 +64,8 @@ jobs:
           name: release-artifacts
           path: ./out
           if-no-files-found: error
-          retention-days: 10  
+          retention-days: 10
+          include-hidden-files: true  
 
       - name: Azure login
         if: inputs.create-release == true
