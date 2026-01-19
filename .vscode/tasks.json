@@ -2,36 +2,91 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "clean (functions)",
-			"command": "dotnet",
-			"args": [
-				"clean",
-				"/property:GenerateFullPaths=true",
-				"/consoleloggerparameters:NoSummary"
-			],
-			"type": "process",
-			"problemMatcher": "$msCompile",
-			"options": {
-				"cwd": "${workspaceFolder}/src/Template.Functions"
-			}
-		},
-		{
-			"label": "build (functions)",
+			"label": "build solution",
 			"command": "dotnet",
 			"args": [
 				"build",
+				"${workspaceFolder}/WebApiStarterTemplate.sln",
 				"/property:GenerateFullPaths=true",
 				"/consoleloggerparameters:NoSummary"
 			],
 			"type": "process",
-			"dependsOn": "clean (functions)",
+			"problemMatcher": "$msCompile",
 			"group": {
 				"kind": "build",
 				"isDefault": true
+			}
+		},
+		{
+			"label": "build api",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"${workspaceFolder}/src/Template.Api/Template.Api.csproj",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary"
+			],
+			"type": "process",
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "build app",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"${workspaceFolder}/src/Template.App/Template.App.csproj",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary"
+			],
+			"type": "process",
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "build functions",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"${workspaceFolder}/src/Template.Functions/Template.Functions.csproj",
+				"/property:GenerateFullPaths=true",
+				"/consoleloggerparameters:NoSummary"
+			],
+			"type": "process",
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "build functions and start azurite",
+			"dependsOn": [
+				"start azurite",
+				"build functions"
+			],
+			"dependsOrder": "sequence"
+		},
+		{
+			"label": "start azurite",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-File",
+				"${workspaceFolder}/tools/azurite/azurite-run.ps1"
+			],
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^.*$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^.*Azurite.*starting.*$",
+					"endsPattern": "^.*Azurite.*successfully.*$|^.*Blob service is successfully listening.*$"
+				}
 			},
-			"problemMatcher": "$msCompile",
-			"options": {
-				"cwd": "${workspaceFolder}/src/Template.Functions"
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "azurite"
 			}
 		},
 		{
@@ -57,7 +112,7 @@
 				"publish",
 				"--configuration",
 				"Release",
-				"/property:PublishDir=bin/Release/net8.0/publish",
+				"/property:PublishDir=bin/Release/net10.0/publish",
 				"/property:GenerateFullPaths=true",
 				"/consoleloggerparameters:NoSummary"
 			],
@@ -67,16 +122,6 @@
 			"options": {
 				"cwd": "${workspaceFolder}/src/Template.Functions"
 			}
-		},
-		{
-			"type": "func",
-			"dependsOn": "build (functions)",
-			"options": {
-				"cwd": "${workspaceFolder}/src/Template.Functions/bin/Debug/net8.0"
-			},
-			"command": "start",
-			"isBackground": true,
-			"problemMatcher": "$func-dotnet-watch"
 		}
 	]
 }

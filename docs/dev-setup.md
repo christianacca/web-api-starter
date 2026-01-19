@@ -8,7 +8,16 @@ Once up and running, feel free to then switch to running the projects via an IDE
 
 ## Initial setup
 
-1. Ensure you have dotnet sdk for .net 8 installed (to see what's installed: `dotnet --list-sdks`)
+1. Ensure you have dotnet sdk for .NET 10 installed (to see what's installed: `dotnet --list-sdks`)
+    * If you need to install .NET 10 SDK:
+        * **Windows**:
+            * Option 1: Download and run the installer from <https://dotnet.microsoft.com/download/dotnet/10.0>
+            * Option 2: Using winget: `winget install Microsoft.DotNet.SDK.10`
+            * Option 3: Using chocolatey (install chocolatey first - see step 2): `choco install dotnet-sdk --version=10.0.0`
+        * **Mac**:
+            * Option 1: Download and run the installer from <https://dotnet.microsoft.com/download/dotnet/10.0>
+            * Option 2: Using homebrew: `brew install --cask dotnet-sdk`
+        * **Linux**: Follow instructions for your distribution at <https://learn.microsoft.com/en-us/dotnet/core/install/linux>
 2. For windows machines ensure you have installed [chocolotey](https://docs.chocolatey.org/en-us/choco/setup#installing-chocolatey-cli)
 3. Ensure you have powershell core with a minimum version of 6.2 installed:
     * check version: `pwsh --version` - if this fails to find the command or is less the 6.2, then install:
@@ -50,6 +59,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
    # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
    az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
    ```
+   * **Note**: If prompted to select a subscription, just press Enter to accept the default. The subscription choice doesn't affect local development authentication.
 2. Restore nuget packages from azure artifacts:
    * `dotnet restore --interactive`
    * follow onscreen prompts to sign-in using the device flow
@@ -75,6 +85,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
    # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
    az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
    ```
+   * **Note**: If prompted to select a subscription, just press Enter to accept the default. The subscription choice doesn't affect local development authentication.
 2. Ensure connection string is pointing to the SQL Server instance
    * Review the connection string in App/appsettings.Development.json
      (**tip**: the default is intended to work with localdb installed by Visual Studio on a windows machine)
@@ -93,6 +104,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
    # zfbl5.onmicrosoft.com (Christian's dev AD tenant): 77806292-ec65-4665-8395-93cb7c9dbd36
    az login --tenant xxxxxxxx-xxxx-xxxxxxxxx-xxxxxxxxxxxx --allow-no-subscriptions
    ```
+   * **Note**: If prompted to select a subscription, just press Enter to accept the default. The subscription choice doesn't affect local development authentication.
 2. Enable API -> function app messaging by modifying appsettings in the _Api project_:
     * run:  `dotnet user-secrets set Api:DevFeatureFlags:EnableQueues true --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
 3. Ensure connection string in the _Functions project_ is pointing to the SQL Server instance
@@ -106,13 +118,14 @@ Once up and running, feel free to then switch to running the projects via an IDE
 4. Build functions app: `dotnet build ./src/Template.Functions`
 5. Ensure Azurite is running at the command-line as explained [here](../tools/azurite/README.md#install-and-run-for-command-line)
 6. Run functions app:
-    * change current directory: `cd ./src/Template.Functions/bin/Debug/net8.0`
+    * change current directory: `cd ./src/Template.Functions/bin/Debug/net10.0`
     * run: `func start`
 7. Check that the basics are running by calling function directly by browsing to: <http://localhost:7071/api/Echo>
 8. Check API -> Functions app via postman:
     1. Import the postman collection [api.postman_collection.json](../tests/postman/api.postman_collection.json)
     2. Import the postman environment [api-local.postman_environment.json](../tests/postman/api-local.postman_environment.json)
     3. Run the requests "GetUser Function" in the collection "MRI Web API Starter>Proxied"
+       **Note**: assumes you're already running the Api project (see above section)
 
 
 ## Running the API and Functions app from VS2022

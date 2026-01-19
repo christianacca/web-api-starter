@@ -84,9 +84,11 @@ module functionApp 'br/public:avm/res/web/site:0.11.1' = {
       WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
       WEBSITE_CONTENTSHARE: toLower(functionAppName)
       WEBSITE_RUN_FROM_PACKAGE: '1'
+      WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED: '1'
     }
     siteConfig: {
-      netFrameworkVersion: 'v8.0'
+      netFrameworkVersion: 'v10.0'
+      use32BitWorkerProcess: false
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials

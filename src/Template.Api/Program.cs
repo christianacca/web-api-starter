@@ -12,6 +12,7 @@ using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;
 using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.OpenApi;
 using Mri.AppInsights.AspNetCore.Configuration;
 using Mri.Azure.ManagedIdentity;
 using Serilog;
@@ -232,7 +233,9 @@ void ConfigureMiddleware(WebApplication app) {
   }
 
   if (app.Environment.IsDevelopment()) {
-    app.UseSwagger();
+    app.UseSwagger(options => {
+      options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1;
+    });
     app.UseSwaggerUI();
   }
   

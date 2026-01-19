@@ -1,8 +1,16 @@
 {
-    "azureFunctions.deploySubpath": "src/Template.Functions/bin/Release/net8.0/publish",
+    "azureFunctions.deploySubpath": "src/Template.Functions/bin/Release/net10.0/publish",
     "azureFunctions.projectLanguage": "C#",
     "azureFunctions.projectRuntime": "~4",
     "debug.internalConsoleOptions": "neverOpen",
     "azureFunctions.projectSubpath": "src/Template.Functions",
-    "azureFunctions.preDeployTask": "publish (functions)"
+    "azureFunctions.preDeployTask": "publish (functions)",
+    "chat.tools.urls.autoApprove": {
+        "https://code.visualstudio.com": {
+        "approveRequest": false,
+        "approveResponse": true
+        },
+        "https://*.nuget.org": true
+    },
+    "chat.mcp.gallery.enabled": true
 }

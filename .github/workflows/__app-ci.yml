@@ -32,7 +32,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
       - name: Set nuget package credentials
         run: dotnet nuget update source mrisoftware --username az --password "${{ secrets.PACKAGE_FEED_TOKEN }}" --store-password-in-clear-text
       - name: Restore dependencies
@@ -64,7 +64,8 @@ jobs:
           name: release-artifacts
           path: ./out
           if-no-files-found: error
-          retention-days: 10  
+          retention-days: 10
+          include-hidden-files: true  
 
       - name: Azure login
         if: inputs.create-release == true

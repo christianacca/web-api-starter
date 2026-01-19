@@ -1,9 +1,6 @@
-using System.Data;
-using Hellang.Middleware.ProblemDetails;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Cors.Infrastructure;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Template.Api.Shared.Mvc;
 
@@ -24,21 +21,21 @@ public static class ServiceConfiguration {
   }
 
   public static void ConfigureSwagger(SwaggerGenOptions c) {
-    var securitySchema = new OpenApiSecurityScheme {
+    c.SwaggerDoc("v1", new OpenApiInfo { 
+      Title = "Template.Api", 
+      Version = "v1" 
+    });
+    
+    c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme {
       Description = "Using the Authorization header with the Bearer scheme.",
       Name = "Authorization",
       In = ParameterLocation.Header,
       Type = SecuritySchemeType.Http,
-      Scheme = JwtBearerDefaults.AuthenticationScheme,
-      Reference = new OpenApiReference {
-        Type = ReferenceType.SecurityScheme, Id = JwtBearerDefaults.AuthenticationScheme
-      }
-    };
+      Scheme = JwtBearerDefaults.AuthenticationScheme
+    });
 
-    c.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, securitySchema);
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement {
-      { securitySchema, new[] { JwtBearerDefaults.AuthenticationScheme } }
+    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement {
+      [new OpenApiSecuritySchemeReference(JwtBearerDefaults.AuthenticationScheme, document)] = []
     });
   }
 }
