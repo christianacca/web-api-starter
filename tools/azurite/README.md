@@ -4,6 +4,12 @@ See: <https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite>
 
 > **IMPORTANT**: Pick the instructions below based on your preference for IDE or command-line
 
+## Requirements
+
+**Minimum Azurite Version**: v3.34.0 or later
+
+This version is required to support Azure Storage API version 2025-07-05 used by .NET 10 Azure Storage SDKs.
+
 ## Install and run (for command-line)
 
 ### Install
@@ -15,14 +21,26 @@ See: <https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite>
 3. Generate a https certificate for Azurite (using powershell prompt): `./tools/azurite/dev-certs/generate-azurite-dev-cert.ps1`
 4. (Optional) Install and use Azure Storage Explorer (see section below)
 
+### Upgrade Azurite
+
+To upgrade Azurite to the minimum required version or later:
+
+```bash
+npm install -g azurite@^3.34.0
+```
+
+To check your current Azurite version:
+
+```bash
+azurite --version
+```
+
 ### Run Azurite
 
 ```pwsh
 # use powershell core prompt
 ./tools/azurite/azurite-run.ps1
 ```
-
-> [!NOTE] azurite-run.ps1 requires Azurite v3.28.0 or later in order to use `--inMemoryPersistence` option
 
 > [!NOTE] if you have only just installed Azurite then you might need to re-open the powershell command prompt before the term `azurite` is recognised.
 

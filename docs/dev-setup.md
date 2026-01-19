@@ -125,6 +125,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
     1. Import the postman collection [api.postman_collection.json](../tests/postman/api.postman_collection.json)
     2. Import the postman environment [api-local.postman_environment.json](../tests/postman/api-local.postman_environment.json)
     3. Run the requests "GetUser Function" in the collection "MRI Web API Starter>Proxied"
+       **Note**: assumes you're already running the Api project (see above section)
 
 
 ## Running the API and Functions app from VS2022
