@@ -205,4 +205,3 @@ jobs:
         with:
           app-name: ${{ env.Convention_SubProducts_InternalApi_ResourceName }}
           package: ./out/Template.Functions
-          scm-do-build-during-deployment: false
