@@ -57,7 +57,16 @@ from command-line first BEFORE starting the function app in VS2022. See instruct
 
 ## Install and run (for Visual Studio Code)
 
-**TODO**
+Complete the prerequisites in the command-line section above, then:
+
+Azurite starts automatically as a pre-launch task when you:
+- Press **F5** and select **"Debug Functions (Template.Functions)"** from the debug dropdown
+- Or use the debug panel and launch the Functions configuration
+
+The Azurite process runs in a dedicated terminal panel and will remain running until you stop it manually or close VS Code.
+
+> [!TIP]
+> You can also manually start Azurite by running the task "start azurite" from the Command Palette (Cmd+Shift+P > Tasks: Run Task > start azurite)
 
 
 ## Install and use Azure Storage Explorer
