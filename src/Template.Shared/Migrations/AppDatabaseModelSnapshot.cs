@@ -17,7 +17,7 @@ namespace Template.Shared.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.11")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -65,7 +65,7 @@ namespace Template.Shared.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ExampleModel");
+                    b.ToTable("ExampleModel", (string)null);
 
                     b.ToTable(tb => tb.IsTemporal(ttb =>
                             {
@@ -109,7 +109,7 @@ namespace Template.Shared.Migrations
 
                     b.ToTable("IdentityPrincipal", (string)null);
 
-                    b.HasDiscriminator().HasValue("IdentityPrincipal");
+                    b.HasDiscriminator<string>("Discriminator").HasValue("IdentityPrincipal");
 
                     b
                         .UseTphMappingStrategy()
