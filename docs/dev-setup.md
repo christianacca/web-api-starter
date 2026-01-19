@@ -8,7 +8,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
 
 ## Initial setup
 
-1. Ensure you have dotnet sdk for .net 10 installed (to see what's installed: `dotnet --list-sdks`)
+1. Ensure you have dotnet sdk for .NET 10 installed (to see what's installed: `dotnet --list-sdks`)
     * If you need to install .NET 10 SDK:
         * **Windows**:
             * Option 1: Download and run the installer from <https://dotnet.microsoft.com/download/dotnet/10.0>

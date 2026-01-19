@@ -38,7 +38,7 @@
    <Project Sdk="Microsoft.NET.Sdk.Web">
    
      <PropertyGroup>
-       <TargetFramework>net8.0</TargetFramework>
+       <TargetFramework>net10.0</TargetFramework>
      </PropertyGroup>
    
    </Project>
@@ -105,8 +105,8 @@ for "inner-loop" development.
    add file named Dockerfile to the root of the new project with the following definition:
 
    ```yaml
-   FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled-extra
-   #EXPOSE 8080 <- this is the default port that a .net 8+ application will be configured to listen on and is the port exposed in the base docker image
+   FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra
+   #EXPOSE 8080 <- this is the default port that a .net application will be configured to listen on and is the port exposed in the base docker image
    
    WORKDIR /app
    
@@ -129,7 +129,7 @@ for "inner-loop" development.
    ```xml
    <!-- SNIP -->
    <PropertyGroup>
-     <TargetFramework>net8.0</TargetFramework>
+     <TargetFramework>net10.0</TargetFramework>
      <IsPublishable>true</IsPublishable>
    </PropertyGroup>
    ```
