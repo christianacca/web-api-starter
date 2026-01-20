@@ -1,6 +1,14 @@
 {
   "version": "2.0",
   "logging": {
+    "// logLevel: Host.Aggregator": "This is disabled to reduce log costs and can be enabled when deeper diagnostics are needed.",
+    "logLevel": {
+      "default": "Warning",
+      "Host.Results": "Information",
+      "Host.Startup": "Information",
+      "Host.Triggers": "Information",
+      "Function": "Information"
+    },
     "applicationInsights": {
       "samplingSettings": {
         "isEnabled": true,
