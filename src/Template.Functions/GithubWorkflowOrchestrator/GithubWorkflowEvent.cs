@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
 // GitHub Workflow Run Webhook Event Models
@@ -9,6 +11,7 @@ namespace Template.Functions.GithubWorkflowOrchestrator;
 // included in the Octokit package. Therefore, we need to define these models manually based on the
 // official GitHub webhook documentation.
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum WorkflowRunAction
 {
   Completed,
@@ -16,6 +19,7 @@ public enum WorkflowRunAction
   InProgress
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum WorkflowRunStatus
 {
   Queued,
@@ -26,6 +30,7 @@ public enum WorkflowRunStatus
   Pending
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum WorkflowRunConclusion
 {
   Success,
