@@ -7,7 +7,6 @@ using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Template.Functions.Shared;
 using Template.Functions.Shared.FunctionContextAccessor;
@@ -23,7 +22,6 @@ builder.UseFunctionContextAccessor();
 
 ConfigureAppConfiguration(builder.Configuration, builder.Environment);
 ConfigureServices(builder.Services, builder.Configuration, builder.Environment);
-ConfigureLogging(builder.Logging);
 
 var app = builder.Build();
 await app.RunAsync();
@@ -84,16 +82,5 @@ void ConfigureAzureClients(IConfiguration configuration, IServiceCollection serv
 
     cfg.AddBlobServiceClient(configuration.GetSection("InternalApi:ReportBlobStorage"))
       .WithName("ReportStorageService");
-  });
-}
-
-void ConfigureLogging(ILoggingBuilder logging) {
-  logging.Services.Configure<LoggerFilterOptions>(options => {
-    var defaultRule = options.Rules
-      .FirstOrDefault(r =>
-        r.ProviderName == "Microsoft.Extensions.Logging.ApplicationInsights.ApplicationInsightsLoggerProvider");
-    if (defaultRule is not null) {
-      options.Rules.Remove(defaultRule);
-    }
   });
 }
