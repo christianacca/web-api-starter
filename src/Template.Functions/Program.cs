@@ -30,20 +30,9 @@ await app.RunAsync();
 return;
 
 void ConfigureAppConfiguration(IConfigurationBuilder configuration, IHostEnvironment environment) {
-  IConfigurationBuilder AddJsonFiles(IConfigurationBuilder configurationBuilder) {
-    configurationBuilder
-      .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-      .AddJsonFile(
-        $"appsettings.{environment.EnvironmentName}.json", optional: true, reloadOnChange: false
-      );
-    return configurationBuilder;
-  }
-
-  var initialConfigsBuilder = new ConfigurationBuilder().SetBasePath(environment.ContentRootPath);
-  var initialConfigs = AddJsonFiles(initialConfigsBuilder).AddUserSecrets<Program>().Build();
-  AddJsonFiles(configuration)
-    .AddAzureKeyVault(initialConfigs, "InternalApi", includeSectionName: true)
-    .AddUserSecrets<Program>();
+  var initialConfigs = configuration.Build();
+  configuration
+    .AddAzureKeyVault(initialConfigs, "InternalApi", includeSectionName: true);
 }
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
