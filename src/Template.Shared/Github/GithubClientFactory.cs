@@ -12,29 +12,27 @@ public interface IGitHubClientFactory {
 }
 
 public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IGitHubClientFactory {
-  private readonly SemaphoreSlim _tokenLock = new(1, 1);
-  private readonly TimeSpan _refreshBuffer = TimeSpan.FromMinutes(5);
-  private readonly string _productHeaderValue = Assembly.GetExecutingAssembly().GetName().Name ?? "AzureFunctionApp";
+  private SemaphoreSlim TokenLock { get; } = new(1, 1);
+  private static TimeSpan RefreshBuffer { get; } = TimeSpan.FromMinutes(5);
+  private string ProductHeaderValue { get; } = Assembly.GetExecutingAssembly().GetName().Name ?? "AzureFunctionApp";
 
   private GitHubClient? _singletonClient;
   private string? _cachedToken;
-  private DateTimeOffset _tokenExpiry = DateTimeOffset.MinValue;
+  private DateTimeOffset TokenExpiry { get; set; } = DateTimeOffset.MinValue + RefreshBuffer;
 
   public async Task<GitHubClient> GetOrCreateClientAsync() {
-    var expiryWithBuffer = _tokenExpiry - _refreshBuffer;
-    if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
-      await _tokenLock.WaitAsync();
+    if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= TokenExpiry.Subtract(RefreshBuffer)) {
+      await TokenLock.WaitAsync();
       try {
-        expiryWithBuffer = _tokenExpiry - _refreshBuffer;
-        if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= expiryWithBuffer) {
+        if (_cachedToken == null || _singletonClient == null || DateTimeOffset.UtcNow >= TokenExpiry.Subtract(RefreshBuffer)) {
           _cachedToken = await CreateInstallationTokenAsync(options.CurrentValue);
-          _singletonClient = new GitHubClient(new ProductHeaderValue(_productHeaderValue)) {
+          _singletonClient = new GitHubClient(new ProductHeaderValue(ProductHeaderValue)) {
             Credentials = new Credentials(_cachedToken)
           };
         }
       }
       finally {
-        _tokenLock.Release();
+        TokenLock.Release();
       }
     }
 
@@ -43,12 +41,12 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppOptions> options) : IG
 
   private async Task<string> CreateInstallationTokenAsync(GithubAppOptions appOptions) {
     var jwt = CreateJwt(appOptions.AppId, appOptions.PrivateKeyPem);
-    var appClient = new GitHubClient(new ProductHeaderValue(_productHeaderValue)) {
+    var appClient = new GitHubClient(new ProductHeaderValue(ProductHeaderValue)) {
       Credentials = new Credentials(jwt, AuthenticationType.Bearer)
     };
 
     var tokenResponse = await appClient.GitHubApps.CreateInstallationToken(appOptions.InstallationId);
-    _tokenExpiry = tokenResponse.ExpiresAt;
+    TokenExpiry = tokenResponse.ExpiresAt;
 
     return tokenResponse.Token;
   }
