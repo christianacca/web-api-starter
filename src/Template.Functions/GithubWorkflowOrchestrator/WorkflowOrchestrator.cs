@@ -34,13 +34,13 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
 
   private async Task<bool> CheckWorkflowSuccessAsync(TaskOrchestrationContext context, long runId, int currentAttempt, int maxAttempts) {
     var logger = context.CreateReplaySafeLogger<WorkflowOrchestrator>();
-    logger.LogWarning("Workflow completion event timed out on attempt {CurrentAttempt} of {MaxAttempts}", 
+    logger.LogWarning("Workflow completion event timed out on attempt {CurrentAttempt} of {MaxAttempts}",
         currentAttempt, maxAttempts);
 
     var workflowStatus = await context.CallActivityAsync<WorkflowRunInfo?>(nameof(GetWorkflowRunStatusActivity), runId);
 
     if (workflowStatus is not { Status: WorkflowRunStatus.Completed }) {
-      return true; 
+      return true;
     }
 
     return workflowStatus.Conclusion == WorkflowRunConclusion.Success;
@@ -62,16 +62,20 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     var currentAttempt = 1;
     var success = await context.WaitForExternalEvent<bool?>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout, null);
 
-    if (!success.HasValue && await CheckWorkflowSuccessAsync(context, runId, currentAttempt, input.MaxAttempts)) {
+    if ((!success.HasValue && await CheckWorkflowSuccessAsync(context, runId, currentAttempt, input.MaxAttempts))
+        || (success.HasValue && success.Value)) {
       return;
     }
 
-    while ((!success.HasValue || !success.Value) && currentAttempt < input.MaxAttempts) {
+
+
+    while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
       await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), runId);
       success = await context.WaitForExternalEvent<bool?>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout, null);
 
-      if (!success.HasValue && await CheckWorkflowSuccessAsync(context, runId, currentAttempt, input.MaxAttempts)) {
+      if ((!success.HasValue && await CheckWorkflowSuccessAsync(context, runId, currentAttempt, input.MaxAttempts))
+          || (success.HasValue && success.Value)) {
         return;
       }
     }
