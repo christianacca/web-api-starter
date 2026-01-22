@@ -67,8 +67,6 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
       return;
     }
 
-
-
     while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
       await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), runId);
