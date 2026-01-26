@@ -283,7 +283,8 @@ To find the origin SSL certificates required to cover each environment, run the 
   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
   ZoneName, `
   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
-  @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } } | Sort-Object CertificateName, ZoneName -Unique
+  @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } } |
+  Sort-Object KeyVaultName, KeyVaultResourceGroup, CertificateName, ZoneName -Unique
 ```
 
 The field `CertificateName` in the script output should be used as the name of the entry in the key vault
