@@ -34,8 +34,8 @@ module acrRbacAssignmentPermissions 'acr-role-assignment.bicep' = [for (id, inde
   }
 }]
 
-var prodTlsCertKeyVault = settings.TlsCertificates.Prod.KeyVault
-var devTlsCertKeyVault = settings.TlsCertificates.Dev.KeyVault
+var prodTlsCertKeyVault = settings.TlsCertificates.ProdKeyVault
+var devTlsCertKeyVault = settings.TlsCertificates.DevKeyVault
 
 var uniqueKeyVaults = union([prodTlsCertKeyVault, devTlsCertKeyVault], [])
 var isSingleSharedVault = length(uniqueKeyVaults) == 1

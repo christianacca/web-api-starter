@@ -52,6 +52,7 @@ function Get-ResourceConvention {
 
     $Domain.CompanyDomain = $Domain.CompanyDomain ?? $CompanyName.Replace(' ', '').ToLower()
     $Domain.ProductDomain = $Domain.ProductDomain ?? $ProductAbbreviation
+    $Domain.DefaultRegion = $DefaultRegion
 
     # for full abreviations see CAF list see: https://www.jlaundry.nz/2022/azure_region_abbreviations/
     # for listing of which azure service are available in which regions see: https://www.azurespeed.com/Information/AzureRegions
@@ -695,6 +696,9 @@ function Get-ResourceConvention {
         RbacAssignment              =   @()
     }
 
+    # note: by default dev and prod share the same keyvault instance for simplicity
+    # hence cloning the keyvault settings below to allow caller to override returned conventions so that they
+    # can be different if desired
     $sharedKeyVault = @{
         ResourceName            =   'kv-{0}-shared' -f $ProductAbbreviation
         EnablePurgeProtection   =   $false # consider enabling this for your workloads
@@ -707,29 +711,18 @@ function Get-ResourceConvention {
                         -f $sharedRgResourceId, $sharedKeyVault.ResourceName
         }
     ) : @()
-
-    $devRootDomain = (Get-PublicHostName dev @Domain).Split('.') | Select-Object -Skip 1
-    # note: cloning the keyvault settings here to allow caller to override returned conventions so that a change
-    # to one keyvault setting does not change this value for both dev and prod
-    $devCert = @{
-        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
-        ResourceName            =   @($devRootDomain; 'wildcardcert') -join '-'
+    $devCertKeyVault = $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
+    $prodCertKeyVault = $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
+    
+    $wildCardDomain = (Get-PublicHostName $EnvironmentName @Domain).Split('.') | Select-Object -Skip 1
+    $currentCert = @{
+        KeyVault                = (Get-IsPublicHostNameProdLike $EnvironmentName) ? $prodCertKeyVault : $devCertKeyVault
+        ResourceName            =   @($wildCardDomain; 'wildcardcert') -join '-'
         SubjectAlternateNames   =   @(
-            $devRootDomain -join '.'
-            @('*'; $devRootDomain) -join '.'
+            $wildCardDomain -join '.'
+            @('*'; $wildCardDomain) -join '.'
         )
-        ZoneName                =   $devRootDomain -join '.'
-    }
-
-    $prodRootDomain = (Get-PublicHostName prod-na @Domain).Split('.') | Select-Object -Skip 1
-    $prodCert = @{
-        KeyVault                =   $sharedKeyVault | ConvertTo-Json -Depth 100 | ConvertFrom-Json -AsHashtable
-        ResourceName            =   @($prodRootDomain; 'wildcardcert') -join '-'
-        SubjectAlternateNames   =   @(
-            $prodRootDomain -join '.'
-            @('*'; $prodRootDomain) -join '.'
-        )
-        ZoneName                =   $prodRootDomain -join '.'
+        ZoneName                =   $wildCardDomain -join '.'
     }
 
     $configStoreResourceIdTemplate = '{0}/providers/Microsoft.AppConfiguration/configurationStores/{1}'
@@ -836,9 +829,9 @@ function Get-ResourceConvention {
         SubProducts             =   $subProductsConventions
         TlsCertificates         =   @{
             IsDeployed      =   $Options.DeployTlsCertKeyVault -eq $true
-            Current         =   (Get-IsPublicHostNameProdLike $EnvironmentName) ? $prodCert : $devCert
-            Dev             =   $devCert
-            Prod            =   $prodCert
+            Current         =   $currentCert
+            DevKeyVault     =   $devCertKeyVault
+            ProdKeyVault    =   $prodCertKeyVault
         }
         IsTestEnv               =   $isTestEnv
         DefaultRegion           =   $DefaultRegion

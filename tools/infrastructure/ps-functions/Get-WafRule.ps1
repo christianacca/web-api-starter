@@ -17,13 +17,13 @@ function Get-WafRule {
         Set-StrictMode -Version 'Latest'
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
-        
-        . "$PSScriptRoot/Get-IsPublicHostNameProdLike.ps1"
+
         . "$PSScriptRoot/Get-PublicHostName.ps1"
         . "$PSScriptRoot/Get-CloudflareWafRuleExpr.ps1"
 
-        $isEnvProdLike = Get-IsPublicHostNameProdLike $EnvironmentName
-        $isHostHeaderFilterRequired = $Domain['SubDomainLevel'] -eq 2 -or(!$isEnvProdLike -and($Domain['NonProdSubDomain'] -ne 'UseProductDomain'))
+        # Host header filtering is only needed when SubDomainLevel is 1 (all envs share one zone)
+        # SubDomainLevel 2 and 3 use wildcard DNS zones, so no host filtering is needed
+        $isHostHeaderFilterRequired = $Domain['SubDomainLevel'] -eq 1
         $hostHeaderWafFilter = $isHostHeaderFilterRequired ? $HostName : $null
         $zoneName = ((Get-PublicHostName $EnvironmentName @Domain).Split('.') | Select-Object -Skip 1) -join '.'
     }
