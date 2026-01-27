@@ -32,15 +32,18 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     return response;
   }
 
-  private async Task<bool> CheckWorkflowSuccessAsync(TaskOrchestrationContext context, long runId, int currentAttempt, int maxAttempts) {
+  private static async Task<bool> CheckWorkflowSuccessAsync(TaskOrchestrationContext context, bool? success, long runId, int currentAttempt, int maxAttempts) {
+    if (success.HasValue) {
+      return success.Value;
+    }
+
     var logger = context.CreateReplaySafeLogger<WorkflowOrchestrator>();
-    logger.LogWarning("Workflow completion event timed out on attempt {CurrentAttempt} of {MaxAttempts}", 
+    logger.LogWarning("Workflow completion event timed out on attempt {CurrentAttempt} of {MaxAttempts}",
         currentAttempt, maxAttempts);
 
     var workflowStatus = await context.CallActivityAsync<WorkflowRunInfo?>(nameof(GetWorkflowRunStatusActivity), runId);
-
     if (workflowStatus is not { Status: WorkflowRunStatus.Completed }) {
-      return true; 
+      return true;
     }
 
     return workflowStatus.Conclusion == WorkflowRunConclusion.Success;
@@ -62,16 +65,16 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     var currentAttempt = 1;
     var success = await context.WaitForExternalEvent<bool?>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout, null);
 
-    if (!success.HasValue && await CheckWorkflowSuccessAsync(context, runId, currentAttempt, input.MaxAttempts)) {
+    if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
       return;
     }
 
-    while ((!success.HasValue || !success.Value) && currentAttempt < input.MaxAttempts) {
+    while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
       await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), runId);
       success = await context.WaitForExternalEvent<bool?>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout, null);
 
-      if (!success.HasValue && await CheckWorkflowSuccessAsync(context, runId, currentAttempt, input.MaxAttempts)) {
+      if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
         return;
       }
     }
