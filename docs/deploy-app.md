@@ -275,26 +275,15 @@ into a shared key vault accessible by the app:
 > Or the certificates might be the same, but separate copies stored in different key vaults, accessible only by the environment that requires it.
 > The convention configuration for the project determines these choices.
 
-To find the origin SSL certificates required to cover non-production environments, run the following script:
+To find the origin SSL certificates required to cover each environment, run the following script:
 
 ```pwsh
-(./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).TlsCertificates.Dev | select `
-   @{ n='CertificateName'; e={ $_.ResourceName } }, `
-   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
-   ZoneName, `
-   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
-   @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
-```
-
-To find the origin SSL certificates required to cover production environments, run the following script:
-
-```pwsh
-(./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable).TlsCertificates.Prod | select `
-   @{ n='CertificateName'; e={ $_.ResourceName } }, `
-   @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
-   ZoneName, `
-   @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
-   @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } }
+./tools/infrastructure/print-product-convention-table.ps1 { $_.TlsCertificates.Current } -AsArray | select `
+  @{ n='CertificateName'; e={ $_.ResourceName } }, `
+  @{ n='SubjectAlternateNames'; e={ $_.SubjectAlternateNames -join ',' } }, `
+  ZoneName, `
+  @{ n='KeyVaultName'; e={ $_.KeyVault.ResourceName } }, `
+  @{ n='KeyVaultResourceGroup'; e={ $_.KeyVault.ResourceGroupName } } | Sort-Object CertificateName, ZoneName -Unique
 ```
 
 The field `CertificateName` in the script output should be used as the name of the entry in the key vault

@@ -14,8 +14,8 @@ var acrs = settings.ContainerRegistries.IsDeployed ? [
 ] : []
 
 var keyVaults = settings.TlsCertificates.IsDeployed ? [
-  settings.TlsCertificates.Dev.KeyVault
-  settings.TlsCertificates.Prod.KeyVault
+  settings.TlsCertificates.DevKeyVault
+  settings.TlsCertificates.ProdKeyVault
 ] : []
 
 var resources = filter(

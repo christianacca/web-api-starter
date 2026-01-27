@@ -41,11 +41,14 @@
                 Domain                  = @{
                     TopLevelDomain      =   'co.uk' # <- default is 'com'
                     CompanyDomain       =   'codingdemo' # <- default is CompanyName lowercased with spaces removed
-#                    NonProdSubDomain    =   'xyz' # <- default is 'devtest'. only applies when `SubDomainLevel` equals 3; specify 'UseProductDomain' to have non-prod environments use the product domain
+#                    DevTestSubDomain    =   'xyz' # <- default is 'devtest'. only applies when `SubDomainLevel` equals 3
+#                    PreProdSubDomain    =   'xyz' # <- default is 'preprod'. only applies when `SubDomainLevel` equals 3
+#                    ProdSubDomain       =   'xyz' # <- default is 'cloud'. only applies when `SubDomainLevel` equals 3
 #                    ProductDomain       =   'xyz' # <- default is ProductAbbreviation
-                    # example of 2 level 'na-api-product.comapny.com'
-                    # example of 3 levels 'na-api.product.comapny.com', 'dev-api-product.devtest.comapny.com'
-                    SubDomainLevel      =   2 # <- default is 3
+                    # example of 1 level 'na-api-product.company.com'
+                    # example of 2 levels 'na-api.product.company.com', 'dev-api.product.company.com'
+                    # example of 3 levels 'na-api.product.cloud.company.com', 'dev-api.product.devtest.company.com'
+                    SubDomainLevel      =   1 # <- default is 3
                 }
                 EnvironmentName         =   $EnvironmentName
                 SubProducts             =   [ordered]@{
@@ -90,7 +93,7 @@
                     AppAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'App' }
                     AppTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'App' }
                     KeyVault            =   @{ Type = 'KeyVault' }
-#                    Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
+#                     Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }
                 CliPrincipals           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName principalId
                 Subscriptions           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName subscriptionId

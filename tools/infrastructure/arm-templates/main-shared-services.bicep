@@ -34,8 +34,8 @@ module tlsCertKeyVaults 'shared-keyvault-services.bicep' = if (settings.TlsCerti
   params: {
     certMaintainerGroupId: certMaintainerGroupId
     tlsCertificateKeyVaults: [
-      settings.TlsCertificates.Dev.KeyVault
-      settings.TlsCertificates.Prod.KeyVault
+      settings.TlsCertificates.DevKeyVault
+      settings.TlsCertificates.ProdKeyVault
     ]
   }
   dependsOn: [resourceGroups]
