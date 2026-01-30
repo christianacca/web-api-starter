@@ -10,10 +10,10 @@ using Template.Functions.Shared;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
-public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonitor) {
+public class GithubWorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonitor) {
 
-  [Function(nameof(StartWorkflow))]
-  public async Task<HttpResponseData> StartWorkflow(
+  [Function(nameof(TriggerGithubWorkflow))]
+  public async Task<HttpResponseData> TriggerGithubWorkflow(
     [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "workflow/start")] HttpRequestData req,
     [DurableClient] DurableTaskClient client,
     [FromBody] StartWorkflowRequest request) {
@@ -22,11 +22,11 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     var input = new OrchestratorInput {
       MaxAttempts = options.MaxAttempts,
       Timeout = options.WorkflowTimeout,
-      RerunEntireWorkflow = options.RerunEntireWorkflow,
+      RerunEntireWorkflow = request.RerunEntireWorkflow,
       WorkflowFile = request.WorkflowFile
     };
 
-    var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(nameof(WorkflowOrchestrator), input);
+    var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(nameof(GithubWorkflowOrchestrator), input);
 
     var response = req.CreateResponse(HttpStatusCode.OK);
     await response.WriteAsJsonAsync(new {
@@ -41,7 +41,7 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
       return success.Value;
     }
 
-    var logger = context.CreateReplaySafeLogger<WorkflowOrchestrator>();
+    var logger = context.CreateReplaySafeLogger<GithubWorkflowOrchestrator>();
     logger.LogWarning("Workflow completion event timed out on attempt {CurrentAttempt} of {MaxAttempts}",
         currentAttempt, maxAttempts);
 
@@ -53,24 +53,21 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     return workflowStatus.Conclusion == WorkflowRunConclusion.Success;
   }
 
-  private async Task<long?> CheckWorkflowInProgressAsync(TaskOrchestrationContext context, string workflowName) {
-    var logger = context.CreateReplaySafeLogger<WorkflowOrchestrator>();
+  private static async Task<long?> CheckWorkflowInProgressAsync(TaskOrchestrationContext context, string workflowName) {
+    var logger = context.CreateReplaySafeLogger<GithubWorkflowOrchestrator>();
     logger.LogWarning("Workflow in-progress event timed out for workflow {WorkflowName}", workflowName);
 
     var runId = await context.CallActivityAsync<long?>(nameof(GetRecentWorkflowRunActivity), workflowName);
 
-    if (runId.HasValue) {
-      logger.LogInformation("Found workflow run {RunId} for workflow {WorkflowName}", runId.Value, workflowName);
-    } else {
+    if (!runId.HasValue) {
       logger.LogWarning("No workflow run found for workflow {WorkflowName}", workflowName);
     }
 
     return runId;
   }
 
-  [Function(nameof(WorkflowOrchestrator))]
-  public async Task RunAsync(
-    [OrchestrationTrigger] TaskOrchestrationContext context) {
+  [Function(nameof(GithubWorkflowOrchestrator))]
+  public async Task RunAsync([OrchestrationTrigger] TaskOrchestrationContext context) {
     var input = context.GetInput<OrchestratorInput>();
     if (input == null) return;
 
@@ -79,7 +76,7 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
       WorkflowFile = input.WorkflowFile
     };
     var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), triggerInput);
-    var runId = await context.WaitForExternalEvent<long>(WorkflowWebhook.WorkflowInProgressEvent, input.Timeout, 0);
+    var runId = await context.WaitForExternalEvent<long>(GithubWebhook.WorkflowInProgressEvent, input.Timeout, 0);
 
     if (runId == 0) {
       var foundRunId = await CheckWorkflowInProgressAsync(context, workflowName);
@@ -90,7 +87,7 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     }
 
     var currentAttempt = 1;
-    var success = await context.WaitForExternalEvent<bool?>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout, null);
+    var success = await context.WaitForExternalEvent<bool?>(GithubWebhook.WorkflowCompletedEvent, input.Timeout, null);
 
     if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
       return;
@@ -98,8 +95,9 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
 
     while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
-      await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), runId);
-      success = await context.WaitForExternalEvent<bool?>(WorkflowWebhook.WorkflowCompletedEvent, input.Timeout, null);
+      var rerunInput = new RerunInput(runId, input.RerunEntireWorkflow);
+      await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), rerunInput);
+      success = await context.WaitForExternalEvent<bool?>(GithubWebhook.WorkflowCompletedEvent, input.Timeout, null);
 
       if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
         return;
