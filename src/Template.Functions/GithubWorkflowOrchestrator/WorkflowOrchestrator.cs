@@ -10,17 +10,21 @@ using Template.Functions.Shared;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
-public record OrchestratorInput(int MaxAttempts, TimeSpan Timeout);
-
 public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonitor) {
 
   [Function(nameof(StartWorkflow))]
   public async Task<HttpResponseData> StartWorkflow(
     [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "workflow/start")] HttpRequestData req,
-    [DurableClient] DurableTaskClient client) {
+    [DurableClient] DurableTaskClient client,
+    [FromBody] StartWorkflowRequest request) {
 
     var options = optionsMonitor.CurrentValue;
-    var input = new OrchestratorInput(options.MaxAttempts, options.WorkflowTimeout);
+    var input = new OrchestratorInput {
+      MaxAttempts = options.MaxAttempts,
+      Timeout = options.WorkflowTimeout,
+      RerunEntireWorkflow = options.RerunEntireWorkflow,
+      WorkflowFile = request.WorkflowFile
+    };
 
     var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(nameof(WorkflowOrchestrator), input);
 
@@ -70,7 +74,11 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     var input = context.GetInput<OrchestratorInput>();
     if (input == null) return;
 
-    var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), context.InstanceId);
+    var triggerInput = new TriggerInput {
+      InstanceId = context.InstanceId,
+      WorkflowFile = input.WorkflowFile
+    };
+    var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), triggerInput);
     var runId = await context.WaitForExternalEvent<long>(WorkflowWebhook.WorkflowInProgressEvent, input.Timeout, 0);
 
     if (runId == 0) {
