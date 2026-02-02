@@ -49,17 +49,36 @@ public class WorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonit
     return workflowStatus.Conclusion == WorkflowRunConclusion.Success;
   }
 
+  private async Task<long?> CheckWorkflowInProgressAsync(TaskOrchestrationContext context, string workflowName) {
+    var logger = context.CreateReplaySafeLogger<WorkflowOrchestrator>();
+    logger.LogWarning("Workflow in-progress event timed out for workflow {WorkflowName}", workflowName);
+
+    var runId = await context.CallActivityAsync<long?>(nameof(GetRecentWorkflowRunActivity), workflowName);
+
+    if (runId.HasValue) {
+      logger.LogInformation("Found workflow run {RunId} for workflow {WorkflowName}", runId.Value, workflowName);
+    } else {
+      logger.LogWarning("No workflow run found for workflow {WorkflowName}", workflowName);
+    }
+
+    return runId;
+  }
+
   [Function(nameof(WorkflowOrchestrator))]
   public async Task RunAsync(
     [OrchestrationTrigger] TaskOrchestrationContext context) {
     var input = context.GetInput<OrchestratorInput>();
     if (input == null) return;
 
-    await context.CallActivityAsync(nameof(TriggerWorkflowActivity), context.InstanceId);
+    var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), context.InstanceId);
     var runId = await context.WaitForExternalEvent<long>(WorkflowWebhook.WorkflowInProgressEvent, input.Timeout, 0);
 
     if (runId == 0) {
-      throw new TimeoutException($"Workflow timed out after waiting for events for {input.Timeout}");
+      var foundRunId = await CheckWorkflowInProgressAsync(context, workflowName);
+      if (!foundRunId.HasValue) {
+        throw new TimeoutException($"Workflow in-progress event timed out after {input.Timeout} and no workflow run was found");
+      }
+      runId = foundRunId.Value;
     }
 
     var currentAttempt = 1;
