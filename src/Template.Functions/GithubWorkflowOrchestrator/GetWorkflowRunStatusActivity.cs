@@ -23,12 +23,12 @@ public class GetWorkflowRunStatusActivity(
     try {
       var workflowRun = await client.Actions.Workflows.Runs.Get(options.Owner, options.Repo, runId);
 
-      var status = OctokitEnumMapper.MapStatus(workflowRun.Status);
-      WorkflowRunConclusion? conclusion = workflowRun.Conclusion.HasValue 
-        ? OctokitEnumMapper.MapConclusion(workflowRun.Conclusion.Value) 
-        : null;
+      workflowRun.Status.TryParse(out var status);
+      if (workflowRun.Conclusion.HasValue && workflowRun.Conclusion.Value.TryParse(out var conclusion)) {
+        return new WorkflowRunInfo(status, conclusion);
+      }
 
-      return new WorkflowRunInfo(status, conclusion);
+      return new WorkflowRunInfo(status, null);
     } catch (Exception ex) {
       logger.LogError(ex,
         "Failed to fetch workflow run status for run {RunId} in {Owner}/{Repo}",
