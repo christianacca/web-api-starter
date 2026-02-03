@@ -1,0 +1,38 @@
+name: Validate GitHub App Actor
+description: Validates that the workflow actor is an authorized GitHub App from product conventions
+
+runs:
+  using: composite
+  steps:
+    - name: Check authorized GitHub App
+      shell: pwsh
+      run: |
+        $environments = & ./tools/infrastructure/get-product-environment-names.ps1
+        $allowedApps = @{}  
+        
+        foreach ($env in $environments) {
+          try {
+            $conventions = & ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $env | ConvertFrom-Json
+            $appSlug = $conventions.SubProducts.Github.AppSlug
+            $appId = $conventions.SubProducts.Github.AppId
+            
+            if ($appSlug -and $appId) {
+              $actorName = "${appSlug}[bot]"
+              $allowedApps[$actorName] = $appId
+            }
+          } catch {
+            Write-Host "️Skipping environment '$env' - unable to load conventions"
+            continue
+          }
+        }
+        
+        $actor = "${{ github.actor }}"
+        
+        if (-not $allowedApps.ContainsKey($actor)) {
+          Write-Host "::error::Unauthorized actor: $actor"
+          Write-Host "::error::This workflow can only be triggered by authorized GitHub Apps with valid AppId in product conventions"
+          exit 1
+        }
+        
+        $appId = $allowedApps[$actor]
+        Write-Host "Authorized actor: $actor (AppId: $appId)"
