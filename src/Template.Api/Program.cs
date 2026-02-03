@@ -18,6 +18,8 @@ using Serilog.Events;
 using Serilog.Formatting.Compact;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using Octokit.Webhooks;
+using Octokit.Webhooks.AspNetCore;
 using Template.Api.Endpoints.Configurations;
 using Template.Api.Endpoints.GithubWebhookProxy;
 using Template.Api.Shared;
@@ -226,7 +228,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
       TokenOptionNames.FunctionApp
     );
 
-    services.AddScoped<GithubWebhookProxyService>();
+    services.AddSingleton<WebhookEventProcessor, WorkflowRunWebhookProcessor>();
   }
 }
 
@@ -263,6 +265,7 @@ void ConfigureMiddleware(WebApplication app) {
 
   app.MapControllers().RequireAuthorization();
   app.MapHealthChecks("/health");
+  app.MapGitHubWebhooks(secret: app.Configuration.GetSection("Github:WebhookSecret").Value ?? string.Empty);
   app.MapReverseProxy();
 }
 

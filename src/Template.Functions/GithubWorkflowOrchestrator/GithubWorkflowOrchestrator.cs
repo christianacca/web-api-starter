@@ -5,6 +5,7 @@ using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Options;
 using System.Net;
 using Microsoft.Extensions.Logging;
+using Octokit;
 using Template.Shared.Github;
 using Template.Functions.Shared;
 
