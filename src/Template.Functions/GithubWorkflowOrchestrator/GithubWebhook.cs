@@ -25,7 +25,7 @@ public class GithubWebhook(
   private const string InvalidRequestBodyMessage = "Invalid request body";
   private const string InvalidWorkflowRunNameMessage = "Workflow run name must be in format 'WorkflowRunNamePrefix-instanceId'";
 
-  private const string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
+  private static readonly string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
 
   [Function(nameof(GithubWebhook))]
   public async Task<HttpResponseData> RunAsync(
