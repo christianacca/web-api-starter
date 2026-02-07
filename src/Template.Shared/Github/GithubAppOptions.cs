@@ -6,7 +6,6 @@ public class GithubAppOptions {
   [Required] public string Owner { get; set; } = null!;
   [Required] public string Repo { get; set; } = null!;
   [Required] public string Branch { get; set; } = null!;
-  [Required] public string WorkflowFile { get; set; } = null!;
   [Required] public string AppId { get; set; } = null!;
 
   [Required] public long InstallationId { get; set; }

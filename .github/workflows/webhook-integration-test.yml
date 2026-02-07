@@ -1,0 +1,49 @@
+name: Orchestrator Test Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflowName:
+        description: 'Workflow run name (format: functionInstancePrefix-instanceId)'
+        required: true
+        type: string
+
+run-name: ${{ inputs.workflowName }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Workflow Info
+        id: info
+        run: |
+          echo "Workflow run name: ${{ inputs.workflowName }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Run Number: ${{ github.run_number }}"
+  
+  test-job-1:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Step 1
+        run: |
+          echo "Running test job 1"
+          echo "Workflow: ${{ needs.setup.outputs.workflow-name }}"
+          echo "Started at: ${{ needs.setup.outputs.timestamp }}"
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [setup, test-job-1]
+    steps:
+      - name: Workflow Summary
+        run: |
+          if [[ "${{ needs.test-job-1.result }}" == "success" ]]; then
+            echo "✅ All jobs completed successfully"
+            exit 0
+          else
+            echo "❌ One or more jobs failed"
+            exit 1
+          fi

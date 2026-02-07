@@ -1,662 +1,753 @@
 {
-	"info": {
-		"_postman_id": "ff62d68c-dfa7-4362-bfb2-8470b978be58",
-		"name": "MRI Web API Starter Template",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "463636"
-	},
-	"item": [
-		{
-			"name": "Proxied",
-			"item": [
-				{
-					"name": "GetEcho Function",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/Echo",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"Echo"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "GetEgModels",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/EgModels",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"EgModels"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "GetUser Function",
-					"event": [
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/User?name=blah",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"User"
-							],
-							"query": [
-								{
-									"key": "name",
-									"value": "blah"
-								}
-							]
-						}
-					},
-					"response": []
-				}
-			],
-			"auth": {
-				"type": "bearer",
-				"bearer": [
-					{
-						"key": "token",
-						"value": "{{accessToken}}",
-						"type": "string"
-					}
-				]
-			},
-			"event": [
-				{
-					"listen": "prerequest",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							"const echoPostRequest = {",
-							"  url: pm.environment.get('tokenIssuerUrl'),",
-							"  method: 'POST',",
-							"  header: 'Content-Type:application/x-www-form-urlencoded',",
-							"  body: {",
-							"    mode: 'urlencoded',",
-							"    urlencoded: [",
-							"        { key: \"client_id\", value: pm.environment.get('tokenClientId') },",
-							"        { key: \"client_secret\", value: pm.environment.get('tokenClientSecret') },",
-							"        { key: \"scope\", value: pm.environment.get('tokenScope') },",
-							"        { key: \"grant_type\", value: \"client_credentials\" },",
-							"    ]",
-							"  }",
-							"};",
-							"",
-							"var getToken = true;",
-							"",
-							"if (!pm.environment.get('accessTokenExpiry') || ",
-							"    !pm.environment.get('accessToken')) {",
-							"    console.log('Token or expiry date are missing')",
-							"} else if (pm.environment.get('accessTokenExpiry') <= (new Date()).getTime()) {",
-							"    console.log('Token is expired')",
-							"} else {",
-							"    getToken = false;",
-							"    console.log('Token and expiry date are all good');",
-							"}",
-							"",
-							"if (getToken === true) {",
-							"    pm.sendRequest(echoPostRequest, function (err, res) {",
-							"        console.log(err ? err : res.json());",
-							"        if (err === null) {",
-							"            console.log('Saving the token and expiry date');",
-							"            var responseJson = res.json();",
-							"            pm.environment.set('accessToken', responseJson.access_token);",
-							"    ",
-							"            var expiryDate = new Date();",
-							"            expiryDate.setSeconds(expiryDate.getSeconds() + responseJson.expires_in);",
-							"            pm.environment.set('accessTokenExpiry', expiryDate.getTime());",
-							"        }",
-							"    });",
-							"}"
-						]
-					}
-				},
-				{
-					"listen": "test",
-					"script": {
-						"type": "text/javascript",
-						"exec": [
-							""
-						]
-					}
-				}
-			]
-		},
-		{
-			"name": "Non-Proxied",
-			"item": [
-				{
-					"name": "Authenticated",
-					"item": [
-						{
-							"name": "OwnEndpoint",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/OwnEndpoint",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"OwnEndpoint"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ExampleModels",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/ExampleModels",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ExampleModels"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ExampleModels",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								},
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Status code is 201\", function () {",
-											"    pm.response.to.have.status(201);",
-											"});",
-											"",
-											"pm.test(\"Body has an id\", function () {",
-											"    let id = pm.response.json().id;",
-											"    pm.environment.set(\"lastCreatedModelId\", id);",
-											"});",
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"Address\": \"{{$randomStreetAddress}}, {{$randomCity}}\",\n    \"DateOfBirth\": \"{{$isoTimestamp}}\",\n    \"Title\": \"Mr\",\n    \"FirstName\": \"{{randomGivenName}}\",\n    \"LastName\": \"{{randomFamilyName}}\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/ExampleModels",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ExampleModels"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ExampleModels - By Id",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								},
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Status code is 200\", function () {",
-											"    pm.response.to.have.status(200);",
-											"});",
-											"",
-											"pm.test(\"Matching entity returned\", function () {",
-											"    let id = pm.response.json().id;",
-											"    pm.expect(pm.environment.get('lastCreatedModelId')).to.eql(id);",
-											"});",
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/ExampleModels/{{lastCreatedModelId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ExampleModels",
-										"{{lastCreatedModelId}}"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ExampleModels - Update",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								},
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Status code is 204\", function () {",
-											"    pm.response.to.have.status(204);",
-											"});",
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "PUT",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"Address\": \"Somewhere else on earth\",\n    \"DateOfBirth\": \"2000-01-01T00:00:00.000Z\",\n    \"Title\": \"Mr\",\n    \"FirstName\": \"John\",\n    \"LastName\": \"Doe\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/ExampleModels/{{lastCreatedModelId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ExampleModels",
-										"{{lastCreatedModelId}}"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ExampleModels - Create",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								},
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Status code is 201\", function () {",
-											"    pm.response.to.have.status(201);",
-											"});",
-											"",
-											"pm.test(\"Body has an id\", function () {",
-											"    let id = pm.response.json().id;",
-											"    pm.environment.set(\"lastCreatedModelId\", id);",
-											"});",
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "PUT",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"Address\": \"{{$randomStreetAddress}}, {{$randomCity}}\",\n    \"DateOfBirth\": \"{{$isoTimestamp}}\",\n    \"Title\": \"Mr\",\n    \"FirstName\": \"{{randomGivenName}}\",\n    \"LastName\": \"{{randomFamilyName}}\"\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{baseUrl}}/api/ExampleModels/{{$guid}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ExampleModels",
-										"{{$guid}}"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ExampleModels",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								},
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Status code is 200\", function () {",
-											"    pm.response.to.have.status(200);",
-											"});",
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/ExampleModels/{{lastCreatedModelId}}",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ExampleModels",
-										"{{lastCreatedModelId}}"
-									]
-								}
-							},
-							"response": []
-						}
-					],
-					"auth": {
-						"type": "bearer",
-						"bearer": [
-							{
-								"key": "token",
-								"value": "{{accessToken}}",
-								"type": "string"
-							}
-						]
-					},
-					"event": [
-						{
-							"listen": "prerequest",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"const echoPostRequest = {",
-									"  url: pm.environment.get('tokenIssuerUrl'),",
-									"  method: 'POST',",
-									"  header: 'Content-Type:application/x-www-form-urlencoded',",
-									"  body: {",
-									"    mode: 'urlencoded',",
-									"    urlencoded: [",
-									"        { key: \"client_id\", value: pm.environment.get('tokenClientId') },",
-									"        { key: \"client_secret\", value: pm.environment.get('tokenClientSecret') },",
-									"        { key: \"scope\", value: pm.environment.get('tokenScope') },",
-									"        { key: \"grant_type\", value: \"client_credentials\" },",
-									"    ]",
-									"  }",
-									"};",
-									"",
-									"var getToken = true;",
-									"",
-									"if (!pm.environment.get('accessTokenExpiry') || ",
-									"    !pm.environment.get('accessToken')) {",
-									"    console.log('Token or expiry date are missing')",
-									"} else if (pm.environment.get('accessTokenExpiry') <= (new Date()).getTime()) {",
-									"    console.log('Token is expired')",
-									"} else {",
-									"    getToken = false;",
-									"    console.log('Token and expiry date are all good');",
-									"}",
-									"",
-									"if (getToken === true) {",
-									"    pm.sendRequest(echoPostRequest, function (err, res) {",
-									"        console.log(err ? err : res.json());",
-									"        if (err === null) {",
-									"            console.log('Saving the token and expiry date');",
-									"            var responseJson = res.json();",
-									"            pm.environment.set('accessToken', responseJson.access_token);",
-									"    ",
-									"            var expiryDate = new Date();",
-									"            expiryDate.setSeconds(expiryDate.getSeconds() + responseJson.expires_in);",
-									"            pm.environment.set('accessTokenExpiry', expiryDate.getTime());",
-									"        }",
-									"    });",
-									"}"
-								]
-							}
-						},
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									""
-								]
-							}
-						}
-					]
-				},
-				{
-					"name": "Unauthenticated",
-					"item": [
-						{
-							"name": "ManualProxyEcho",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{baseUrl}}/api/ManualProxyEcho",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ManualProxyEcho"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "ServerInfo",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript"
-									}
-								}
-							],
-							"request": {
-								"method": "GET",
-								"header": [
-									{
-										"key": "Accept",
-										"value": "application/json",
-										"type": "text"
-									}
-								],
-								"url": {
-									"raw": "{{baseUrl}}/api/ServerInfo",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"api",
-										"ServerInfo"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Health",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{baseUrl}}/health",
-									"host": [
-										"{{baseUrl}}"
-									],
-									"path": [
-										"health"
-									]
-								}
-							},
-							"response": []
-						}
-					]
-				}
-			]
-		}
-	]
+  "info": {
+    "_postman_id": "7a6b9741-7086-452d-ab7b-46b9cca75136",
+    "name": "MRI Web API Starter Template",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "17378709"
+  },
+  "item": [
+    {
+      "name": "Proxied",
+      "item": [
+        {
+          "name": "GetEcho Function",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/Echo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "Echo"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GetEgModels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/EgModels",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "EgModels"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GetUser Function",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/User?name=blah",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "User"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "blah"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Workflow",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"workflowFile\": \"webhook-integration-test.yml\",\n    \"reRunEntireWorkflow\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/workflow/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "workflow",
+                "start"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "requests": {},
+            "exec": [
+              "const echoPostRequest = {",
+              "  url: pm.environment.get('tokenIssuerUrl'),",
+              "  method: 'POST',",
+              "  header: 'Content-Type:application/x-www-form-urlencoded',",
+              "  body: {",
+              "    mode: 'urlencoded',",
+              "    urlencoded: [",
+              "        { key: \"client_id\", value: pm.environment.get('tokenClientId') },",
+              "        { key: \"client_secret\", value: pm.environment.get('tokenClientSecret') },",
+              "        { key: \"scope\", value: pm.environment.get('tokenScope') },",
+              "        { key: \"grant_type\", value: \"client_credentials\" },",
+              "    ]",
+              "  }",
+              "};",
+              "",
+              "var getToken = true;",
+              "",
+              "if (!pm.environment.get('accessTokenExpiry') || ",
+              "    !pm.environment.get('accessToken')) {",
+              "    console.log('Token or expiry date are missing')",
+              "} else if (pm.environment.get('accessTokenExpiry') <= (new Date()).getTime()) {",
+              "    console.log('Token is expired')",
+              "} else {",
+              "    getToken = false;",
+              "    console.log('Token and expiry date are all good');",
+              "}",
+              "",
+              "if (getToken === true) {",
+              "    pm.sendRequest(echoPostRequest, function (err, res) {",
+              "        console.log(err ? err : res.json());",
+              "        if (err === null) {",
+              "            console.log('Saving the token and expiry date');",
+              "            var responseJson = res.json();",
+              "            pm.environment.set('accessToken', responseJson.access_token);",
+              "    ",
+              "            var expiryDate = new Date();",
+              "            expiryDate.setSeconds(expiryDate.getSeconds() + responseJson.expires_in);",
+              "            pm.environment.set('accessTokenExpiry', expiryDate.getTime());",
+              "        }",
+              "    });",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "requests": {},
+            "exec": [
+              ""
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Non-Proxied",
+      "item": [
+        {
+          "name": "Authenticated",
+          "item": [
+            {
+              "name": "OwnEndpoint",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/OwnEndpoint",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "OwnEndpoint"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ExampleModels",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ExampleModels",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ExampleModels"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ExampleModels",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Body has an id\", function () {",
+                      "    let id = pm.response.json().id;",
+                      "    pm.environment.set(\"lastCreatedModelId\", id);",
+                      "});",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"Address\": \"{{$randomStreetAddress}}, {{$randomCity}}\",\n    \"DateOfBirth\": \"{{$isoTimestamp}}\",\n    \"Title\": \"Mr\",\n    \"FirstName\": \"{{randomGivenName}}\",\n    \"LastName\": \"{{randomFamilyName}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/ExampleModels",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ExampleModels"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ExampleModels - By Id",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Matching entity returned\", function () {",
+                      "    let id = pm.response.json().id;",
+                      "    pm.expect(pm.environment.get('lastCreatedModelId')).to.eql(id);",
+                      "});",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ExampleModels/{{lastCreatedModelId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ExampleModels",
+                    "{{lastCreatedModelId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ExampleModels - Update",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 204\", function () {",
+                      "    pm.response.to.have.status(204);",
+                      "});",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"Address\": \"Somewhere else on earth\",\n    \"DateOfBirth\": \"2000-01-01T00:00:00.000Z\",\n    \"Title\": \"Mr\",\n    \"FirstName\": \"John\",\n    \"LastName\": \"Doe\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/ExampleModels/{{lastCreatedModelId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ExampleModels",
+                    "{{lastCreatedModelId}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ExampleModels - Create",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Body has an id\", function () {",
+                      "    let id = pm.response.json().id;",
+                      "    pm.environment.set(\"lastCreatedModelId\", id);",
+                      "});",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"Address\": \"{{$randomStreetAddress}}, {{$randomCity}}\",\n    \"DateOfBirth\": \"{{$isoTimestamp}}\",\n    \"Title\": \"Mr\",\n    \"FirstName\": \"{{randomGivenName}}\",\n    \"LastName\": \"{{randomFamilyName}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/ExampleModels/{{$guid}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ExampleModels",
+                    "{{$guid}}"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ExampleModels",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ExampleModels/{{lastCreatedModelId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ExampleModels",
+                    "{{lastCreatedModelId}}"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "requests": {},
+                "exec": [
+                  "const echoPostRequest = {",
+                  "  url: pm.environment.get('tokenIssuerUrl'),",
+                  "  method: 'POST',",
+                  "  header: 'Content-Type:application/x-www-form-urlencoded',",
+                  "  body: {",
+                  "    mode: 'urlencoded',",
+                  "    urlencoded: [",
+                  "        { key: \"client_id\", value: pm.environment.get('tokenClientId') },",
+                  "        { key: \"client_secret\", value: pm.environment.get('tokenClientSecret') },",
+                  "        { key: \"scope\", value: pm.environment.get('tokenScope') },",
+                  "        { key: \"grant_type\", value: \"client_credentials\" },",
+                  "    ]",
+                  "  }",
+                  "};",
+                  "",
+                  "var getToken = true;",
+                  "",
+                  "if (!pm.environment.get('accessTokenExpiry') || ",
+                  "    !pm.environment.get('accessToken')) {",
+                  "    console.log('Token or expiry date are missing')",
+                  "} else if (pm.environment.get('accessTokenExpiry') <= (new Date()).getTime()) {",
+                  "    console.log('Token is expired')",
+                  "} else {",
+                  "    getToken = false;",
+                  "    console.log('Token and expiry date are all good');",
+                  "}",
+                  "",
+                  "if (getToken === true) {",
+                  "    pm.sendRequest(echoPostRequest, function (err, res) {",
+                  "        console.log(err ? err : res.json());",
+                  "        if (err === null) {",
+                  "            console.log('Saving the token and expiry date');",
+                  "            var responseJson = res.json();",
+                  "            pm.environment.set('accessToken', responseJson.access_token);",
+                  "    ",
+                  "            var expiryDate = new Date();",
+                  "            expiryDate.setSeconds(expiryDate.getSeconds() + responseJson.expires_in);",
+                  "            pm.environment.set('accessTokenExpiry', expiryDate.getTime());",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "requests": {},
+                "exec": [
+                  ""
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unauthenticated",
+          "item": [
+            {
+              "name": "ManualProxyEcho",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ManualProxyEcho",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ManualProxyEcho"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "ServerInfo",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/ServerInfo",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "ServerInfo"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "oauth2",
+    "oauth2": [
+      {
+        "key": "grant_type",
+        "value": "client_credentials",
+        "type": "string"
+      },
+      {
+        "key": "client_authentication",
+        "value": "body",
+        "type": "string"
+      },
+      {
+        "key": "scope",
+        "value": "{{tokenScope}}",
+        "type": "string"
+      },
+      {
+        "key": "clientSecret",
+        "value": "{{tokenClientSecret}}",
+        "type": "string"
+      },
+      {
+        "key": "clientId",
+        "value": "{{tokenClientId}}",
+        "type": "string"
+      },
+      {
+        "key": "accessTokenUrl",
+        "value": "{{tokenUrl}}/v1/token",
+        "type": "string"
+      },
+      {
+        "key": "authUrl",
+        "value": "{{tokenUrl}}/v1/authorize",
+        "type": "string"
+      },
+      {
+        "key": "useBrowser",
+        "value": true,
+        "type": "boolean"
+      },
+      {
+        "key": "tokenName",
+        "value": "Token_TestUser",
+        "type": "string"
+      },
+      {
+        "key": "addTokenTo",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ]
 }
