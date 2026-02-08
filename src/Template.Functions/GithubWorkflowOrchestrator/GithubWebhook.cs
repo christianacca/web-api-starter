@@ -1,8 +1,6 @@
-using Hellang.Middleware.ProblemDetails;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,7 +9,6 @@ using Octokit.Webhooks;
 using Octokit.Webhooks.Events;
 using Octokit.Webhooks.Events.WorkflowRun;
 using Octokit.Webhooks.Models;
-using System.Net;
 using System.Text.Json;
 using Template.Shared.Github;
 using Template.Shared.Proxy;
@@ -32,7 +29,7 @@ public class GithubWebhook(
 
   [Function(nameof(GithubWebhook))]
   public async Task<IActionResult> RunAsync(
-    [HttpTrigger(AuthorizationLevel.Anonymous, "POST", Route = "github/webhooks")] HttpRequestData req,
+    [HttpTrigger(AuthorizationLevel.Anonymous, "POST", Route = "github/webhooks")] HttpRequest req,
     [DurableClient] DurableTaskClient client,
     CancellationToken cancellationToken = default) {
 
@@ -64,7 +61,7 @@ public class GithubWebhook(
     return new OkResult();
   }
 
-  private static WebhookHeaders GetWebhookHeaders(HttpRequestData req) {
+  private static WebhookHeaders GetWebhookHeaders(HttpRequest req) {
     var headers = req.Headers.ToDictionary(
       kv => kv.Key,
       kv => new StringValues([.. kv.Value]),
@@ -88,9 +85,9 @@ public class GithubWebhook(
     }
   }
 
-  private bool ValidateSignature(HttpRequestData req, string requestBody, out string? signatureHeader) {
-    req.Headers.TryGetValues(GithubHeaderNames.Signature256, out var headerValues);
-    signatureHeader = headerValues?.FirstOrDefault();
+  private bool ValidateSignature(HttpRequest req, string requestBody, out string? signatureHeader) {
+    req.Headers.TryGetValue(GithubHeaderNames.Signature256, out var headerValues);
+    signatureHeader = headerValues.FirstOrDefault();
 
     var secret = appOptions.CurrentValue.WebhookSecret;
 

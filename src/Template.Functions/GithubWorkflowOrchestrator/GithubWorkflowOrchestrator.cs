@@ -1,40 +1,38 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.DurableTask;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Options;
-using System.Net;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Mvc;
 using Octokit;
 using Template.Shared.Github;
 using Template.Functions.Shared;
+using FromBody = Microsoft.Azure.Functions.Worker.Http.FromBodyAttribute;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
 public class GithubWorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> optionsMonitor) {
 
   [Function(nameof(TriggerGithubWorkflow))]
-  public async Task<HttpResponseData> TriggerGithubWorkflow(
-    [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "workflow/start")] HttpRequestData req,
+  public async Task<IActionResult> TriggerGithubWorkflow(
+    [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "workflow/start")] HttpRequest _,
     [DurableClient] DurableTaskClient client,
-    [FromBody] StartWorkflowRequest request) {
+    [@FromBody] StartWorkflowRequest workflowRequest) {
 
     var options = optionsMonitor.CurrentValue;
     var input = new OrchestratorInput {
       MaxAttempts = options.MaxAttempts,
       Timeout = options.WorkflowTimeout,
-      RerunEntireWorkflow = request.RerunEntireWorkflow,
-      WorkflowFile = request.WorkflowFile
+      RerunEntireWorkflow = workflowRequest.RerunEntireWorkflow,
+      WorkflowFile = workflowRequest.WorkflowFile
     };
 
     var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(nameof(GithubWorkflowOrchestrator), input);
 
-    var response = req.CreateResponse(HttpStatusCode.OK);
-    await response.WriteAsJsonAsync(new {
+    return new OkObjectResult(new {
       Id = instanceId,
     });
-
-    return response;
   }
 
   private static async Task<bool> CheckWorkflowSuccessAsync(TaskOrchestrationContext context, bool? success, long runId, int currentAttempt, int maxAttempts) {
