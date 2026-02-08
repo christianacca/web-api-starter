@@ -97,9 +97,10 @@ public class GithubWorkflowOrchestrator(IOptionsMonitor<GithubAppOptions> option
     while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
       var rerunInput = new RerunInput(runId, input.RerunEntireWorkflow);
-      await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), rerunInput);
-      success = await context.WaitForExternalEvent<bool?>(GithubWebhook.WorkflowCompletedEvent, input.Timeout, null);
+      var rerunTriggered = await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), rerunInput);
+      if (!rerunTriggered) continue;
 
+      success = await context.WaitForExternalEvent<bool?>(GithubWebhook.WorkflowCompletedEvent, input.Timeout, null);
       if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
         return;
       }
