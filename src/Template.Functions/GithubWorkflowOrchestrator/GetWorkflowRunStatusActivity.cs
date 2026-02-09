@@ -8,7 +8,8 @@ namespace Template.Functions.GithubWorkflowOrchestrator;
 
 public record WorkflowRunInfo(
   WorkflowRunStatus Status,
-  WorkflowRunConclusion? Conclusion);
+  WorkflowRunConclusion? Conclusion,
+  long RunAttempt);
 
 public class GetWorkflowRunStatusActivity(
   IOptionsMonitor<GithubAppOptions> optionsMonitor,
@@ -25,10 +26,10 @@ public class GetWorkflowRunStatusActivity(
 
       workflowRun.Status.TryParse(out var status);
       if (workflowRun.Conclusion.HasValue && workflowRun.Conclusion.Value.TryParse(out var conclusion)) {
-        return new WorkflowRunInfo(status, conclusion);
+        return new WorkflowRunInfo(status, conclusion, workflowRun.RunAttempt);
       }
 
-      return new WorkflowRunInfo(status, null);
+      return new WorkflowRunInfo(status, null, workflowRun.RunAttempt);
     } catch (Exception ex) {
       logger.LogError(ex,
         "Failed to fetch workflow run status for run {RunId} in {Owner}/{Repo}",

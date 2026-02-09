@@ -38,8 +38,23 @@ public class GithubWorkflowOrchestrator {
     while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
       var rerunInput = new RerunInput(runId, input.RerunEntireWorkflow);
-      var rerunTriggered = await context.CallActivityAsync<bool>(nameof(RerunFailedJobActivity), rerunInput);
-      if (!rerunTriggered) continue;
+
+      try {
+        await context.CallActivityAsync(nameof(RerunFailedJobActivity), rerunInput);
+      }
+      catch (Exception) {
+        var logger = context.CreateReplaySafeLogger<GithubWorkflowOrchestrator>();
+        logger.LogWarning("Failed to trigger rerun for run {RunId} on attempt {CurrentAttempt}, verifying workflow status", runId, currentAttempt);
+
+        var workflowStatus = await context.CallActivityAsync<WorkflowRunInfo?>(nameof(GetWorkflowRunStatusActivity), runId);
+        if (workflowStatus == null) {
+          throw new InvalidOperationException($"Failed to trigger rerun and cannot verify workflow status for run {runId} on attempt {currentAttempt}");
+        }
+
+        if (workflowStatus.RunAttempt != currentAttempt) {
+          throw new InvalidOperationException($"Failed to trigger rerun for run {runId} - expected attempt {currentAttempt} but workflow is at attempt {workflowStatus.RunAttempt}");
+        }
+      }
 
       success = await context.WaitForExternalEvent<bool?>(GithubWebhook.WorkflowCompletedEvent, input.Timeout, null);
       if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
@@ -58,6 +73,7 @@ public class GithubWorkflowOrchestrator {
         currentAttempt, maxAttempts);
 
     var workflowStatus = await context.CallActivityAsync<WorkflowRunInfo?>(nameof(GetWorkflowRunStatusActivity), runId);
+
     if (workflowStatus is not { Status: WorkflowRunStatus.Completed }) {
       return true;
     }
@@ -77,6 +93,5 @@ public class GithubWorkflowOrchestrator {
 
     return runId;
   }
-
 }
 
