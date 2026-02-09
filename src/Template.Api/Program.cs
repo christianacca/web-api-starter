@@ -5,6 +5,7 @@ using Hellang.Middleware.ProblemDetails.Mvc;
 using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,7 @@ using Serilog.Events;
 using Serilog.Formatting.Compact;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Octokit.Webhooks;
 using Octokit.Webhooks.AspNetCore;
 using Template.Api.Endpoints.Configurations;
@@ -26,6 +28,7 @@ using Template.Api.Shared;
 using Template.Api.Shared.ExceptionHandling;
 using Template.Api.Shared.Mvc;
 using Template.Api.Shared.Proxy;
+using Template.Api.Shared.RateLimiting;
 using Template.Shared.Azure.ConfigStore;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
@@ -180,6 +183,21 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     services.AddAppInsights(aiSettings);
   }
 
+
+  var rateLimitSettings = configuration.GetSection("RateLimiting:GithubWebhook").Get<GithubWebhookRateLimitSettings>() 
+    ?? new GithubWebhookRateLimitSettings();
+
+  if (rateLimitSettings.Enabled) {
+    services.AddRateLimiter(options => {
+      options.AddFixedWindowLimiter(GithubWebhookRateLimitSettings.PolicyName, limiterOptions => {
+        limiterOptions.PermitLimit = rateLimitSettings.PermitLimit;
+        limiterOptions.Window = rateLimitSettings.Window;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+      });
+    });
+  }
+
   void ConfigureAzureClients() {
 
     services.AddAzureClientsCore(enableLogForwarding: true);
@@ -252,6 +270,8 @@ void ConfigureMiddleware(WebApplication app) {
   app.UseRouting();
 
   app.UseCors(); // critical: this MUST be before UseAuthentication and UseAuthorization
+  
+  app.UseRateLimiter();
 
   app.UseAuthentication();
   app.UseAuthorization();
@@ -265,7 +285,12 @@ void ConfigureMiddleware(WebApplication app) {
 
   app.MapControllers().RequireAuthorization();
   app.MapHealthChecks("/health");
-  app.MapGitHubWebhooks(secret: app.Configuration.GetSection("Github:WebhookSecret").Value ?? string.Empty);
+
+  var rateLimitEnabled = app.Configuration.GetValue<bool>("RateLimiting:GithubWebhook:Enabled", true);
+  var webhookEndpoint = app.MapGitHubWebhooks(secret: app.Configuration.GetSection("Github:WebhookSecret").Value ?? string.Empty);
+  if (rateLimitEnabled) {
+    webhookEndpoint.RequireRateLimiting(GithubWebhookRateLimitSettings.PolicyName);
+  }
   app.MapReverseProxy();
 }
 
