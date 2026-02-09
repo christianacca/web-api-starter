@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "7a6b9741-7086-452d-ab7b-46b9cca75136",
+    "_postman_id": "78ffc892-bf8d-4739-9397-71667cb9f48b",
     "name": "MRI Web API Starter Template",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "17378709"
@@ -671,61 +671,6 @@
       ]
     }
   ],
-  "auth": {
-    "type": "oauth2",
-    "oauth2": [
-      {
-        "key": "grant_type",
-        "value": "client_credentials",
-        "type": "string"
-      },
-      {
-        "key": "client_authentication",
-        "value": "body",
-        "type": "string"
-      },
-      {
-        "key": "scope",
-        "value": "{{tokenScope}}",
-        "type": "string"
-      },
-      {
-        "key": "clientSecret",
-        "value": "{{tokenClientSecret}}",
-        "type": "string"
-      },
-      {
-        "key": "clientId",
-        "value": "{{tokenClientId}}",
-        "type": "string"
-      },
-      {
-        "key": "accessTokenUrl",
-        "value": "{{tokenUrl}}/v1/token",
-        "type": "string"
-      },
-      {
-        "key": "authUrl",
-        "value": "{{tokenUrl}}/v1/authorize",
-        "type": "string"
-      },
-      {
-        "key": "useBrowser",
-        "value": true,
-        "type": "boolean"
-      },
-      {
-        "key": "tokenName",
-        "value": "Token_TestUser",
-        "type": "string"
-      },
-      {
-        "key": "addTokenTo",
-        "value": "header",
-        "type": "string"
-      }
-    ]
-  },
   "event": [
     {
       "listen": "prerequest",
