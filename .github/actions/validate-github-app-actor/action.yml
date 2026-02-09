@@ -1,38 +1,63 @@
-name: Validate GitHub App Actor
-description: Validates that the workflow actor is an authorized GitHub App from product conventions
+name: Validate GitHub App Actor (Multi-Environment)
+description: Checks which environments the current GitHub App is authorized for
+
+outputs:
+  dev:
+    description: 'Whether authorized for dev environment'
+    value: ${{ steps.check.outputs.dev }}
+  qa:
+    description: 'Whether authorized for qa environment'
+    value: ${{ steps.check.outputs.qa }}
+  rel:
+    description: 'Whether authorized for rel environment'
+    value: ${{ steps.check.outputs.rel }}
+  demo:
+    description: 'Whether authorized for demo environment'
+    value: ${{ steps.check.outputs.demo }}
+  demo-na:
+    description: 'Whether authorized for demo-na environment'
+    value: ${{ steps.check.outputs.demo-na }}
+  demo-emea:
+    description: 'Whether authorized for demo-emea environment'
+    value: ${{ steps.check.outputs.demo-emea }}
+  demo-apac:
+    description: 'Whether authorized for demo-apac environment'
+    value: ${{ steps.check.outputs.demo-apac }}
+  staging:
+    description: 'Whether authorized for staging environment'
+    value: ${{ steps.check.outputs.staging }}
+  prod-na:
+    description: 'Whether authorized for prod-na environment'
+    value: ${{ steps.check.outputs.prod-na }}
+  prod-emea:
+    description: 'Whether authorized for prod-emea environment'
+    value: ${{ steps.check.outputs.prod-emea }}
+  prod-apac:
+    description: 'Whether authorized for prod-apac environment'
+    value: ${{ steps.check.outputs.prod-apac }}
 
 runs:
   using: composite
   steps:
-    - name: Check authorized GitHub App
+    - id: check
       shell: pwsh
       run: |
         $environments = & ./tools/infrastructure/get-product-environment-names.ps1
-        $allowedApps = @{}  
-        
-        foreach ($env in $environments) {
-          try {
-            $conventions = & ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $env | ConvertFrom-Json
-            $appSlug = $conventions.SubProducts.Github.AppSlug
-            $appId = $conventions.SubProducts.Github.AppId
-            
-            if ($appSlug -and $appId) {
-              $actorName = "${appSlug}[bot]"
-              $allowedApps[$actorName] = $appId
-            }
-          } catch {
-            Write-Host "️Skipping environment '$env' - unable to load conventions"
-            continue
-          }
-        }
-        
         $actor = "${{ github.actor }}"
         
-        if (-not $allowedApps.ContainsKey($actor)) {
-          Write-Host "::error::Unauthorized actor: $actor"
-          Write-Host "::error::This workflow can only be triggered by authorized GitHub Apps with valid AppId in product conventions"
-          exit 1
+        foreach ($env in $environments) {
+          $isAuthorized = "false"
+          try {
+            $conventions = & ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $env | ConvertFrom-Json
+            $expectedAppSlug = $conventions.SubProducts.Github.AppSlug
+            $expectedAppId = $conventions.SubProducts.Github.AppId
+            
+            if ($expectedAppId -and $expectedAppSlug -and ($actor -eq "${expectedAppSlug}[bot]")) {
+              $isAuthorized = "true"
+            }
+          } catch {
+            # Default remains "false" if an environment check fails
+          }
+          
+          echo "$env=$isAuthorized" >> $env:GITHUB_OUTPUT
         }
-        
-        $appId = $allowedApps[$actor]
-        Write-Host "Authorized actor: $actor (AppId: $appId)"

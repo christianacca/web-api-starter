@@ -4,22 +4,46 @@ on:
   workflow_dispatch:
     inputs:
       workflowName:
-        description: 'Workflow run name (format: functionInstancePrefix-instanceId)'
+        description: 'Workflow run name (format: functionappidentifier-instanceId)'
         required: true
         type: string
 
 run-name: ${{ inputs.workflowName }}
 
 jobs:
-  authorize:
+  check-authorization:
     runs-on: ubuntu-latest
+    outputs:
+      dev: ${{ steps.auth.outputs.dev }}
+      qa: ${{ steps.auth.outputs.qa }}
+      rel: ${{ steps.auth.outputs.rel }}
+      demo: ${{ steps.auth.outputs.demo }}
+      demo-na: ${{ steps.auth.outputs.demo-na }}
+      demo-emea: ${{ steps.auth.outputs.demo-emea }}
+      demo-apac: ${{ steps.auth.outputs.demo-apac }}
+      staging: ${{ steps.auth.outputs.staging }}
+      prod-na: ${{ steps.auth.outputs.prod-na }}
+      prod-emea: ${{ steps.auth.outputs.prod-emea }}
+      prod-apac: ${{ steps.auth.outputs.prod-apac }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/validate-github-app-actor
+      - id: auth
+        uses: ./.github/actions/validate-github-app-multi-env
 
-  auto-approve:
+  dev-task:
     runs-on: ubuntu-latest
-    needs: authorize
+    needs: check-authorization
+    if: needs.check-authorization.outputs.dev == 'true'
+    environment:
+      name: dev
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Building workflow for ${{ inputs.workflowName }} in DEV environment"
+
+  qa-auto-approve:
+    runs-on: ubuntu-latest
+    needs: check-authorization
+    if: needs.check-authorization.outputs.qa == 'true'
     steps:
       - name: Wait for deployment to be registered
         run: sleep 20
@@ -28,16 +52,15 @@ jobs:
         uses: activescott/automate-environment-deployment-approval@10179fc61443cb28b95e807814d9dfce60a9e230 # <- v1.1.0
         with:
           github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
-          environment_allow_list: dev
+          environment_allow_list: qa
           run_id_allow_list: ${{ github.run_id }}
 
-  some-task:
+  qa-task:
     runs-on: ubuntu-latest
-    needs: authorize
+    needs: check-authorization
+    if: needs.check-authorization.outputs.qa == 'true'
     environment:
-      name: dev
+      name: qa
     steps:
       - uses: actions/checkout@v4
-
-      - name: Print Workflow details
-        run: echo "Building workflow for ${{ inputs.workflowName }}"
+      - run: echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
