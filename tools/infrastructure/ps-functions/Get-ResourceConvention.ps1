@@ -649,6 +649,21 @@ function Get-ResourceConvention {
                     RbacAssignment          =   $rbacAssignment
                     Type                    =   $spInput.Type
                 }
+            }
+            'GithubApp' {
+                $envNameFormatted = (Get-Culture).TextInfo.ToTitleCase($EnvironmentName.ToLower())
+                $appDisplayName = '{0} - {1}' -f $ProductName, $envNameFormatted
+                
+                $productSlug = $ProductName.ToLower().Replace(' ', '-')
+                $appSlug = '{0}-{1}' -f $productSlug, $EnvironmentName.ToLower()
+                
+                @{
+                    AppName             =   $spInput.AppName ?? $appDisplayName
+                    AppSlug             =   $spInput.AppSlug ?? $appSlug
+                    AppId               =   $spInput.AppId 
+                    InstallationId      =   $spInput.InstallationId 
+                    Type                =   $spInput.Type
+                }
             }            
             default {
                 $null
