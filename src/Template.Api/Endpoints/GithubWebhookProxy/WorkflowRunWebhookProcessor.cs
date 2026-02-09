@@ -1,4 +1,5 @@
 using CcAcca.ProblemDetails.Helpers;
+using Hellang.Middleware.ProblemDetails;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Octokit.Webhooks;
@@ -12,8 +13,7 @@ namespace Template.Api.Endpoints.GithubWebhookProxy;
 
 public class WorkflowRunWebhookProcessor(
   FunctionAppHttpClient functionAppClient,
-  IOptionsMonitor<GithubAppOptions> appOptions,
-  ILogger<WorkflowRunWebhookProcessor> logger) : WebhookEventProcessor {
+  IOptionsMonitor<GithubAppOptions> appOptions) : WebhookEventProcessor {
 
   private static readonly string GithubWebhooksRoute = "api/github/webhooks";
   private static readonly string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
@@ -26,38 +26,38 @@ public class WorkflowRunWebhookProcessor(
     };
   }
   private async ValueTask ProcessWorkflowRunAsync(string body, CancellationToken cancellationToken) {
-    WorkflowRunEvent? workflowRunEvent;
-    try {
-      workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent>(body);
-      if (workflowRunEvent == null) {
-        return;
-      }
-    }
-    catch (JsonException ex) {
-      logger.LogError(ex, "Error deserializing workflow_run webhook payload");
-      return;
+    var workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent?>(body);
+    if (workflowRunEvent == null) {
+      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
+        Detail = "Deserialized workflow_run event is null"
+      });
     }
 
     if (!IsValidRepository(workflowRunEvent)) {
-      logger.LogWarning("Webhook received from invalid repository: {Repository}", workflowRunEvent.WorkflowRun.Repository.FullName);
-      return;
+      var repository = workflowRunEvent.WorkflowRun.Repository.FullName;
+      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status403Forbidden) {
+        Detail = $"Webhook received from invalid repository: {repository}"
+      });
     }
 
     var workflowName = workflowRunEvent.WorkflowRun.Name;
 
     if (string.IsNullOrEmpty(workflowName)) {
-      logger.LogWarning("Workflow run name is null or empty");
-      return;
+      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
+        Detail = "Workflow run name is null or empty"
+      });
     }
 
     var instanceId = ExtractInstanceId(workflowName);
     if (instanceId == null) {
-      logger.LogWarning("Invalid workflow run name format: {WorkflowName}. Expected format: '{Prefix}instanceId'", workflowName, WorkflowRunNamePrefix);
-      return;
+      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
+        Detail = $"Invalid workflow run name format: {workflowName}. Expected format: '{WorkflowRunNamePrefix}instanceId'"
+      });
     }
 
     if (workflowName.StartsWith(FunctionAppIdentifiers.InternalApi, StringComparison.OrdinalIgnoreCase)) {
-      var response = await functionAppClient.Client.PostAsync(GithubWebhooksRoute, new StringContent(body), cancellationToken);
+      var response = await functionAppClient.Client.PostAsync(GithubWebhooksRoute,
+        new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
       await response.EnsureNotProblemDetailAsync(cancellationToken);
     }
   }
