@@ -12,7 +12,13 @@ process {
                 InstallationId = '108147870'
             }
         }
-        ({$PSItem -in 'qa', 'rel', 'release'}) {
+        'qa' {
+            @{
+                AppId          = $null
+                InstallationId = $null
+            }
+        }
+        ({$PSItem -in 'rel', 'release'}) {
             @{
                 AppId          = $null
                 InstallationId = $null
