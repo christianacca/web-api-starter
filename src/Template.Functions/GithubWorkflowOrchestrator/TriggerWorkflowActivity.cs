@@ -11,17 +11,19 @@ public class TriggerWorkflowActivity(
   IGitHubClientFactory gitHubClientFactory) {
 
   [Function(nameof(TriggerWorkflowActivity))]
-  public async Task RunAsync([ActivityTrigger] string instanceId) {
+  public async Task<string> RunAsync([ActivityTrigger] TriggerInput input) {
     var options = optionsMonitor.CurrentValue;
     var githubClient = await gitHubClientFactory.GetOrCreateClientAsync();
 
-    var correlationId = $"{FunctionAppIdentifiers.InternalApi}-{instanceId}";
+    var workflowName = $"{FunctionAppIdentifiers.InternalApi}-{input.InstanceId}";
 
     var workflowDispatchRequest = new CreateWorkflowDispatch(options.Branch) {
-      Inputs = new Dictionary<string, object>() { ["correlationId"] = correlationId }
+      Inputs = new Dictionary<string, object>() { ["workflowName"] = workflowName }
     };
 
     await githubClient.Actions.Workflows.CreateDispatch(options.Owner, options.Repo,
-      options.WorkflowFile, workflowDispatchRequest);
+      input.WorkflowFile, workflowDispatchRequest);
+
+    return workflowName;
   }
 }
