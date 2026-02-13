@@ -99,6 +99,7 @@
                         Type           = 'GithubApp'
                         AppId          = $githubAppConfig.AppId
                         InstallationId = $githubAppConfig.InstallationId
+                        Pipeline       = $githubAppConfig.Pipeline
                     }
 #                     Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }

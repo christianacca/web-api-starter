@@ -11,29 +11,20 @@ on:
 run-name: ${{ inputs.workflowName }}
 
 jobs:
-  check-authorization:
+  github-app-authz:
     runs-on: ubuntu-latest
     outputs:
-      dev: ${{ steps.auth.outputs.dev }}
-      qa: ${{ steps.auth.outputs.qa }}
-      rel: ${{ steps.auth.outputs.rel }}
-      demo: ${{ steps.auth.outputs.demo }}
-      demo-na: ${{ steps.auth.outputs.demo-na }}
-      demo-emea: ${{ steps.auth.outputs.demo-emea }}
-      demo-apac: ${{ steps.auth.outputs.demo-apac }}
-      staging: ${{ steps.auth.outputs.staging }}
-      prod-na: ${{ steps.auth.outputs.prod-na }}
-      prod-emea: ${{ steps.auth.outputs.prod-emea }}
-      prod-apac: ${{ steps.auth.outputs.prod-apac }}
+      authz-pipeline-envs: ${{ steps.authz.outputs.pipeline }}
+      authz-primary-env: ${{ steps.authz.outputs.primary }}
     steps:
       - uses: actions/checkout@v4
-      - id: auth
-        uses: ./.github/actions/validate-github-app-multi-env
+      - id: authz
+        uses: ./.github/actions/github-app-authz-envs
 
   dev-task:
     runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.dev == 'true'
+    needs: github-app-authz
+    if: contains(fromJSON(needs.github-app-authz.outputs.authz-pipeline-envs), 'dev')
     environment:
       name: dev
     steps:
@@ -42,8 +33,8 @@ jobs:
 
   qa-auto-approve:
     runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.qa == 'true'
+    needs: github-app-authz
+    if: contains(fromJSON(needs.github-app-authz.outputs.authz-pipeline-envs), 'qa')
     steps:
       - name: Wait for deployment to be registered
         run: sleep 20
@@ -57,8 +48,8 @@ jobs:
 
   qa-task:
     runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.qa == 'true'
+    needs: github-app-authz
+    if: contains(fromJSON(needs.github-app-authz.outputs.authz-pipeline-envs), 'qa')
     environment:
       name: qa
     steps:
