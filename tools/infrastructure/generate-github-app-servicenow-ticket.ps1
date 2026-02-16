@@ -36,10 +36,12 @@
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
             $apiDomain = $convention.SubProducts.Api.HostName
-            $webhookUrl = "https://$apiDomain/api/github/webhooks"
+            $webhookUrl = $convention.SubProducts.Github.WebhookUrl
             $githubAppName = $convention.SubProducts.Github.AppName
+            $githubOwner = $convention.SubProducts.Github.Owner
+            $githubRepo = $convention.SubProducts.Github.Repo
             
-            $repository = "christianacca/web-api-starter"
+            $repository = "$githubOwner/$githubRepo"
             $branch = "master"
             
             $separator = "─" * 61

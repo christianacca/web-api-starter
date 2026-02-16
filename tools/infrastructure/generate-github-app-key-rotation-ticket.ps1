@@ -30,8 +30,10 @@
         try {
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
             $productName = $convention.Product.Name
+            $githubOwner = $convention.SubProducts.Github.Owner
+            $githubRepo = $convention.SubProducts.Github.Repo
             
-            $repository = "christianacca/web-api-starter"
+            $repository = "$githubOwner/$githubRepo"
             
             $separator = "─" * 61
             

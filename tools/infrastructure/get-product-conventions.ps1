@@ -97,6 +97,9 @@
                     KeyVault            =   @{ Type = 'KeyVault' }
                     Github              =   @{ 
                         Type           = 'GithubApp'
+                        Target         = 'Api'
+                        Owner          = 'christianacca'
+                        Repo           = 'web-api-starter'
                         AppId          = $githubAppConfig.AppId
                         InstallationId = $githubAppConfig.InstallationId
                         Pipeline       = $githubAppConfig.Pipeline
