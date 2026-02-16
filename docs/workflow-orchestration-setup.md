@@ -207,7 +207,6 @@ jobs:
 - **Rate Limiting**: The GitHub webhook endpoint is protected by rate limiting to prevent abuse:
   - Default: 100 requests per 60-second window
   - Configurable via `RateLimiting:GithubWebhook` section in API `appsettings.json`
-  - Can be disabled for development environments by setting `Enabled: false`
   - Uses fixed window rate limiting with oldest-first queue processing
 
 ---
