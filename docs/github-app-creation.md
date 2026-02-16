@@ -47,7 +47,7 @@ The script will output a ServiceNow ticket subject and body containing:
 ```
 ServiceNow Ticket Subject:
 ─────────────────────────────────────────────────────────────
-GitHub App Creation Request - Web API Starter - Dev
+GitHub App Creation Request - Web API Starter (dev)
 
 ServiceNow Ticket Body:
 ─────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ Request Type: GitHub App Creation
 
 Environment Details:
 - Environment Name: dev
-- GitHub App Name: Web API Starter - Dev
+- GitHub App Name: Web API Starter (dev)
 - API Domain: dev-api-was.codingdemo.co.uk
 - Webhook URL: https://dev-api-was.codingdemo.co.uk/api/github/webhooks
 
@@ -117,7 +117,7 @@ Before creating a GitHub App, ensure you have the necessary permissions:
 1. Navigate to **GitHub Settings** → **Developer settings** → **GitHub Apps** → **New GitHub App**
 2. Configure basic information:
    - **GitHub App name**: Use the exact name from the ServiceNow ticket
-   - Example: `Web API Starter - Dev`, `Web API Starter - Prod-Na`
+   - Example: `Web API Starter (dev)`, `Web API Starter (prod-na)`
    - **Description**: Brief description of the app's purpose
    - **Homepage URL**: Use the **API Domain** from the ServiceNow ticket (e.g., `https://dev-api-was.codingdemo.co.uk`)
 
@@ -373,7 +373,7 @@ After completing the uploads, provide the Dev Team with:
 
 The Dev Team must update the `tools/infrastructure/get-product-github-app-config.ps1` file with the App ID and Installation ID for each environment.
 
-#### Update Configuration File
+### Update Configuration File
 
 1. **Open the configuration file**
    - File: `tools/infrastructure/get-product-github-app-config.ps1`
@@ -454,7 +454,7 @@ ServiceNow Ticket Body:
 Request Type: GitHub App Private Key Rotation
 
 GitHub App Information:
-- GitHub App Name: Web API Starter
+- GitHub App Name: Web API Starter (dev)
 - Environment: dev
 - Repository: christianacca/web-api-starter
 
@@ -495,7 +495,7 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
 
 1. **Navigate to GitHub App Settings**
    - Go to GitHub → Settings → Developer settings → GitHub Apps
-   - Select your GitHub App (e.g., "Web API Starter - Dev", "Web API Starter - Prod", etc.)
+   - Select your GitHub App (e.g., "Web API Starter (dev)", "Web API Starter (prod-na)", etc.)
 
 2. **Generate New Private Key**
    - Scroll to the "Private keys" section

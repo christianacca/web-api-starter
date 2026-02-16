@@ -29,21 +29,21 @@
     process {
         try {
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
-            $productName = $convention.Product.Name
+            $githubAppName = $convention.SubProducts.Github.AppName
             $githubOwner = $convention.SubProducts.Github.Owner
             $githubRepo = $convention.SubProducts.Github.Repo
-            
+
             $repository = "$githubOwner/$githubRepo"
-            
+
             $separator = "─" * 61
-            
-            $subject = "GitHub App Private Key Rotation Request - $productName ($EnvironmentName)"
+
+            $subject = "GitHub App Private Key Rotation Request - $githubAppName"
             
             $body = @"
 Request Type: GitHub App Private Key Rotation
 
 GitHub App Information:
-- GitHub App Name: $productName
+- GitHub App Name: $githubAppName
 - Environment: $EnvironmentName
 - Repository: $repository
 
