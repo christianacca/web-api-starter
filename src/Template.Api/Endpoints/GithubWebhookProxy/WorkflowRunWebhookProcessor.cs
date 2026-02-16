@@ -74,7 +74,10 @@ public class WorkflowRunWebhookProcessor(
       }
       
       await response.EnsureSuccessAsync(cancellationToken);
+      return;
     }
+
+    logger.LogWarning("Webhook received for unsupported workflow run: {WorkflowName}", workflowName);
   }
 
   private bool IsValidRepository(WorkflowRunEvent workflowEvent) {
