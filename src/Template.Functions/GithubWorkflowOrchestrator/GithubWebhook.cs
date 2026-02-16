@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask.Client;
+using Microsoft.Extensions.Logging;
 using Octokit.Webhooks.Events;
 using Octokit.Webhooks.Events.WorkflowRun;
 using Octokit.Webhooks.Models;
@@ -10,8 +11,7 @@ using Template.Shared.Proxy;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
-public class GithubWebhook {
-
+public class GithubWebhook(ILogger<GithubWebhook> logger) {
   public const string WorkflowCompletedEvent = "WorkflowCompleted";
   public const string WorkflowInProgressEvent = "WorkflowInProgress";
 
@@ -28,13 +28,21 @@ public class GithubWebhook {
 
     var requestBody = await new StreamReader(req.Body).ReadToEndAsync(cancellationToken);
 
-    var workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent>(requestBody);
+    WorkflowRunEvent? workflowRunEvent;
+    try {
+      workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent>(requestBody);
+    } catch (Exception ex) {
+      logger.LogError(ex, "Failed to deserialize webhook request body");
+      throw;
+    }
     if (workflowRunEvent == null) {
+      logger.LogWarning(InvalidRequestBodyMessage);
       return new BadRequestObjectResult(InvalidRequestBodyMessage);
     }
 
     var instanceId = ExtractInstanceId(workflowRunEvent.WorkflowRun.Name);
     if (instanceId == null) {
+      logger.LogWarning("Failed to extract instance ID from workflow run name: {WorkflowRunName}", workflowRunEvent.WorkflowRun.Name);
       return new BadRequestObjectResult(InvalidWorkflowRunNameMessage);
     }
 
@@ -43,9 +51,9 @@ public class GithubWebhook {
   }
 
   private async Task RaiseWorkflowEvents(string instanceId, WorkflowRunEvent workflowEvent, DurableTaskClient client, CancellationToken ct) {
-    if (workflowEvent.Action == WorkflowRunAction.InProgress &&
-        workflowEvent.WorkflowRun.Status == WorkflowRunStatus.InProgress) {
+    if (workflowEvent.Action == WorkflowRunAction.InProgress && workflowEvent.WorkflowRun.Status == WorkflowRunStatus.InProgress) {
       await client.RaiseEventAsync(instanceId, WorkflowInProgressEvent, workflowEvent.WorkflowRun.Id, ct);
+      return;
     }
 
     if (workflowEvent.Action == WorkflowRunAction.Completed &&
@@ -53,7 +61,11 @@ public class GithubWebhook {
       var success = workflowEvent.WorkflowRun.Conclusion.HasValue &&
                     workflowEvent.WorkflowRun.Conclusion.Value == WorkflowRunConclusion.Success;
       await client.RaiseEventAsync(instanceId, WorkflowCompletedEvent, success, ct);
+      return;
     }
+
+    logger.LogWarning("Received workflow event with unmapped action/status combination. Action: {Action}, Status: {Status}",
+      workflowEvent.Action, workflowEvent.WorkflowRun.Status);
   }
 
   private static string? ExtractInstanceId(string workflowRunName) {

@@ -13,10 +13,14 @@ namespace Template.Api.Endpoints.GithubWebhookProxy;
 
 public class WorkflowRunWebhookProcessor(
   FunctionAppHttpClient functionAppClient,
-  IOptionsMonitor<GithubAppOptions> appOptions) : WebhookEventProcessor {
+  IOptionsMonitor<GithubAppOptions> appOptions,
+  ILogger<WorkflowRunWebhookProcessor> logger) : WebhookEventProcessor {
 
   private static readonly string GithubWebhooksRoute = "api/github/webhooks";
   private static readonly string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
+
+  private const string DeserializeErrorMessage = "Failed to deserialize workflow_run event";
+  private const string WorkflowRunEmptyMessage = "Workflow run name is null or empty";
 
   public override ValueTask ProcessWebhookAsync(IDictionary<string, StringValues> headers, string body, CancellationToken cancellationToken = default) {
     var webhookHeaders = WebhookHeaders.Parse(headers);
@@ -28,13 +32,15 @@ public class WorkflowRunWebhookProcessor(
   private async ValueTask ProcessWorkflowRunAsync(string body, CancellationToken cancellationToken) {
     var workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent?>(body);
     if (workflowRunEvent == null) {
+      logger.LogError(DeserializeErrorMessage);
       throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
-        Detail = "Deserialized workflow_run event is null"
+        Detail = DeserializeErrorMessage
       });
     }
 
     if (!IsValidRepository(workflowRunEvent)) {
       var repository = workflowRunEvent.WorkflowRun.Repository.FullName;
+      logger.LogError("Webhook received from invalid repository: {Repository}", repository);
       throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status403Forbidden) {
         Detail = $"Webhook received from invalid repository: {repository}"
       });
@@ -43,13 +49,15 @@ public class WorkflowRunWebhookProcessor(
     var workflowName = workflowRunEvent.WorkflowRun.Name;
 
     if (string.IsNullOrEmpty(workflowName)) {
+      logger.LogError(WorkflowRunEmptyMessage);
       throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
-        Detail = "Workflow run name is null or empty"
+        Detail = WorkflowRunEmptyMessage
       });
     }
 
     var instanceId = ExtractInstanceId(workflowName);
     if (instanceId == null) {
+      logger.LogError("Invalid workflow run name format: {WorkflowName}. Expected format: '{ExpectedPrefix}instanceId'", workflowName, WorkflowRunNamePrefix);
       throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
         Detail = $"Invalid workflow run name format: {workflowName}. Expected format: '{WorkflowRunNamePrefix}instanceId'"
       });
@@ -58,7 +66,14 @@ public class WorkflowRunWebhookProcessor(
     if (workflowName.StartsWith(FunctionAppIdentifiers.InternalApi, StringComparison.OrdinalIgnoreCase)) {
       var response = await functionAppClient.Client.PostAsync(GithubWebhooksRoute,
         new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
-      await response.EnsureNotProblemDetailAsync(cancellationToken);
+      
+      if (!response.IsSuccessStatusCode) {
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        logger.LogError("Function app webhook proxy failed. StatusCode: {StatusCode}, Response: {Response}, " +
+                        "InstanceId: {InstanceId}", response.StatusCode, responseBody, instanceId);
+      }
+      
+      await response.EnsureSuccessAsync(cancellationToken);
     }
   }
 
