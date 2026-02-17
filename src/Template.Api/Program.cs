@@ -239,7 +239,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
       TokenOptionNames.FunctionApp
     );
 
-    services.AddSingleton<WebhookEventProcessor, WorkflowRunWebhookProcessor>();
+    services.AddScoped<WebhookEventProcessor, WorkflowRunWebhookProcessor>();
   }
 }
 
@@ -264,10 +264,10 @@ void ConfigureMiddleware(WebApplication app) {
 
   app.UseCors(); // critical: this MUST be before UseAuthentication and UseAuthorization
   
-  app.UseRateLimiter();
-
   app.UseAuthentication();
   app.UseAuthorization();
+
+  app.UseRateLimiter();
 
   app.UseAppInsightsSampling();
 
