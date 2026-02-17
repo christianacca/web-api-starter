@@ -8,5 +8,5 @@ The tool can be found [here](https://github.com/microsoft/DurableFunctionsMonito
 3. Once installed make sure you are logged in to azure via the azure cli.
 4. Within VS Code go click on the Azure view in the side bar and click on durable functions.
 5. Click on the connect icon and enter the address of the storage emulator
-    * Address can be obtained from the AzureWebJobsStorage setting found [here](../src/DataServicesGateway.Functions/local.settings.json).
+    * Address can be obtained from the AzureWebJobsStorage setting found [here](../src/Template.Functions/local.settings.json).
 6. The durable function monitor will load up and allow you to track progress.
