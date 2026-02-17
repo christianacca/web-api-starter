@@ -15,7 +15,7 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
   public const string WorkflowCompletedEvent = "WorkflowCompleted";
   public const string WorkflowInProgressEvent = "WorkflowInProgress";
 
-  private const string InvalidRequestBodyMessage = "Invalid request body";
+  private const string RequestBodyNullMessage = "Request body is null";
   private const string InvalidWorkflowRunNameMessage = "Workflow run name must be in format 'WorkflowRunNamePrefix-instanceId'";
 
   private static readonly string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
@@ -36,8 +36,8 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
       throw;
     }
     if (workflowRunEvent == null) {
-      logger.LogWarning(InvalidRequestBodyMessage);
-      return new BadRequestObjectResult(InvalidRequestBodyMessage);
+      logger.LogWarning(RequestBodyNullMessage);
+      return new BadRequestObjectResult(RequestBodyNullMessage);
     }
 
     var instanceId = ExtractInstanceId(workflowRunEvent.WorkflowRun.Name);

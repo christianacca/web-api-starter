@@ -69,8 +69,7 @@ public class WorkflowRunWebhookProcessor(
       
       if (!response.IsSuccessStatusCode) {
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-        logger.LogError("Function app webhook proxy failed. StatusCode: {StatusCode}, Response: {Response}, " +
-                        "InstanceId: {InstanceId}", response.StatusCode, responseBody, instanceId);
+        logger.LogError("Function app webhook proxy failed. StatusCode: {StatusCode}, Response: {Response}", response.StatusCode, responseBody);
       }
       
       await response.EnsureSuccessAsync(cancellationToken);
