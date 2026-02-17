@@ -110,6 +110,7 @@ void ConfigureLogging(IHostBuilder host) {
       .MinimumLevel.Override(typeof(TokenServiceFactory).Namespace ?? "", LogEventLevel.Information)
       .MinimumLevel.Override(typeof(ProblemDetailsMiddleware).Namespace ?? "", LogEventLevel.Warning)
       .MinimumLevel.Override(typeof(DeveloperExceptionPageMiddleware).Namespace ?? "", LogEventLevel.Warning)
+      .MinimumLevel.Override("Octokit.Webhooks", LogEventLevel.Error)
       .ReadFrom.Configuration(context.Configuration)
       .Enrich.FromLogContext()
       .ReadFrom.Services(services)
