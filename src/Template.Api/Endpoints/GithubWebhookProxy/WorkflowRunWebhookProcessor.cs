@@ -1,5 +1,4 @@
 using CcAcca.ProblemDetails.Helpers;
-using Hellang.Middleware.ProblemDetails;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using Octokit.Webhooks;
@@ -33,34 +32,26 @@ public class WorkflowRunWebhookProcessor(
     var workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent?>(body);
     if (workflowRunEvent == null) {
       logger.LogError(DeserializeErrorMessage);
-      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
-        Detail = DeserializeErrorMessage
-      });
+      throw new InvalidOperationException(DeserializeErrorMessage);
     }
 
     if (!IsValidRepository(workflowRunEvent)) {
       var repository = workflowRunEvent.WorkflowRun.Repository.FullName;
       logger.LogError("Webhook received from invalid repository: {Repository}", repository);
-      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status403Forbidden) {
-        Detail = $"Webhook received from invalid repository: {repository}"
-      });
+      throw new UnauthorizedAccessException($"Webhook received from invalid repository: {repository}");
     }
 
     var workflowName = workflowRunEvent.WorkflowRun.Name;
 
     if (string.IsNullOrEmpty(workflowName)) {
       logger.LogError(WorkflowRunEmptyMessage);
-      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
-        Detail = WorkflowRunEmptyMessage
-      });
+      throw new ArgumentException(WorkflowRunEmptyMessage, nameof(workflowName));
     }
 
     var instanceId = ExtractInstanceId(workflowName);
     if (instanceId == null) {
       logger.LogError("Invalid workflow run name format: {WorkflowName}. Expected format: '{ExpectedPrefix}instanceId'", workflowName, WorkflowRunNamePrefix);
-      throw new ProblemDetailsException(new StatusCodeProblemDetails(StatusCodes.Status400BadRequest) {
-        Detail = $"Invalid workflow run name format: {workflowName}. Expected format: '{WorkflowRunNamePrefix}instanceId'"
-      });
+      throw new FormatException($"Invalid workflow run name format: {workflowName}. Expected format: '{WorkflowRunNamePrefix}instanceId'");
     }
 
     if (workflowName.StartsWith(FunctionAppIdentifiers.InternalApi, StringComparison.OrdinalIgnoreCase)) {
