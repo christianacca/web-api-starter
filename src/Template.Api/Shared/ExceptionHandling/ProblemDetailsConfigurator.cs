@@ -12,6 +12,13 @@ public static class ProblemDetailsConfigurator {
     c.MapToStatusCode<DBConcurrencyException>(StatusCodes.Status409Conflict);
     c.MapToStatusCode<DbUpdateConcurrencyException>(StatusCodes.Status409Conflict);
     c.MapToStatusCode<NotImplementedException>(StatusCodes.Status501NotImplemented);
+    c.Map<HttpRequestException>((_, ex) => {
+      var statusCode = ex.StatusCode.HasValue
+        ? (int)ex.StatusCode.Value
+        : StatusCodes.Status500InternalServerError;
+
+      return StatusCodeProblemDetails(ex, statusCode);
+    });
     c.Map<Exception>((context, ex) => {
       var cancelledProblemDetails = ex is OperationCanceledException canceledEx
         ? OperationCancelledExceptionProblemDetails.Create(context, canceledEx)
