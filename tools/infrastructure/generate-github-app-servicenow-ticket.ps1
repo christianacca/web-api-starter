@@ -46,10 +46,17 @@
             
             $separator = "─" * 61
             
-            $subject = "GitHub App Creation Request - $githubAppName"
+            $requestTitle = "GitHub App Creation Request - $githubAppName"
+            $requestType = "General IT Request"
+            $priority = "3 - Moderate"
             
-            $body = @"
-Request Type: GitHub App Creation
+            $description = @"
+Purpose:
+This GitHub App is required to enable workflow orchestration for the $EnvironmentName environment for 
+the Agora Insights Gateway Application. 
+The application uses GitHub Apps to securely authenticate with GitHub and receive webhook notifications 
+when workflows complete. This allows the application to monitor and respond to GitHub Actions workflow 
+execution, enabling us to automate various tasks by using github workflows.
 
 Environment Details:
 - Environment Name: $EnvironmentName
@@ -80,17 +87,24 @@ Next Steps:
    - Private key .pem file (securely)
    - Webhook secret (securely)
 
-Please refer to the GitHub App Creation Guide for detailed instructions:
-https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md
+Please refer to the GitHub App Creation Guide - GitHub Admin Team Responsibilities:
+https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team-responsibilities
 "@
 
-            Write-Host "`nServiceNow Ticket Subject:" -ForegroundColor Cyan
+            Write-Host "`nServiceNow Ticket Details:" -ForegroundColor Cyan
             Write-Host $separator -ForegroundColor Gray
-            Write-Host $subject -ForegroundColor White
             Write-Host ""
-            Write-Host "ServiceNow Ticket Body:" -ForegroundColor Cyan
-            Write-Host $separator -ForegroundColor Gray
-            Write-Host $body -ForegroundColor White
+            Write-Host "Request Title:" -ForegroundColor Yellow
+            Write-Host $requestTitle -ForegroundColor White
+            Write-Host ""
+            Write-Host "Request Type:" -ForegroundColor Yellow
+            Write-Host $requestType -ForegroundColor White
+            Write-Host ""
+            Write-Host "Priority:" -ForegroundColor Yellow
+            Write-Host $priority -ForegroundColor White
+            Write-Host ""
+            Write-Host "Description:" -ForegroundColor Yellow
+            Write-Host $description -ForegroundColor White
             Write-Host ""
             Write-Host "✓ Copy the above information and create a ServiceNow ticket" -ForegroundColor Green
             Write-Host ""

@@ -3,21 +3,19 @@
       Upload GitHub App credentials to Azure Key Vault
       
       .DESCRIPTION
-      Uploads GitHub App private key to Azure Key Vault. Optionally uploads webhook secret 
-      if -WebhookSecret parameter is provided. Webhook secret must be provided by the user 
-      (empty values are not allowed). Uploads as 'Github--PrivateKeyPem' and 
-      optionally 'Github--WebhookSecret'.
+      Uploads GitHub App private key and/or webhook secret to Azure Key Vault. 
+      At least one of -PemFilePath or -WebhookSecret must be provided.
+      Uploads as 'Github--PrivateKeyPem' and/or 'Github--WebhookSecret'.
       
       .PARAMETER EnvironmentName
       Environment name (dev, qa, rel, demo, staging, prod-*, etc.)
       
       .PARAMETER PemFilePath
-      Path to GitHub App private key (.pem file)
+      Optional path to GitHub App private key (.pem file). If provided, uploads the private key.
       
       .PARAMETER WebhookSecret
-      Optional webhook secret. Only uploads webhook secret if this parameter is provided.
-      Must be a non-empty value provided by the user.
-      If not provided at all, skips webhook secret upload (useful for private key rotation).
+      Optional webhook secret. If provided, uploads the webhook secret.
+      Must be a non-empty value.
       
       .PARAMETER Dry
       Dry run mode - shows what would be uploaded without uploading
@@ -39,8 +37,12 @@
       Uploads only private key, skips webhook secret
       
       .EXAMPLE
+      ./upload-github-app-secrets.ps1 -EnvironmentName prod-na -WebhookSecret "my-secret"
+      Uploads only webhook secret, skips private key
+      
+      .EXAMPLE
       ./upload-github-app-secrets.ps1 -EnvironmentName prod-na -PemFilePath "./app.pem" -WebhookSecret "my-secret"
-      Uploads private key and specified webhook secret
+      Uploads both private key and webhook secret
       
       .EXAMPLE
       ./upload-github-app-secrets.ps1 -EnvironmentName dev -PemFilePath "./app.pem" -SkipInstallModules
@@ -52,7 +54,6 @@
         [Parameter(Mandatory)]
         [string] $EnvironmentName,
     
-        [Parameter(Mandatory)]
         [string] $PemFilePath,
     
         [string] $WebhookSecret,
@@ -81,6 +82,10 @@
                 throw "EnvironmentName '$EnvironmentName' is not valid. Valid values are: $($environments -join ', ')"
             }
 
+            if (-not $PSBoundParameters.ContainsKey('PemFilePath') -and -not $PSBoundParameters.ContainsKey('WebhookSecret')) {
+                throw "At least one of -PemFilePath or -WebhookSecret must be provided."
+            }
+
             $modules = @(Get-AzModuleInfo)
             Install-ScriptDependency -ImportOnly:$SkipInstallModules -ModuleInstallAllowClobber:$ModuleInstallAllowClobber -Module $modules
     
@@ -97,18 +102,23 @@
                 throw "Could not determine Key Vault name for environment '$EnvironmentName'. Check product conventions."
             }
     
-            if (-not (Test-Path $PemFilePath)) {
-                throw "PEM file not found: $PemFilePath"
-            }
-    
-            $PemFilePath = Resolve-Path $PemFilePath | Select-Object -ExpandProperty Path
-            
-            $pemContent = Get-Content $PemFilePath -Raw
-            if ($pemContent -notmatch "-----BEGIN.*PRIVATE KEY-----") {
-                throw "File does not appear to be a valid PEM private key file: $PemFilePath"
-            }
-    
+            $shouldUploadPemFile = $PSBoundParameters.ContainsKey('PemFilePath')
             $shouldUploadWebhookSecret = $PSBoundParameters.ContainsKey('WebhookSecret')
+    
+            if ($shouldUploadPemFile) {
+                if (-not (Test-Path $PemFilePath)) {
+                    throw "PEM file not found: $PemFilePath"
+                }
+        
+                $PemFilePath = Resolve-Path $PemFilePath | Select-Object -ExpandProperty Path
+                
+                $pemContent = Get-Content $PemFilePath -Raw
+                if ($pemContent -notmatch "-----BEGIN.*PRIVATE KEY-----") {
+                    throw "File does not appear to be a valid PEM private key file: $PemFilePath"
+                }
+            } else {
+                Write-Host "Skipping private key upload (not provided)" -ForegroundColor Yellow
+            }
             
             if ($shouldUploadWebhookSecret) {
                 if ([string]::IsNullOrEmpty($WebhookSecret)) {
@@ -123,16 +133,19 @@
                 'GitHub App Name'       = $githubAppName
                 'GitHub App Slug'       = $githubAppSlug
                 'GitHub Webhook URL'    = $webhookUrl
+                'Private Key'           = if ($shouldUploadPemFile) { '(uploading)' } else { '(not uploading)' }
                 'Webhook Secret'        = if ($shouldUploadWebhookSecret) { '************ (provided)' } else { '(not uploading)' }
             }
     
             if (-not $Dry) {
-                Invoke-Exe {
-                    az keyvault secret set `
-                        --vault-name $keyVaultName `
-                        --name "Github--PrivateKeyPem" `
-                        --file $PemFilePath `
-                        --output none
+                if ($shouldUploadPemFile) {
+                    Invoke-Exe {
+                        az keyvault secret set `
+                            --vault-name $keyVaultName `
+                            --name "Github--PrivateKeyPem" `
+                            --file $PemFilePath `
+                            --output none
+                    }
                 }
                 
                 if ($shouldUploadWebhookSecret) {
@@ -153,7 +166,9 @@
                 Write-Host "`n[DRY RUN] Configuration Details:" -ForegroundColor Magenta
                 $configSummary | Format-Table -AutoSize
                 Write-Host "`n[DRY RUN] Would upload to Key Vault: $keyVaultName" -ForegroundColor Magenta
-                Write-Host "  - Github--PrivateKeyPem (from: $PemFilePath)" -ForegroundColor Magenta
+                if ($shouldUploadPemFile) {
+                    Write-Host "  - Github--PrivateKeyPem (from: $PemFilePath)" -ForegroundColor Magenta
+                }
                 if ($shouldUploadWebhookSecret) {
                     Write-Host "  - Github--WebhookSecret" -ForegroundColor Magenta
                 }

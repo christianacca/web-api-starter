@@ -37,11 +37,11 @@
 
             $separator = "─" * 61
 
-            $subject = "GitHub App Private Key Rotation Request - $githubAppName"
+            $requestTitle = "GitHub App Private Key Rotation Request - $githubAppName"
+            $requestType = "General IT Request"
+            $priority = "3 - Moderate"
             
-            $body = @"
-Request Type: GitHub App Private Key Rotation
-
+            $description = @"
 GitHub App Information:
 - GitHub App Name: $githubAppName
 - Environment: $EnvironmentName
@@ -67,17 +67,24 @@ Rotation Process:
    - Delete the OLD private key from GitHub App settings
    - Confirm deletion
 
-Please refer to the GitHub App Creation Guide - Security and Private Key Management section:
-https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#security-and-private-key-management
+Please refer to the GitHub App Creation Guide - Private Key Rotation section:
+https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team---generate-new-private-key
 "@
 
-            Write-Host "`nServiceNow Ticket Subject:" -ForegroundColor Cyan
+            Write-Host "`nServiceNow Ticket Details:" -ForegroundColor Cyan
             Write-Host $separator -ForegroundColor Gray
-            Write-Host $subject -ForegroundColor White
             Write-Host ""
-            Write-Host "ServiceNow Ticket Body:" -ForegroundColor Cyan
-            Write-Host $separator -ForegroundColor Gray
-            Write-Host $body -ForegroundColor White
+            Write-Host "Request Title:" -ForegroundColor Yellow
+            Write-Host $requestTitle -ForegroundColor White
+            Write-Host ""
+            Write-Host "Request Type:" -ForegroundColor Yellow
+            Write-Host $requestType -ForegroundColor White
+            Write-Host ""
+            Write-Host "Priority:" -ForegroundColor Yellow
+            Write-Host $priority -ForegroundColor White
+            Write-Host ""
+            Write-Host "Description:" -ForegroundColor Yellow
+            Write-Host $description -ForegroundColor White
             Write-Host ""
             Write-Host "✓ Copy the above information and create a ServiceNow ticket" -ForegroundColor Green
             Write-Host ""
