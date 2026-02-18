@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -8,6 +7,10 @@ using Template.Functions.Shared;
 namespace Template.Functions;
 
 public class GetUser {
+  private class GetUserRequest {
+    public string? Name { get; set; }
+  }
+
   private ITokenValidator TokenValidator { get; }
   private ILogger<GetUser> Logger { get; }
 
@@ -19,7 +22,8 @@ public class GetUser {
   [Function("User")]
   public async Task<IActionResult> Run(
     [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)]
-    HttpRequest req) {
+    HttpRequest req,
+    CancellationToken cancellationToken = default) {
     Logger.LogInformation("{FuncClass}... HTTP trigger function processed a request", nameof(GetUser));
 
     var user = await TokenValidator.ValidateBearerTokenAsync(req.Headers);
@@ -34,10 +38,14 @@ public class GetUser {
 
     string? name = req.Query["name"];
 
-    string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-
-    dynamic? data = string.IsNullOrWhiteSpace(requestBody) ? null : JsonSerializer.Deserialize<dynamic>(requestBody);
-    name ??= data?.name ?? "";
+    if (string.IsNullOrWhiteSpace(name) && req.ContentLength > 0) {
+      var modelResult = await req.TryReadFromJsonAsync<GetUserRequest>(cancellationToken);
+      if (modelResult.IsSuccess) {
+        name = modelResult.Value.Name;
+      }
+    }
+    
+    name ??= "";
 
     var userDto = new { Id = user.Identity?.Name, Name = name };
 

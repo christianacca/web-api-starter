@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -7,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Octokit.Webhooks.Events;
 using Octokit.Webhooks.Events.WorkflowRun;
 using Octokit.Webhooks.Models;
+using Template.Functions.Shared;
 using Template.Shared.Github;
 using Template.Shared.Proxy;
 
@@ -16,7 +16,6 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
   public const string WorkflowCompletedEvent = "WorkflowCompleted";
   public const string WorkflowInProgressEvent = "WorkflowInProgress";
 
-  private const string RequestBodyNullMessage = "Request body is null";
   private const string InvalidWorkflowRunNameMessage = "Workflow run name must be in format 'WorkflowRunNamePrefix-instanceId'";
 
   private static readonly string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
@@ -27,19 +26,10 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
     [DurableClient] DurableTaskClient client,
     CancellationToken cancellationToken = default) {
 
-    var requestBody = await new StreamReader(req.Body).ReadToEndAsync(cancellationToken);
-
-    WorkflowRunEvent? workflowRunEvent;
-    try {
-      workflowRunEvent = JsonSerializer.Deserialize<WorkflowRunEvent>(requestBody);
-    } catch (Exception ex) {
-      logger.LogError(ex, "Failed to deserialize webhook request body");
-      throw;
-    }
-    if (workflowRunEvent == null) {
-      logger.LogWarning(RequestBodyNullMessage);
-      return new BadRequestObjectResult(RequestBodyNullMessage);
-    }
+    var modelResult = await req.TryReadFromJsonAsync<WorkflowRunEvent>(cancellationToken);
+    if (!modelResult.IsSuccess) return modelResult.Error;
+    
+    var workflowRunEvent = modelResult.Value;
 
     var instanceId = WorkflowRunHelper.ExtractInstanceId(workflowRunEvent.WorkflowRun.Name, WorkflowRunNamePrefix);
     if (instanceId == null) {
