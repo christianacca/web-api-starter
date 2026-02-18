@@ -127,6 +127,9 @@ Before creating a GitHub App, ensure you have the necessary permissions:
 ### Step 1: Create GitHub App
 
 1. Navigate to your **GitHub Organization page** → **Settings** → **GitHub Apps** → **New GitHub App**
+
+![Organization GitHub Apps Page](assets/organisation-github-app-page.png)
+
 2. Configure basic information:
    - **GitHub App name**: Use the exact name from the ServiceNow ticket
    - Example: `Web API Starter (dev)`, `Web API Starter (prod-na)`
@@ -211,6 +214,9 @@ The GitHub App must be installed to the `christianacca/web-api-starter` reposito
 
 1. In the left sidebar of your GitHub App settings, click **Install App**
 2. Select the **christianacca** user account
+
+![GitHub Repository or Organization Selection](assets/github%20repo%20or%20org%20select%20page.png)
+
 3. Choose repository access:
    - Select **Only select repositories**
    - Select the **web-api-starter** repository
@@ -218,6 +224,10 @@ The GitHub App must be installed to the `christianacca/web-api-starter` reposito
    - Ensure they match the permissions configured in Step 2
    - The selected repository will have the GitHub App installed with these permissions
 5. Click **Install** to complete the installation
+   - **Note**: Only organization owners can install to any repository in the organization. Repository admins can only install to repositories they administer. If you don't have the necessary permissions, you will see a **Request** button instead, which requires approval from an organization owner
+
+![Installing GitHub App Request](assets/installing%20github%20app%20request.png)
+
 
 #### Post-Installation Verification
 
@@ -225,7 +235,7 @@ After installation, verify the app is correctly installed:
 
 1. Navigate to the `christianacca/web-api-starter` repository
 2. Go to **Settings** → **Integrations** → **GitHub Apps**
-3. Confirm your GitHub App appears in the list of installed apps
+3. Confirm your GitHub App appears in the list of installed apps and click **Configure**
 4. Verify the app has the correct permissions (Actions: Read & Write, Metadata: Read)
 
 ### Step 8: Get Installation ID
