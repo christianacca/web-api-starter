@@ -48,7 +48,7 @@ public class WorkflowRunWebhookProcessor(
       throw new ArgumentException(WorkflowRunEmptyMessage, nameof(workflowName));
     }
 
-    var instanceId = ExtractInstanceId(workflowName);
+    var instanceId = WorkflowRunHelper.ExtractInstanceId(workflowName, WorkflowRunNamePrefix);
     if (instanceId == null) {
       logger.LogError("Invalid workflow run name format: {WorkflowName}. Expected format: '{ExpectedPrefix}instanceId'", workflowName, WorkflowRunNamePrefix);
       throw new FormatException($"Invalid workflow run name format: {workflowName}. Expected format: '{WorkflowRunNamePrefix}instanceId'");
@@ -73,11 +73,5 @@ public class WorkflowRunWebhookProcessor(
   private bool IsValidRepository(WorkflowRunEvent workflowEvent) {
     var expectedRepoFullName = $"{appOptions.CurrentValue.Owner}/{appOptions.CurrentValue.Repo}";
     return workflowEvent.WorkflowRun.Repository.FullName.Equals(expectedRepoFullName, StringComparison.OrdinalIgnoreCase);
-  }
-
-  private static string? ExtractInstanceId(string workflowRunName) {
-    return !workflowRunName.StartsWith(WorkflowRunNamePrefix, StringComparison.OrdinalIgnoreCase)
-      ? null
-      : workflowRunName[WorkflowRunNamePrefix.Length..];
   }
 }
