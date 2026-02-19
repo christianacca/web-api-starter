@@ -87,7 +87,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"workflowFile\": \"webhook-integration-test.yml\",\n    \"reRunEntireWorkflow\": true\n}",
+              "raw": "{\n    \"WorkflowFile\": \"webhook-integration-test.yml\",\n    \"ReRunEntireWorkflow\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
