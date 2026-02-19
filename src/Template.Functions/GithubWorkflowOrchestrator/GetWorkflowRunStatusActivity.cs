@@ -24,7 +24,13 @@ public class GetWorkflowRunStatusActivity(
     try {
       var workflowRun = await client.Actions.Workflows.Runs.Get(options.Owner, options.Repo, runId);
 
-      workflowRun.Status.TryParse(out var status);
+      if (!workflowRun.Status.TryParse(out var status)) {
+        logger.LogWarning(
+          "Failed to parse workflow run status '{Status}' for run {RunId} in {Owner}/{Repo}",
+          workflowRun.Status, runId, options.Owner, options.Repo);
+        return null;
+      }
+
       if (workflowRun.Conclusion.HasValue && workflowRun.Conclusion.Value.TryParse(out var conclusion)) {
         return new WorkflowRunInfo(status, conclusion, workflowRun.RunAttempt);
       }
