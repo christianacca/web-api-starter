@@ -7,10 +7,10 @@ param sharedSettings acaSharedSettingsType
 var location = instanceSettings.ResourceLocation
 
 var initialAppImage = 'mcr.microsoft.com/dotnet/samples:aspnetapp'
-var appImage = exists ? existingApp.properties.template.containers[0].image : initialAppImage
+var appImage = existingApp.?properties.template.containers[0].image ?? initialAppImage
 // initial image does not define a http health endpoint at the path we want for our image, therefore for a reasonable
 // default exerience when creating the container app for the first time fallback to defaults that container-apps will configure
-var isInitialContainerImage = exists ? existingApp.properties.template.containers[0].image == initialAppImage : true
+var isInitialContainerImage = (existingApp.?properties.template.containers[0].image ?? initialAppImage) == initialAppImage
 
 // 8080 which is the default for all .net 8 apps now
 var exposedContainerPort = 8080
@@ -68,7 +68,7 @@ module appEnvVars 'desired-env-vars.bicep' = {
         value: sharedSettings.appInsightsConnectionString
       }
     ]
-    existingEnvVars: exists ? existingApp.properties.template.containers[0].?env ?? [] : []
+    existingEnvVars: exists ? existingApp.?properties.template.containers[0].?env ?? [] : []
   }
 }
 

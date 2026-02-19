@@ -31,7 +31,8 @@ resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
+        customerId: logAnalyticsWorkspace.?properties.customerId
+        #disable-next-line BCP422
         sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
       }
     }

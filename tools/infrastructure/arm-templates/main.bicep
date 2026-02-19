@@ -183,6 +183,7 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
 }
 
 var acaPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
+#disable-next-line BCP318
 var acaFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
 
 // ---------- End: ACA environments -----------
