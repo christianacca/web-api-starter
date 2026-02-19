@@ -33,6 +33,7 @@ runs:
               break
             }
           } catch {
+            Write-Warning "Failed to check environment '$env' for actor '$actor': $_" 
             # Continue to next environment if check fails
           }
         }
