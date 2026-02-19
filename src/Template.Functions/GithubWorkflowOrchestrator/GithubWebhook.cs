@@ -7,7 +7,6 @@ using Octokit.Webhooks.Events;
 using Octokit.Webhooks.Events.WorkflowRun;
 using Octokit.Webhooks.Models;
 using Template.Functions.Shared;
-using Template.Shared.Github;
 using Template.Shared.Proxy;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
@@ -31,7 +30,7 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
     
     var workflowRunEvent = modelResult.Value;
 
-    var instanceId = WorkflowRunHelper.ExtractInstanceId(workflowRunEvent.WorkflowRun.Name, WorkflowRunNamePrefix);
+    var instanceId = ExtractInstanceId(workflowRunEvent.WorkflowRun.Name);
     if (instanceId == null) {
       logger.LogWarning("Failed to extract instance ID from workflow run name: {WorkflowRunName}", workflowRunEvent.WorkflowRun.Name);
       return new BadRequestObjectResult(InvalidWorkflowRunNameMessage);
@@ -57,5 +56,11 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
 
     logger.LogWarning("Received workflow event with unmapped action/status combination. Action: {Action}, Status: {Status}",
       workflowEvent.Action, workflowEvent.WorkflowRun.Status);
+  }
+
+  private static string? ExtractInstanceId(string workflowRunName) {
+    return !workflowRunName.StartsWith(WorkflowRunNamePrefix, StringComparison.OrdinalIgnoreCase)
+      ? null
+      : workflowRunName[WorkflowRunNamePrefix.Length..];
   }
 }
