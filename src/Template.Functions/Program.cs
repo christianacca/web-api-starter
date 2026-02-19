@@ -1,4 +1,5 @@
 using Azure.Core;
+using Azure.Core.Serialization;
 using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
@@ -8,11 +9,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using Template.Functions.Shared;
 using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Functions.Shared.HttpContextAccessor;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
+using Template.Shared.Extensions;
 using Template.Shared.Github;
 
 var builder = FunctionsApplication.CreateBuilder(args);
@@ -72,6 +75,15 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services.AddGithubServices("Github");
 
   ConfigureAzureClients(configuration, services);
+
+  services.Configure<WorkerOptions>(options => {
+    var jsonOptions = new JsonSerializerOptions();
+    jsonOptions.ConfigureStandardOptions();
+    options.Serializer = new JsonObjectSerializer(jsonOptions);
+  });
+
+  services.AddMvcCore(options => options.RemoveStringOutputFormatter())
+    .AddJsonOptions(options => options.ConfigureStandardJsonOptions());
 }
 
 void ConfigureAzureClients(IConfiguration configuration, IServiceCollection services) {

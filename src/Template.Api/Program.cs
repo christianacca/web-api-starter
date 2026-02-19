@@ -20,7 +20,6 @@ using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 using System.Reflection;
-using System.Text.Json.Serialization;
 using Template.Api.Endpoints.Configurations;
 using Template.Api.Endpoints.GithubWebhookProxy;
 using Template.Api.Shared;
@@ -30,6 +29,7 @@ using Template.Api.Shared.Proxy;
 using Template.Shared.Azure.ConfigStore;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
+using Template.Shared.Extensions;
 using Template.Shared.Github;
 using Template.Shared.Util;
 
@@ -146,7 +146,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services.AddControllers(o => {
     // tweaks to built-in non-success http responses
     o.Conventions.Add(new NotFoundResultApiConvention());
-  }).AddJsonOptions(o => o.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+  }).AddJsonOptions(o => o.JsonSerializerOptions.ConfigureStandardOptions());
 
   services.AddCors(ServiceConfiguration.ConfigureCors);
 
