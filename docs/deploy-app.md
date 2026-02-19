@@ -498,7 +498,7 @@ specifically, the example with the description "Returns tables describing all Az
 ### Prerequisites
 
 * [az-cli](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (**minimum vs 2.39.0**), required to run dev scripts
-* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs v0.31.92**). **IMPORTANT**, ensure you have the minimum version installed as the
+* [Azure bicep cli](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install#install-manually) (**minimum vs v0.40.2**). **IMPORTANT**, ensure you have the minimum version installed as the
   standalone cli and the one packaged by az-cli.
   * Both standalone and packed version are required and can be installed by following the [official guide](https://learn.microsoft.com/en-gb/azure/azure-resource-manager/bicep/install))
   * To upgrade the packaged version run: `az bicep upgrade`

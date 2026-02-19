@@ -1,13 +1,15 @@
+import { findFirstBy, unionBy } from 'utils.bicep'
+import { environmentVarType } from 'br/public:avm/res/app/container-app:0.20.0'
+
 @description('List of environment variables that are required for this deployment')
-param envVars array
+param envVars environmentVarType[]
 
 @description('List of existing environment variables already deployed')
-param existingEnvVars array
+param existingEnvVars environmentVarType[]
 
 @description('(Optional) Name of environment variable that will be set that maintains the names of the environment variables to diff against the next deployment')
 param metadataKeyName string = '__DeployMetadata__InfraVarKeys'
 
-import { findFirstBy, unionBy } from 'utils.bicep'
 
 // definition of environment variables is often split between infrastructure and application concerns. 
 // because of this split of maintance, we need to ensure that when we set the desired state of environment vars here, we preserve
@@ -30,4 +32,4 @@ var desiredEnvVars = sort(
   (a, b) => a.name < b.name
 )
 
-output desiredEnvVars array = desiredEnvVars
+output desiredEnvVars environmentVarType[] = desiredEnvVars

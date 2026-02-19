@@ -4,7 +4,7 @@ extension microsoftGraphV1
 param allowedPrincipalIds string[] = []
 
 @description('List of origins that should be allowed to make cross-origin\ncalls')
-param corsAllowedOrigins array = []
+param corsAllowedOrigins string[] = []
 
 @description('Specify whether CORS requests with credentials are allowed. See\nhttps://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#Requests_with_credentials\nfor more details')
 param corsSupportCredentials bool = false
@@ -16,7 +16,7 @@ param functionAppName string
 param location string = resourceGroup().location
 
 @description('A list of Resource ID of the user-assigned managed identities, in the form of /subscriptions/<subscriptionId>/resourceGroups/<ResourceGroupName>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<managedIdentity>.')
-param managedIdentityResourceIds array
+param managedIdentityResourceIds string[]
 
 @description('The name of the Storage Account')
 param storageAccountName string = toLower('funcsa${uniqueString(resourceGroup().id)}')
