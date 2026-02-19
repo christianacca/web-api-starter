@@ -75,6 +75,7 @@ public class GithubWorkflowOrchestrator {
     var workflowStatus = await context.CallActivityAsync<WorkflowRunInfo?>(nameof(GetWorkflowRunStatusActivity), runId);
 
     if (workflowStatus is not { Status: WorkflowRunStatus.Completed }) {
+      // If the workflow is incomplete or fails to fetch, execution stops to prevent duplicate triggers. If needed, add a prerequisite step to ensure prior workflows complete before this one runs.
       return true;
     }
 

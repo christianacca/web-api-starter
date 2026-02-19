@@ -205,9 +205,9 @@ jobs:
 - You can add any additional workflow logic, jobs, and steps as needed
 - The workflow can be triggered manually or via other triggers, but `workflow_dispatch` is required for orchestration
 - **Rate Limiting**: The GitHub webhook endpoint is protected by rate limiting to prevent abuse:
-  - Default: 100 requests per 60-second window
+  - Default: 100 requests per 1-minute window
   - Configurable via `RateLimiting:GithubWebhook` section in API `appsettings.json`
-  - Uses fixed window rate limiting with oldest-first queue processing
+  - Uses fixed window rate limiting (excess requests are rejected immediately by default)
 
 ---
 
@@ -252,8 +252,9 @@ The API application includes rate limiting for the GitHub webhook endpoint to pr
   "RateLimiting": {
     "GithubWebhook": {
       "PermitLimit": 100,
-      "WindowInSeconds": 60,
-      "Enabled": true
+      "Window": "00:01:00",
+      "QueueProcessingOrder": "OldestFirst",
+      "QueueLimit": 0
     }
   }
 }
@@ -261,14 +262,15 @@ The API application includes rate limiting for the GitHub webhook endpoint to pr
 
 **Configuration Parameters:**
 - `PermitLimit`: Maximum number of requests allowed within the time window (default: 100)
-- `WindowInSeconds`: Time window in seconds for the rate limit (default: 60, max: 3600)
-- `Enabled`: Whether rate limiting is enabled (default: true, recommended to disable in development)
+- `Window`: Time window for the rate limit as a TimeSpan (default: "00:01:00" for 1 minute, supports standard TimeSpan format like "00:00:30" for 30 seconds or "01:00:00" for 1 hour)
+- `QueueProcessingOrder`: Order in which queued requests are processed (default: "OldestFirst", alternative: "NewestFirst")
+- `QueueLimit`: Maximum number of requests that can be queued when limit is reached (default: 0, meaning no queueing - requests are rejected immediately)
 
 **Behavior:**
-- Uses fixed window rate limiting algorithm
+- Uses fixed window rate limiting algorithm (FixedWindowRateLimiterOptions)
 - Requests exceeding the limit receive HTTP 429 (Too Many Requests) response
-- Queued requests are processed in oldest-first order
-- No queue for rejected requests (QueueLimit: 0)
+- With `QueueLimit: 0`, no requests are queued - all excess requests are rejected immediately
+- If `QueueLimit` is increased, queued requests are processed according to `QueueProcessingOrder`
 
 ### Reverse Proxy Routing
 
@@ -648,7 +650,7 @@ Use the Postman collection located at `tests/postman/api.postman_collection.json
 - **Azure Managed Identity**: Service-to-service authentication between API and Functions using Azure MI tokens
 - **instanceId Extraction**: Orchestrator instanceId is extracted from the workflow name, ensuring events route to correct orchestration
 - **Type-Safe Deserialization**: Octokit.Webhooks provides strongly-typed payload deserialization with validation
-- **Rate Limiting**: Webhook endpoint is protected by rate limiting (100 requests per 60 seconds by default)
+- **Rate Limiting**: Webhook endpoint is protected by rate limiting (100 requests per 1-minute window by default, excess requests rejected immediately)
 - **Endpoint Isolation**: Functions webhook endpoint is never exposed publicly; only accessible via authenticated API proxy
 
 
