@@ -53,7 +53,7 @@
             $description = @"
 Purpose:
 This GitHub App is required to enable workflow orchestration for the $EnvironmentName environment for 
-the Agora Insights Gateway Application. 
+the Web API starter Project
 The application uses GitHub Apps to securely authenticate with GitHub and receive webhook notifications 
 when workflows complete. This allows the application to monitor and respond to GitHub Actions workflow 
 execution, enabling us to automate various tasks by using github workflows.

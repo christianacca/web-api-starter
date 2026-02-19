@@ -42,6 +42,9 @@
             $priority = "3 - Moderate"
             
             $description = @"
+Purpose:
+This request is to rotate the GitHub App private key for the $EnvironmentName environment as part of regular security maintenance and compliance with industry best practices. 
+
 GitHub App Information:
 - GitHub App Name: $githubAppName
 - Environment: $EnvironmentName
