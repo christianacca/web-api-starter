@@ -48,21 +48,15 @@ public class WorkflowRunWebhookProcessor(
       throw new ArgumentException(WorkflowRunEmptyMessage, nameof(workflowName));
     }
 
-    var instanceId = ExtractInstanceId(workflowName);
-    if (instanceId == null) {
-      logger.LogError("Invalid workflow run name format: {WorkflowName}. Expected format: '{ExpectedPrefix}instanceId'", workflowName, WorkflowRunNamePrefix);
-      throw new FormatException($"Invalid workflow run name format: {workflowName}. Expected format: '{WorkflowRunNamePrefix}instanceId'");
-    }
-
     if (workflowName.StartsWith(FunctionAppIdentifiers.InternalApi, StringComparison.OrdinalIgnoreCase)) {
       var response = await functionAppClient.Client.PostAsync(GithubWebhooksRoute,
-        new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
-      
+          new StringContent(body, System.Text.Encoding.UTF8, "application/json"), cancellationToken);
+
       if (!response.IsSuccessStatusCode) {
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         logger.LogError("Function app webhook proxy failed. StatusCode: {StatusCode}, Response: {Response}", response.StatusCode, responseBody);
       }
-      
+
       await response.EnsureSuccessAsync(cancellationToken);
       return;
     }
@@ -73,11 +67,5 @@ public class WorkflowRunWebhookProcessor(
   private bool IsValidRepository(WorkflowRunEvent workflowEvent) {
     var expectedRepoFullName = $"{appOptions.CurrentValue.Owner}/{appOptions.CurrentValue.Repo}";
     return workflowEvent.WorkflowRun.Repository.FullName.Equals(expectedRepoFullName, StringComparison.OrdinalIgnoreCase);
-  }
-
-  private static string? ExtractInstanceId(string workflowRunName) {
-    return !workflowRunName.StartsWith(WorkflowRunNamePrefix, StringComparison.OrdinalIgnoreCase)
-      ? null
-      : workflowRunName[WorkflowRunNamePrefix.Length..];
   }
 }
