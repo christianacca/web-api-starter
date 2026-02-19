@@ -1,5 +1,7 @@
+import { configStoreSettingsType } from 'utils.bicep'
+
 @description('List of shared Azure Configuration Stores used by the product')
-param configStores array
+param configStores configStoreSettingsType[]
 
 targetScope = 'subscription'
 

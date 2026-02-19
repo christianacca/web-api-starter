@@ -1,5 +1,7 @@
+import { containerRegistrySettingsType } from 'utils.bicep'
+
 @description('List of container registries setting objects that the product uses to push/pull docker images')
-param containerRegistries array
+param containerRegistries containerRegistrySettingsType[]
 
 targetScope = 'subscription'
 
