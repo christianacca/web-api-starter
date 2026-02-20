@@ -8,8 +8,8 @@ process {
     $config = switch ($EnvironmentName) {
         'dev' {
             @{
-                AppId          = '2800205'
-                InstallationId = '108147870'
+                AppId          = '2800136'
+                InstallationId = '108147932'
                 Pipeline = @('dev')
             }
         }
