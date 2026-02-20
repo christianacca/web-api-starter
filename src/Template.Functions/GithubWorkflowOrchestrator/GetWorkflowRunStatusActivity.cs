@@ -8,7 +8,8 @@ namespace Template.Functions.GithubWorkflowOrchestrator;
 
 public record WorkflowRunInfo(
   WorkflowRunStatus Status,
-  WorkflowRunConclusion? Conclusion);
+  WorkflowRunConclusion? Conclusion,
+  long RunAttempt);
 
 public class GetWorkflowRunStatusActivity(
   IOptionsMonitor<GithubAppOptions> optionsMonitor,
@@ -23,12 +24,18 @@ public class GetWorkflowRunStatusActivity(
     try {
       var workflowRun = await client.Actions.Workflows.Runs.Get(options.Owner, options.Repo, runId);
 
-      var status = OctokitEnumMapper.MapStatus(workflowRun.Status);
-      WorkflowRunConclusion? conclusion = workflowRun.Conclusion.HasValue 
-        ? OctokitEnumMapper.MapConclusion(workflowRun.Conclusion.Value) 
-        : null;
+      if (!workflowRun.Status.TryParse(out var status)) {
+        logger.LogWarning(
+          "Failed to parse workflow run status '{Status}' for run {RunId} in {Owner}/{Repo}",
+          workflowRun.Status, runId, options.Owner, options.Repo);
+        return null;
+      }
 
-      return new WorkflowRunInfo(status, conclusion);
+      if (workflowRun.Conclusion.HasValue && workflowRun.Conclusion.Value.TryParse(out var conclusion)) {
+        return new WorkflowRunInfo(status, conclusion, workflowRun.RunAttempt);
+      }
+
+      return new WorkflowRunInfo(status, null, workflowRun.RunAttempt);
     } catch (Exception ex) {
       logger.LogError(ex,
         "Failed to fetch workflow run status for run {RunId} in {Owner}/{Repo}",

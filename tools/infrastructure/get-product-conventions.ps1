@@ -34,6 +34,8 @@
                 }
             }
             
+            $githubAppConfig = & "$PSScriptRoot/get-product-github-app-config.ps1" -EnvironmentName $EnvironmentName
+            
             $conventionsParams = @{
                 CompanyName             =   'CLC Software'
                 ProductName             =   'Web API Starter'
@@ -93,6 +95,15 @@
                     AppAvailabilityTest =   @{ Type = 'AvailabilityTest'; Target = 'App' }
                     AppTrafficManager   =   @{ Type = 'TrafficManager'; Target = 'App' }
                     KeyVault            =   @{ Type = 'KeyVault' }
+                    Github              =   @{ 
+                        Type           = 'GithubApp'
+                        Target         = 'Api'
+                        Owner          = 'christianacca'
+                        Repo           = 'web-api-starter'
+                        AppId          = $githubAppConfig.AppId
+                        InstallationId = $githubAppConfig.InstallationId
+                        Pipeline       = $githubAppConfig.Pipeline
+                    }
 #                     Web                 =   @{ Type = 'AcaApp'; IsMainUI = $true }
                 }
                 CliPrincipals           =   & "$PSScriptRoot/get-product-azure-connections.ps1" -PropertyName principalId

@@ -1,15 +1,16 @@
 # Add a new environment
 
 <!-- TOC -->
-* [Add a new environment](#add-a-new-environment)
-  * [1. Create github environment](#1-create-github-environment)
-  * [2. Authenticate github actions with Azure](#2-authenticate-github-actions-with-azure)
-  * [3. Initial setup of deployment scripts and github workflows](#3-initial-setup-of-deployment-scripts-and-github-workflows)
-  * [4. Configure DNS and TLS](#4-configure-dns-and-tls)
-  * [5. Configure okta](#5-configure-okta)
-  * [6. Deploy infrastructure](#6-deploy-infrastructure)
-  * [7. Deploy application code](#7-deploy-application-code)
-  * [8. Test the application](#8-test-the-application)
+- [Add a new environment](#add-a-new-environment)
+  - [1. Create github environment](#1-create-github-environment)
+  - [2. Authenticate github actions with Azure](#2-authenticate-github-actions-with-azure)
+  - [3. Configure GitHub App](#3-configure-github-app)
+  - [4. Initial setup of deployment scripts and github workflows](#4-initial-setup-of-deployment-scripts-and-github-workflows)
+  - [5. Configure DNS and TLS](#5-configure-dns-and-tls)
+  - [6. Configure okta](#6-configure-okta)
+  - [7. Deploy infrastructure](#7-deploy-infrastructure)
+  - [8. Deploy application code](#8-deploy-application-code)
+  - [9. Test the application](#9-test-the-application)
 <!-- TOC -->
 
 > [!IMPORTANT]
@@ -65,7 +66,16 @@
    to include the new environment. This will be used for authentication to Azure AD, and knowing the id of azure subscription
    for the new environment.
 
-## 3. Initial setup of deployment scripts and github workflows
+## 3. Configure GitHub App
+
+If this is the first time setting up a new environment and the GitHub App has not yet been created, follow the 
+[GitHub App Creation Guide](./github-app-creation.md) to create and configure the GitHub App for the new environment.
+
+If the GitHub App already exists, ensure the App ID and Installation ID are configured in 
+[get-product-github-app-config.ps1](../tools/infrastructure/get-product-github-app-config.ps1) for the new environment,
+and that the private key and webhook secret have been uploaded to the Azure Key Vault for the new environment.
+
+## 4. Initial setup of deployment scripts and github workflows
 
 1. Adjust the list of environments supported by infra-as-code deployment scripts
 
@@ -98,7 +108,7 @@
    Look for the github workflow files that accept an environment as input parameter. Adjust this list to include the new environment.
    Some of the github workflows that you have adjusted might also need a new job adding for the new environment, some might not.
 
-## 4. Configure DNS and TLS
+## 5. Configure DNS and TLS
 
 > [!TIP]
 > You can defer the DNS and TLS configuration until after the application code has been deployed to the new environment.
@@ -138,7 +148,7 @@
    If the existing origin cert does not cover the new subdomain, then you will need to create a new origin cert for the
    new hostname as explained in the section [Add TLS certificates to shared key vault](./deploy-app.md#add-tls-certificates-to-shared-key-vault)
 
-## 5. Configure okta
+## 6. Configure okta
 
 1. Configure okta (identity and token provider) for new environment
 
@@ -156,7 +166,7 @@
    github workflow. For example, change the `Map variables` step to include the following variables:
    * `Api_TokenProvider_Authority` - the new okta authorization server url
 
-## 6. Deploy infrastructure
+## 7. Deploy infrastructure
 
 > [!IMPORTANT]
 > It might take several attempts to run the infrastructure github workflow for the new environment. That's ok, the
@@ -188,7 +198,7 @@
    To revoke access granted above, for example where access was granted to a developer to assist with the deployment,
    follow the guidance [Revoking access to Azure resources](./deploy-app.md#revoking-access-to-azure-resources)
 
-## 7. Deploy application code
+## 8. Deploy application code
 
 > [!IMPORTANT]
 > It will likely take 30 mins or so for permissions granted in previous steps above to take effect. You will
@@ -220,7 +230,7 @@
 
    Follow the guidance [Deploying app from CI/CD](./deploy-app.md#deploying-app-from-cicd) to deploy the application code for the new environment
 
-## 8. Test the application
+## 9. Test the application
 
 1. Add postman environment file for the new environment
 

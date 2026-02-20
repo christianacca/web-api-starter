@@ -649,6 +649,32 @@ function Get-ResourceConvention {
                     RbacAssignment          =   $rbacAssignment
                     Type                    =   $spInput.Type
                 }
+            }
+            'GithubApp' {
+                $appDisplayName = '{0} ({1})' -f $ProductName, $EnvironmentName
+                
+                $productSlug = $ProductName.ToLower().Replace(' ', '-')
+                $appSlug = '{0}-{1}' -f $productSlug, $EnvironmentName.ToLower()
+                
+                $authorizedEnv = @{
+                    Primary = $EnvironmentName
+                    Pipeline = $spInput.Pipeline ?? @($EnvironmentName)
+                }
+                
+                $targetSubProduct = $subProductsConventions[$spInput.Target]
+                $webhookUrl = 'https://{0}{1}' -f $targetSubProduct.HostName, ($spInput.WebhookPath ?? '/api/github/webhooks')
+                
+                @{
+                    Owner               =   $spInput.Owner
+                    Repo                =   $spInput.Repo
+                    AppName             =   $spInput.AppName ?? $appDisplayName
+                    AppSlug             =   $spInput.AppSlug ?? $appSlug
+                    AppId               =   $spInput.AppId 
+                    InstallationId      =   $spInput.InstallationId
+                    AuthorizedEnvironment = $authorizedEnv
+                    WebhookUrl          =   $webhookUrl
+                    Type                =   $spInput.Type
+                }
             }            
             default {
                 $null

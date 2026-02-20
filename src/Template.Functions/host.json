@@ -7,7 +7,8 @@
       "Host.Results": "Information",
       "Host.Startup": "Information",
       "Host.Triggers": "Information",
-      "Function": "Information"
+      "Function": "Information",
+      "Octokit.Webhooks": "Error"
     },
     "applicationInsights": {
       "samplingSettings": {
@@ -20,6 +21,9 @@
     "queues": {
       "visibilityTimeout": "00:00:30",
       "maxDequeueCount": 5
+    },
+    "http": {
+      "EnableChunkedRequestBinding": true
     }
   }
 }

@@ -1,0 +1,37 @@
+name: github-app-authz-envs
+description: Retrieves primary and pipeline environments by matching GitHub App slug against triggering actor
+
+outputs:
+  primary:
+    description: 'The primary environment for this GitHub App'
+    value: ${{ steps.envs.outputs.primary }}
+  pipeline:
+    description: 'JSON array of authorized environments in the deployment pipeline'
+    value: ${{ steps.envs.outputs.pipeline }}
+
+runs:
+  using: composite
+  steps:
+    - id: envs 
+      shell: pwsh
+      run: |
+        $environments = & ./tools/infrastructure/get-product-environment-names.ps1
+        $actor = "${{ github.triggering_actor }}"
+        
+        $primaryEnv = ""
+        $pipelineJson = "[]"
+        
+        foreach ($env in $environments) {
+          $conventions = & ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $env | ConvertFrom-Json
+          $githubConfig = $conventions.SubProducts.Github
+          $expectedAppSlug = $githubConfig.AppSlug
+
+          if ($expectedAppSlug -and ($actor -eq "${expectedAppSlug}[bot]")) {
+            $primaryEnv = $githubConfig.AuthorizedEnvironment.Primary
+            $pipelineJson = $githubConfig.AuthorizedEnvironment.Pipeline | ConvertTo-Json -Compress
+            break
+          }
+        }
+        
+        echo "primary=$primaryEnv" >> $env:GITHUB_OUTPUT
+        echo "pipeline=$pipelineJson" >> $env:GITHUB_OUTPUT
