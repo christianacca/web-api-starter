@@ -126,22 +126,53 @@ module app 'br/public:avm/res/app/container-app:0.11.0' = {
     registries: sharedSettings.registries
     scaleMaxReplicas: instanceSettings.MaxReplicas
     scaleMinReplicas: instanceSettings.MinReplicas
-    scaleRules : [{
-      http: {
-        metadata: {
-          // this number is a function of resources allocated above. the value selected was based on the following assumptions:
-          // - async/await is utilized so as to improve thread handling efficiency
-          // - asp.net core running a typical CRUD workload with an Azure SQL database as it's persistent store that's located
-          //   in the same azure region as the container app
-          // - each request to the api will result in typically 5-10 requests to the Azure SQL database
-          // - some of the requests to the api will also result in dependent request to power bi REST api
-          // - each dependent database and REST api request is likely to return between 5K-20K bytes of data
-          // IMPORTANT: this value was calculated by chatgbt using the following prompt: https://chatgpt.com/share/37b6ef34-bf0b-4e7b-8e51-99373c1579b7
-          concurrentRequests : '10'
+    scaleRules: [
+      {
+        http: {
+          metadata: {
+            // The base memory-safe concurrency limit for this container is 10 concurrent requests, derived from:
+            // - async/await utilized for thread handling efficiency
+            // - ASP.NET Core running a typical CRUD workload with Azure SQL in the same region
+            // - each request results in typically 5-10 SQL database calls
+            // - some requests also make dependent calls to the Power BI REST API
+            // - each dependent response is typically 5K-20K bytes of data
+            // - 0.5Gi memory allocated; at 10 concurrent requests the container approaches memory saturation
+            // See original calculation: https://chatgpt.com/share/37b6ef34-bf0b-4e7b-8e51-99373c1579b7
+            //
+            // The threshold is raised from 10 to 25 to prevent health monitoring traffic from causing
+            // spurious scale-out. Infrastructure health monitoring generates the following background requests:
+            // - Traffic Manager health probe: 1 probe every 30 seconds (standard Azure TM probe interval)
+            // - Azure Monitor availability tests: 5 geographic locations (default location set), each probing
+            //   every 15 minutes (configured via Get-ResourceConvention.ps1 AvailabilityTest Frequency),
+            //   which can arrive in near-simultaneous bursts of up to 5 concurrent requests
+            // Maximum concurrent health monitoring requests: ~6 (1 TM + 5 availability test locations)
+            // The threshold of 25 provides a comfortable margin above this maximum.
+            //
+            // IMPORTANT: raising the http threshold above the memory-safe limit of 10 is only safe because
+            // the 'memory-scaling' rule below acts as a backstop, triggering scale-out before the container
+            // reaches memory saturation when 11-24 concurrent real requests are in-flight.
+            concurrentRequests: '25'
+          }
         }
+        name: 'http-scaling'
       }
-      name: 'http-scaling'
-    }]
+      {
+        custom: {
+          // Backstop rule that triggers scale-out when the container approaches memory saturation.
+          // This guards the gap between the http rule threshold (25 concurrent) and the memory-safe
+          // concurrency limit (10 concurrent): if 11-24 heavy or slow requests are in-flight simultaneously,
+          // the container can approach OOM before the http rule fires.
+          // 80% of 0.5Gi = ~410MB; idle memory baseline is ~61.5% (~307MB), giving ~103MB headroom.
+          // NOTE: this rule polls every ~30s - it is a lagging safety net, not a first-line scale trigger.
+          metadata: {
+            type: 'Utilization'
+            value: '80'
+          }
+          type: 'memory'
+        }
+        name: 'memory-scaling'
+      }
+    ]
     workloadProfileName: 'Consumption'
   }
 }
