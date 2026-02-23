@@ -7,10 +7,15 @@
     "azureFunctions.preDeployTask": "publish (functions)",
     "chat.tools.urls.autoApprove": {
         "https://code.visualstudio.com": {
-        "approveRequest": false,
-        "approveResponse": true
+            "approveRequest": false,
+            "approveResponse": true
         },
-        "https://*.nuget.org": true
+        "https://*.nuget.org": true,
+        "https://raw.githubusercontent.com": {
+            "approveRequest": false,
+            "approveResponse": true
+        },
+        "https://learn.microsoft.com": true
     },
     "chat.mcp.gallery.enabled": true
 }
