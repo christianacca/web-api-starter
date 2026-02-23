@@ -11,13 +11,13 @@ var uniqueConfigStores = filter(
   store => empty(store.SubscriptionId) || store.SubscriptionId == subscription().subscriptionId
 )
 
-module stores 'br/public:avm/res/app-configuration/configuration-store:0.6.3' = [for (store, index) in uniqueConfigStores: {
+module stores 'br/public:avm/res/app-configuration/configuration-store:0.9.2' = [for (store, index) in uniqueConfigStores: {
   name: '${uniqueString(deployment().name)}-${index}-ConfigStore'
   scope: resourceGroup(store.ResourceGroupName)
   params: {
     name: store.ResourceName
     enablePurgeProtection: store.EnablePurgeProtection
     location: store.ResourceLocation
-    replicaLocations: store.ReplicaLocations
+    replicaLocations: map(store.ReplicaLocations, loc => { replicaLocation: loc })
   }
 }]

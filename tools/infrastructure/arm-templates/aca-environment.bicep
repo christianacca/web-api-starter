@@ -5,20 +5,20 @@ var location = instanceSettings.ResourceLocation
 
 // todo: switch to azure verified module once keyvault certificate integration is supported for failover (see https://github.com/Azure/bicep-registry-modules/issues/5145)
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = if (!empty(sharedSettings.logAnalyticsWorkspaceResourceId)) {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-07-01' existing = if (!empty(sharedSettings.logAnalyticsWorkspaceResourceId)) {
   name: last(split(sharedSettings.logAnalyticsWorkspaceResourceId, '/'))!
   scope: resourceGroup(split(sharedSettings.logAnalyticsWorkspaceResourceId, '/')[2], split(sharedSettings.logAnalyticsWorkspaceResourceId, '/')[4])
 }
 
 var kvSettings = sharedSettings.certSettings.KeyVault
-resource kv 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
+resource kv 'Microsoft.KeyVault/vaults@2025-05-01' existing = {
   name: kvSettings.ResourceName
   scope: resourceGroup((kvSettings.SubscriptionId ?? subscription().subscriptionId), kvSettings.ResourceGroupName)
 
   resource cert 'secrets' existing = { name: sharedSettings.certSettings.ResourceName }
 }
 
-resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
+resource acaEnv 'Microsoft.App/managedEnvironments@2025-10-02-preview' = {
   name: instanceSettings.ResourceName
   location: location
   identity: {

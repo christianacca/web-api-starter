@@ -40,7 +40,7 @@ module readerPermissions 'resource-group-role-assignment.bicep' = [for (rg, inde
   }
 }]
 
-module keyVaults 'br/public:avm/res/key-vault/vault:0.11.0' = [for (kv, index) in uniqueKeyVaults: {
+module keyVaults 'br/public:avm/res/key-vault/vault:0.13.3' = [for (kv, index) in uniqueKeyVaults: {
   name: '${uniqueString(deployment().name)}-${index}-KeyVault'
   scope: resourceGroup(kv.ResourceGroupName)
   params: {

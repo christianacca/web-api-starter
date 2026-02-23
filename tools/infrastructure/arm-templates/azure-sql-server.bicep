@@ -23,7 +23,7 @@ param databaseName string
 @description('The name of the user-assigned managed identity.')
 param managedIdentityName string
 
-import { firewallRuleType } from 'br/public:avm/res/sql/server:0.11.1'
+import { firewallRuleType } from 'br/public:avm/res/sql/server:0.21.1'
 @description('The firewall rules to configure access to the SQL server')
 param firewallRules firewallRuleType[]
 
@@ -48,7 +48,7 @@ var managedId = {
   ]
 }
 
-module server 'br/public:avm/res/sql/server:0.11.1' = {
+module server 'br/public:avm/res/sql/server:0.21.1' = {
   name: '${serverName}Deployment'
   params: {
     name: serverName
@@ -63,10 +63,11 @@ module server 'br/public:avm/res/sql/server:0.11.1' = {
         maxSizeBytes: 268435456000
         requestedBackupStorageRedundancy: 'Geo'
         zoneRedundant: false
+        availabilityZone: -1
       }
     ]
     // begin: shared settings - keep in sync with failover server definition below
-    primaryUserAssignedIdentityId: managedIdentity.id
+    primaryUserAssignedIdentityResourceId: managedIdentity.id
     managedIdentities: managedId
     administrators: admin
     firewallRules: firewallRules
@@ -77,13 +78,13 @@ module server 'br/public:avm/res/sql/server:0.11.1' = {
 
 var failoverServerName = failoverInfo != null ? failoverInfo!.serverName : ''
 
-module failoverServer 'br/public:avm/res/sql/server:0.11.1' = if (failoverInfo != null) {
+module failoverServer 'br/public:avm/res/sql/server:0.21.1' = if (failoverInfo != null) {
   name: '${failoverServerName}Deployment'
   params: {
     name: failoverServerName
     location: failoverInfo != null ? failoverInfo!.location : ''
     // begin: shared settings - keep in sync with primary server definition above
-    primaryUserAssignedIdentityId: managedIdentity.id
+    primaryUserAssignedIdentityResourceId: managedIdentity.id
     managedIdentities: managedId
     administrators: admin
     firewallRules: firewallRules
@@ -92,7 +93,7 @@ module failoverServer 'br/public:avm/res/sql/server:0.11.1' = if (failoverInfo !
   }
 }
 
-resource server_failoverGroup 'Microsoft.Sql/servers/failoverGroups@2021-05-01-preview' = if (failoverInfo != null) {
+resource server_failoverGroup 'Microsoft.Sql/servers/failoverGroups@2024-11-01-preview' = if (failoverInfo != null) {
   name: '${serverName}/${databaseName}-fg'
   properties: {
     partnerServers: [

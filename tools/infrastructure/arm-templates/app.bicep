@@ -56,7 +56,7 @@ module appEnvVars 'desired-env-vars.bicep' = {
   }
 }
 
-module app 'br/public:avm/res/app/container-app:0.11.0' = {
+module app 'br/public:avm/res/app/container-app:0.20.0' = {
   name: '${uniqueString(deployment().name, location)}-Aca'
   params: {
     containers: [
@@ -108,62 +108,64 @@ module app 'br/public:avm/res/app/container-app:0.11.0' = {
     name: instanceSettings.ResourceName
     location: location
     registries: sharedSettings.registries
-    scaleMaxReplicas: instanceSettings.MaxReplicas
-    scaleMinReplicas: instanceSettings.MinReplicas
-    scaleRules: [
-      {
-        http: {
-          metadata: {
-            // The base memory-safe concurrency limit for this container is 10 concurrent requests, derived from:
-            // - async/await utilized for thread handling efficiency
-            // - ASP.NET Core frontend app proxying requests to the API layer
-            // - each page/request may result in multiple downstream API calls and asset fetches
-            // - 0.5Gi memory allocated; at 10 concurrent requests the container approaches memory saturation
-            // See original calculation: https://chatgpt.com/share/37b6ef34-bf0b-4e7b-8e51-99373c1579b7
-            //
-            // The threshold is raised from 10 to 25 to prevent health monitoring traffic from causing
-            // spurious scale-out. Infrastructure health monitoring generates the following background requests:
-            // - Traffic Manager health probe: 1 probe every 30 seconds (standard Azure TM probe interval)
-            // - Azure Monitor availability tests: 5 geographic locations (default location set), each probing
-            //   every 15 minutes (configured via Get-ResourceConvention.ps1 AvailabilityTest Frequency),
-            //   which can arrive in near-simultaneous bursts of up to 5 concurrent requests
-            // Maximum concurrent health monitoring requests: ~6 (1 TM + 5 availability test locations)
-            // The threshold of 25 provides a comfortable margin above this maximum.
-            //
-            // IMPORTANT: raising the http threshold above the memory-safe limit of 10 is only safe because
-            // the 'memory-scaling' rule below acts as a backstop, triggering scale-out before the container
-            // reaches memory saturation when 11-24 concurrent real requests are in-flight.
-            concurrentRequests: '25'
+    scaleSettings: {
+      maxReplicas: instanceSettings.MaxReplicas
+      minReplicas: instanceSettings.MinReplicas
+      rules: [
+        {
+          http: {
+            metadata: {
+              // The base memory-safe concurrency limit for this container is 10 concurrent requests, derived from:
+              // - async/await utilized for thread handling efficiency
+              // - ASP.NET Core frontend app proxying requests to the API layer
+              // - each page/request may result in multiple downstream API calls and asset fetches
+              // - 0.5Gi memory allocated; at 10 concurrent requests the container approaches memory saturation
+              // See original calculation: https://chatgpt.com/share/37b6ef34-bf0b-4e7b-8e51-99373c1579b7
+              //
+              // The threshold is raised from 10 to 25 to prevent health monitoring traffic from causing
+              // spurious scale-out. Infrastructure health monitoring generates the following background requests:
+              // - Traffic Manager health probe: 1 probe every 30 seconds (standard Azure TM probe interval)
+              // - Azure Monitor availability tests: 5 geographic locations (default location set), each probing
+              //   every 15 minutes (configured via Get-ResourceConvention.ps1 AvailabilityTest Frequency),
+              //   which can arrive in near-simultaneous bursts of up to 5 concurrent requests
+              // Maximum concurrent health monitoring requests: ~6 (1 TM + 5 availability test locations)
+              // The threshold of 25 provides a comfortable margin above this maximum.
+              //
+              // IMPORTANT: raising the http threshold above the memory-safe limit of 10 is only safe because
+              // the 'memory-scaling' rule below acts as a backstop, triggering scale-out before the container
+              // reaches memory saturation when 11-24 concurrent real requests are in-flight.
+              concurrentRequests: '25'
+            }
           }
+          name: 'http-scaling'
         }
-        name: 'http-scaling'
-      }
-      {
-        custom: {
-          // Backstop rule that triggers scale-out when the container approaches memory saturation.
-          // This guards the gap between the http rule threshold (25 concurrent) and the memory-safe
-          // concurrency limit (10 concurrent): if 11-24 heavy or slow requests are in-flight simultaneously,
-          // the container can approach OOM before the http rule fires.
-          // 80% of 0.5Gi = ~410MB; idle memory baseline is ~61.5% (~307MB), giving ~103MB headroom.
-          // NOTE: this rule polls every ~30s - it is a lagging safety net, not a first-line scale trigger.
-          metadata: {
-            type: 'Utilization'
-            value: '80'
+        {
+          custom: {
+            // Backstop rule that triggers scale-out when the container approaches memory saturation.
+            // This guards the gap between the http rule threshold (25 concurrent) and the memory-safe
+            // concurrency limit (10 concurrent): if 11-24 heavy or slow requests are in-flight simultaneously,
+            // the container can approach OOM before the http rule fires.
+            // 80% of 0.5Gi = ~410MB; idle memory baseline is ~61.5% (~307MB), giving ~103MB headroom.
+            // NOTE: this rule polls every ~30s - it is a lagging safety net, not a first-line scale trigger.
+            metadata: {
+              type: 'Utilization'
+              value: '80'
+            }
+            type: 'memory'
           }
-          type: 'memory'
+          name: 'memory-scaling'
         }
-        name: 'memory-scaling'
-      }
-    ]
+      ]
+    }
     workloadProfileName: 'Consumption'
   }
 }
 
-resource acaEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing = {
+resource acaEnv 'Microsoft.App/managedEnvironments@2025-10-02-preview' existing = {
   name: instanceSettings.AcaEnvResourceName
   resource cert 'certificates' existing = if (sharedSettings.isCustomDomainEnabled) { name: sharedSettings.certSettings.ResourceName }
 }
 
-resource existingApp 'Microsoft.App/containerApps@2023-11-02-preview' existing = if (exists) {
+resource existingApp 'Microsoft.App/containerApps@2025-10-02-preview' existing = if (exists) {
   name: instanceSettings.ResourceName
 }

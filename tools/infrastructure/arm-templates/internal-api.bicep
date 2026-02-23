@@ -66,7 +66,7 @@ resource appRoleAssignments 'Microsoft.Graph/appRoleAssignedTo@v1.0' = [for prin
 }]
 
 
-module functionApp 'br/public:avm/res/web/site:0.11.1' = {
+module functionApp 'br/public:avm/res/web/site:0.21.0' = {
   name: '${uniqueString(deployment().name, location)}-InternalApi'
   params:{
     name: functionAppName
@@ -75,17 +75,60 @@ module functionApp 'br/public:avm/res/web/site:0.11.1' = {
       systemAssigned: false
       userAssignedResourceIds: managedIdentityResourceIds
     }
-    appInsightResourceId: appInsightsResourceId
-    appSettingsKeyValuePairs: {
-      AzureWebJobsFeatureFlags: 'EnableHttpProxying'
-      FUNCTIONS_EXTENSION_VERSION: '~4'
-      FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
-      WEBSITE_CLOUD_ROLENAME: appInsightsCloudRoleName
-      WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
-      WEBSITE_CONTENTSHARE: toLower(functionAppName)
-      WEBSITE_RUN_FROM_PACKAGE: '1'
-      WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED: '1'
-    }
+    configs: [
+      {
+        name: 'appsettings'
+        applicationInsightResourceId: appInsightsResourceId
+        storageAccountResourceId: storageAccount.id
+        properties: {
+          // Disable the Application Insights agent/codeless attach - SDK is included directly in code instead
+          ApplicationInsightsAgent_EXTENSION_VERSION: 'disabled'
+          AzureWebJobsFeatureFlags: 'EnableHttpProxying'
+          FUNCTIONS_EXTENSION_VERSION: '~4'
+          FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
+          WEBSITE_CLOUD_ROLENAME: appInsightsCloudRoleName
+          WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
+          WEBSITE_CONTENTSHARE: toLower(functionAppName)
+          WEBSITE_RUN_FROM_PACKAGE: '1'
+          WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED: '1'
+        }
+      }
+      {
+        name: 'authsettingsV2'
+        properties: {
+          platform: {
+            enabled: true
+          }
+          globalValidation: {
+            requireAuthentication: true
+            unauthenticatedClientAction: 'Return401'
+          }
+          identityProviders: {
+            azureActiveDirectory: {
+              enabled: true
+              registration: {
+                openIdIssuer: 'https://sts.windows.net/${tenantID}/'
+                clientId: appReg.appId
+                clientSecretSettingName: 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
+              }
+              validation: {
+                allowedAudiences: [
+                  'api://${functionAppName}'
+                ]
+              }
+            }
+          }
+          login: {
+            tokenStore: {
+              enabled: true
+            }
+          }
+          httpSettings: {
+            requireHttps: true
+          }
+        }
+      }
+    ]
     siteConfig: {
       netFrameworkVersion: 'v10.0'
       use32BitWorkerProcess: false
@@ -95,59 +138,21 @@ module functionApp 'br/public:avm/res/web/site:0.11.1' = {
       }
       http20Enabled: true
     }
-    storageAccountResourceId: storageAccount.id
     clientAffinityEnabled: false
-    authSettingV2Configuration: {
-      platform: {
-        enabled: true
-      }
-      globalValidation: {
-        requireAuthentication: true
-        unauthenticatedClientAction: 'Return401'
-      }
-      identityProviders: {
-        azureActiveDirectory: {
-          enabled: true
-          registration: {
-            openIdIssuer: 'https://sts.windows.net/${tenantID}/'
-            clientId: appReg.appId
-            clientSecretSettingName: 'MICROSOFT_PROVIDER_AUTHENTICATION_SECRET'
-          }
-          validation: {
-            allowedAudiences: [
-              'api://${functionAppName}'
-            ]
-          }
-        }
-      }
-      login: {
-        tokenStore: {
-          enabled: true
-        }
-      }
-      httpSettings: {
-        requireHttps: true
-      }
-    }
     serverFarmResourceId: hostingPlan.outputs.resourceId
   }
 }
 
-module hostingPlan 'br/public:avm/res/web/serverfarm:0.1.0' = {
+module hostingPlan 'br/public:avm/res/web/serverfarm:0.7.0' = {
   name: '${uniqueString(deployment().name, location)}-HostingPlan'
   params:{
     name: functionAppName
     kind: 'FunctionApp'
-    sku: {
-      name: 'Y1'
-      tier: 'Dynamic'
-      size: 'Y1'
-      family: 'Y'
-      capacity: 0
-    }
+    skuName: 'Y1'
+    skuCapacity: 0
   }
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2019-06-01' existing = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2025-06-01' existing = {
   name: storageAccountName
 }

@@ -33,7 +33,7 @@ var uniqueResourceGroups = union(
   []
 )
 
-module resourceGroups 'br/public:avm/res/resources/resource-group:0.4.0' = [for rg in uniqueResourceGroups: {
+module resourceGroups 'br/public:avm/res/resources/resource-group:0.4.3' = [for rg in uniqueResourceGroups: {
   name: '${uniqueString(deployment().name)}-${rg.ResourceGroupName}-ResourceGroup'
   params: {
     name: rg.ResourceGroupName
