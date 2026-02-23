@@ -192,6 +192,10 @@
       -----------
       Returns tables describing all Azure RBAC and Azure ADD security group membership
 
+      .LINK
+      ./tools/infrastructure/get-product-conventions.ps1
+      Use get-product-conventions.ps1 to query the conventions for a SINGLE environment, returned as JSON or a hashtable.
+
     #>
 
 
