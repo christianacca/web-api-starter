@@ -137,6 +137,7 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
         supportCredentials: corsSupportCredentials
       }
       http20Enabled: true
+      minTlsVersion: '1.2'
     }
     clientAffinityEnabled: false
     serverFarmResourceId: hostingPlan.outputs.resourceId
