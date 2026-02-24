@@ -428,7 +428,7 @@ function Get-ResourceConvention {
                     IngressHostname     =   $acaIngressHostnameTemplate -f $primaryAcaResourceName
                     MinReplicas         =   switch -Wildcard ($EnvironmentName) {
                         'prod*' {
-                            3 # required for zone availability resillency
+                            2 # minimum for HA; zone redundancy is provided by the ACA environment, not replica count
                         }
                         Default {
                             # for environemnts NOT scaling to zero, then choice of min replicas is based on whether failover is configured:

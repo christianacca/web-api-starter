@@ -68,7 +68,7 @@ module appEnvVars 'desired-env-vars.bicep' = {
         value: sharedSettings.appInsightsConnectionString
       }
     ]
-    existingEnvVars: exists ? existingApp.?properties.template.containers[0].?env ?? [] : []
+    existingEnvVars: existingApp.?properties.template.containers[0].?env ?? []
   }
 }
 
