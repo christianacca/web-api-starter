@@ -22,7 +22,7 @@ import { objectValues } from 'utils.bicep'
 
 
 var kvSettings = settings.SubProducts.KeyVault
-module keyVault 'br/public:avm/res/key-vault/vault:0.11.0' = {
+module keyVault 'br/public:avm/res/key-vault/vault:0.13.3' = {
   name: '${uniqueString(deployment().name, location)}-KeyVault'
   params: {
     name: kvSettings.ResourceName
@@ -60,7 +60,7 @@ module azureMonitor 'azure-monitor.bicep' = {
 }
 
 var reportStorage = settings.SubProducts.PbiReportStorage
-module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.14.3' = {
+module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.31.0' = {
   name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
   params: {
     name: reportStorage.StorageAccountName
@@ -183,6 +183,7 @@ module acaEnvFailover 'aca-environment.bicep' = if (hasAcaFailover) {
 }
 
 var acaPrimaryDomain = acaEnvPrimary.outputs.defaultDomain
+#disable-next-line BCP318
 var acaFailoverDomain = !empty(settings.SubProducts.Aca.Failover ?? {}) ? acaEnvFailover.outputs.defaultDomain : ''
 
 // ---------- End: ACA environments -----------
@@ -345,7 +346,7 @@ resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@
   location: location
 }
 
-module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.14.3' = {
+module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
   name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
   params: {
     name: settings.SubProducts.InternalApi.StorageAccountName

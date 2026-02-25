@@ -9,10 +9,10 @@ param roleDefinitionId string
 
 param location string = resourceGroup().location
 
-resource kv 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
+resource kv 'Microsoft.KeyVault/vaults@2025-05-01' existing = {
   name: resourceName
 }
-module roleAssignment 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = {
+module roleAssignment 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.2' = {
   name: '${uniqueString(deployment().name, location)}-KeyVaultPermission'
   params: {
     principalId: principalId

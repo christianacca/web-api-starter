@@ -49,7 +49,7 @@ var actionGroupNamePrefix = '${appName}-${environmentName}'
 var nonCriticalActionGroupName = '${actionGroupNamePrefix}-non-critical'
 var criticalActionGroupName = '${actionGroupNamePrefix}-critical'
 
-resource workspace 'Microsoft.OperationalInsights/workspaces@2021-12-01-preview' = {
+resource workspace 'Microsoft.OperationalInsights/workspaces@2025-07-01' = {
   name: workspaceName
   location: location
   properties: {
@@ -84,7 +84,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-module webTests 'br/public:avm/res/insights/webtest:0.3.0' = [for (webTest, i) in defaultAvailabilityTests: {
+module webTests 'br/public:avm/res/insights/webtest:0.3.2' = [for (webTest, i) in defaultAvailabilityTests: {
   name: '${uniqueString(deployment().name, location)}-${i}-WebTest'
   params: {
     appInsightResourceId: appInsights.id
@@ -273,7 +273,7 @@ resource migrationToAlertRulesCompleted 'Microsoft.Insights/components/Proactive
   ]
 }
 
-resource nonCriticalActionGroup 'microsoft.insights/actionGroups@2019-06-01' = {
+resource nonCriticalActionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   name: nonCriticalActionGroupName
   location: 'Global'
   properties: {
@@ -298,7 +298,7 @@ resource nonCriticalActionGroup 'microsoft.insights/actionGroups@2019-06-01' = {
   }
 }
 
-resource criticalActionGroup 'microsoft.insights/actionGroups@2019-06-01' = {
+resource criticalActionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
   name: criticalActionGroupName
   location: 'Global'
   properties: {

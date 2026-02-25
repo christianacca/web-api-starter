@@ -182,7 +182,7 @@
                 Get-AzModuleInfo
                 @{
                     Name            = 'SqlServer'
-                    MinimumVersion  = '22.0.59'
+                    MinimumVersion  = '22.4.5.1'
                 }
             )
             if ($ListModuleRequirementsOnly) {
@@ -308,21 +308,64 @@
             $acaAppTemplateParams = $convention.SubProducts.GetEnumerator() | Where-Object { $_.value.Type -eq 'AcaApp' } |
                 Select-Object -ExpandProperty Value |
                 Get-AcaAppInfoVars -ResourceGroupName $appResourceGroup.ResourceName | Join-Hashtable
-            $mainArmParams = @{
-                ResourceGroupName       =   $appResourceGroup.ResourceName
-                TemplateParameterObject =   @{
-                    settings                    =   $convention
-                    sqlAdAdminGroupObjectId     =   $sqlAdAdminGroup.Id
-                } + $acaAppTemplateParams
-                TemplateFile            =   Join-Path $templatePath main.bicep
+
+            # Compile and minify main.bicep to work around the 4MB ARM template REST API limit.
+            # New-AzResourceGroupDeployment re-serializes the template with indentation when building
+            # the HTTP request body, which can inflate the request over the limit. We therefore deploy
+            # via the az CLI, which sends the file bytes directly without re-parsing. Both template and
+            # parameters are written to tmp/ as minified JSON.
+            $tmpDir = Join-Path $PSScriptRoot '../../tmp'
+            if (-not (Test-Path $tmpDir)) { New-Item -ItemType Directory -Path $tmpDir | Out-Null }
+            $compiledTemplatePath = Join-Path $tmpDir 'main.json'
+            $minifiedTemplatePath = Join-Path $tmpDir 'main.min.json'
+            $minifiedParamsPath   = Join-Path $tmpDir 'main.min.params.json'
+            Write-Information "  Compiling main.bicep to '$compiledTemplatePath'..."
+            Invoke-Exe { & bicep build (Join-Path $templatePath 'main.bicep') --outfile $compiledTemplatePath } -EA Stop
+            Write-Information "  Minifying compiled ARM template..."
+            Get-Content -Encoding utf8 -Raw -Path $compiledTemplatePath |
+                ConvertFrom-Json |
+                ConvertTo-Json -Compress -Depth 100 |
+                Out-File -FilePath $minifiedTemplatePath -Encoding utf8
+            $minifiedSizeMb = [math]::Round((Get-Item $minifiedTemplatePath).Length / 1MB, 2)
+            Write-Information "  INFO | Minified template size: $minifiedSizeMb MB"
+
+            Write-Information "  Minifying ARM parameters..."
+            $templateParameterObject = @{
+                settings                =   $convention
+                sqlAdAdminGroupObjectId =   $sqlAdAdminGroup.Id
+            } + $acaAppTemplateParams
+            $armParamsFileContent = [ordered]@{
+                '$schema'      = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+                contentVersion = '1.0.0.0'
+                parameters     = $templateParameterObject.GetEnumerator() | Sort-Object Name |
+                                    ForEach-Object -Begin { $h = [ordered]@{} } -Process { $h[$_.Key] = @{ value = $_.Value } } -End { $h }
             }
+            $armParamsFileContent | ConvertTo-Json -Compress -Depth 100 | Out-File -FilePath $minifiedParamsPath -Encoding utf8
+            $minifiedParamsSizeMb = [math]::Round((Get-Item $minifiedParamsPath).Length / 1MB, 2)
+            Write-Information "  INFO | Minified parameters size: $minifiedParamsSizeMb MB"
+
+            # Use az CLI for deployment to avoid New-AzResourceGroupDeployment re-serializing the template
+            # with indentation, which inflates the request body. The az CLI sends the file bytes directly.
             if ($WhatIfAzureResourceDeployment) {
                 Write-Information '  Print Azure resource desired state changes only...'
-                New-AzResourceGroupDeployment @mainArmParams -WhatIf -WhatIfExcludeChangeType Ignore, NoChange, Unsupported -EA Stop
+                Invoke-Exe {
+                    az deployment group what-if `
+                        --resource-group $appResourceGroup.ResourceName `
+                        --template-file $minifiedTemplatePath `
+                        --parameters "@$minifiedParamsPath" `
+                        --exclude-change-types Ignore NoChange Unsupported
+                } -EA Stop
                 return
             }
             Write-Information '  Creating desired resource state'
-            $armResources = New-AzResourceGroupDeployment @mainArmParams -EA Stop | ForEach-Object { $_.Outputs }
+            $deploymentResult = Invoke-Exe {
+                az deployment group create `
+                    --resource-group $appResourceGroup.ResourceName `
+                    --template-file $minifiedTemplatePath `
+                    --parameters "@$minifiedParamsPath" `
+                    --output json
+            } -EA Stop | ConvertFrom-Json
+            $armResources = $deploymentResult.properties.outputs
             Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
             Write-Information "  INFO | Internal Api Managed Identity Client Id:- $($armResources.internalApiManagedIdentityClientId.Value)"

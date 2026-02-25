@@ -1,5 +1,7 @@
+import { tlsCertKeyVaultSettingsType } from 'utils.bicep'
+
 @description('List of shared Azure Key vaults storing TLS certificate used by product')
-param tlsCertificateKeyVaults array
+param tlsCertificateKeyVaults tlsCertKeyVaultSettingsType[]
 
 @description('The principal id of the Entra-ID security group that maintains the certificates')
 param certMaintainerGroupId string
@@ -38,7 +40,7 @@ module readerPermissions 'resource-group-role-assignment.bicep' = [for (rg, inde
   }
 }]
 
-module keyVaults 'br/public:avm/res/key-vault/vault:0.11.0' = [for (kv, index) in uniqueKeyVaults: {
+module keyVaults 'br/public:avm/res/key-vault/vault:0.13.3' = [for (kv, index) in uniqueKeyVaults: {
   name: '${uniqueString(deployment().name)}-${index}-KeyVault'
   scope: resourceGroup(kv.ResourceGroupName)
   params: {

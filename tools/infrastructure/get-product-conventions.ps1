@@ -1,3 +1,81 @@
+<#
+      .SYNOPSIS
+      Returns the product conventions (resource names, settings, RBAC assignments, etc.) for a given environment.
+      Output is a JSON string by default, or a hashtable when -AsHashtable is specified.
+
+      .PARAMETER EnvironmentName
+      The name of the environment to return conventions for. Use get-product-environment-names.ps1 to list valid values.
+
+      .PARAMETER AsHashtable
+      Return the conventions as a hashtable instead of a JSON string.
+
+      .EXAMPLE
+      ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev
+    
+      Description
+      -----------
+      Returns all product conventions for the dev environment as a JSON string.
+
+      .EXAMPLE
+      ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev > ./out/infra-settings/dev.json
+    
+      Description
+      -----------
+      Saves the conventions for the dev environment to a JSON file. Use the default JSON output (omit -AsHashtable)
+      when you want to save to a file or pipe to another tool that expects JSON.
+
+      .EXAMPLE
+      ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName prod-na -AsHashtable | ForEach-Object { $_.ConfigStores.Current }
+    
+      Description
+      -----------
+      Returns the ConfigStores.Current section as a hashtable for the prod-na environment. EG:
+      
+      Name                           Value
+      ----                           -----
+      ResourceName                   appcs-was-prod
+      ResourceGroupName              rg-shared-was-eastus
+      HostName                       appcs-was-prod.azconfig.io
+      ReplicaLocations               {uksouth, australiaeast}
+
+      .EXAMPLE
+      New-Item ./out/infra-settings -Force -ItemType Directory | Out-Null
+      & ./tools/infrastructure/get-product-environment-names.ps1 | ForEach-Object {
+          ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $_ > ./out/infra-settings/$_.json
+      }
+    
+      Description
+      -----------
+      Snapshots the conventions for all environments to individual JSON files under ./out/infra-settings/.
+      Useful for comparing conventions before and after making changes.
+
+      .EXAMPLE
+      ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable | ForEach-Object { $_.SubProducts.Values } | Select-Object -Property Type, ResourceName
+    
+      Description
+      -----------
+      Returns the Type and ResourceName of every sub-product for the dev environment. EG:
+      
+      Type             ResourceName
+      ----             ------------
+      StorageAccount   stpbireportwasdev
+      AcaEnvironment   acaenv-was-dev-eus
+      ManagedIdentity  id-was-dev-acr-pull
+      AppInsights      appi-was-dev-eus
+      SqlServer        sql-was-dev-eus
+      SqlDatabase      sqldb-was-dev
+      FunctionApp      func-was-dev-eus-internal-api
+      AcaApp           ca-was-dev-eus-api
+      TrafficManager   traf-was-dev-api
+      AcaApp           ca-was-dev-eus-app
+      TrafficManager   traf-was-dev-app
+      KeyVault         kv-was-dev-eus
+
+      .LINK
+      ./tools/infrastructure/print-product-convention-table.ps1
+      Use print-product-convention-table.ps1 to query a section of the conventions across ALL environments at once, returned as a formatted table or array.
+
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -13,9 +91,6 @@
         . "$PSScriptRoot/ps-functions/Get-ResourceConvention.ps1"
     }
     process {
-        # TIP Use the following script to snapshpt the conventions which you can then compare with another snapshot
-        # after making a change to the conventions:
-        # New-Item ./out/infra-settings -Force -ItemType Directory | Out-Null; & ./tools/infrastructure/get-product-environment-names.ps1 | ForEach-Object { ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $_ > ./out/infra-settings/$_.json }
 
         try {
 

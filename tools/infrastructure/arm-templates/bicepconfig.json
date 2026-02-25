@@ -1,6 +1,12 @@
 {
-  "experimentalFeaturesEnabled": {
-    "extensibility": true
+  "analyzers": {
+    "core": {
+      "rules": {
+        "use-recent-module-versions": {
+          "level": "warning"
+        }
+      }
+    }
   },
   "extensions": {
     "microsoftGraphV1": "br:mcr.microsoft.com/bicep/extensions/microsoftgraph/v1.0:0.1.8-preview"

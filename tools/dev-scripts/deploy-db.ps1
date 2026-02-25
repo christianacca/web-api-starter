@@ -27,7 +27,7 @@ process {
         Install-ScriptDependency -Module @(
             @{
                 Name            = 'SqlServer'
-                MinimumVersion  = '22.0.59'
+                MinimumVersion  = '22.4.5.1'
             }
         )
 
@@ -46,6 +46,10 @@ process {
             ServerInstance      =   "$SqlServerName.database.windows.net"
             Database            =   $DatabaseName
             Query               =   $sql
+            # Encrypt=Strict forces TDS 8.0 / TLS 1.3 exclusively, required when Azure SQL enforces
+            # minimum TLS 1.3. Without this, Microsoft.Data.SqlClient negotiates TLS 1.2 on Linux.
+            # See: https://github.com/dotnet/SqlClient/issues/2546
+            Encrypt             =   'Strict'
             ConnectionTimeout   =   60
             QueryTimeout        =   120
         }

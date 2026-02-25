@@ -12,7 +12,7 @@ param location string = resourceGroup().location
 resource store 'Microsoft.AppConfiguration/configurationStores@2024-05-01' existing = {
   name: resourceName
 }
-module roleAssignment 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.1' = {
+module roleAssignment 'br/public:avm/ptn/authorization/resource-role-assignment:0.1.2' = {
   name: '${uniqueString(deployment().name, location)}-ConfigStorePermission'
   params: {
     principalId: principalId
