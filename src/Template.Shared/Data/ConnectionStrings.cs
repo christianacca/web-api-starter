@@ -19,7 +19,7 @@ public static class ConnectionStrings {
 
     var connectionStringBuilder = new SqlConnectionStringBuilder {
       // recommended defaults for azure sql db...
-      Encrypt = true, ConnectTimeout = 30
+      Encrypt = SqlConnectionEncryptOption.Strict, ConnectTimeout = 30
     };
     configSection.Bind(connectionStringBuilder);
     return connectionStringBuilder.ConnectionString;

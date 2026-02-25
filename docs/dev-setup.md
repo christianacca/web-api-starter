@@ -178,8 +178,8 @@ The following values will work for the [dev](https://github.com/MRI-Software/dat
 [deployed to Azure](https://portal.azure.com/#@MRISOFTWARE.onmicrosoft.com/resource/subscriptions/c398eb55-b057-45f9-8fe3-cfb0034418f5/resourceGroups/rg-dev-aig-eastus/overview)
 
 * API + Function app -> Azure SQL:
-    * `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Server=clcdevwas01eastus.database.windows.net; Database=clcdevwas01; Authentication=Active Directory Default;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
-    * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=clcdevwas01eastus.database.windows.net; Database=clcdevwas01; Authentication=Active Directory Default;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
+    * `dotnet user-secrets set Api:ConnectionStrings:AppDatabase 'Server=clcdevwas01eastus.database.windows.net; Database=clcdevwas01; Authentication=Active Directory Default; Encrypt=Strict;' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
+    * `dotnet user-secrets set InternalApi:ConnectionStrings:AppDatabase 'Server=clcdevwas01eastus.database.windows.net; Database=clcdevwas01; Authentication=Active Directory Default; Encrypt=Strict;' --id 1c30ae06-8c59-4fff-bf49-c7be38e7e23b`
 * API -> Azure function app:
     * `dotnet user-secrets set Api:FunctionsAppToken:Audience 'api://func-clc-was-dev-internalapi/.default' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
     * `dotnet user-secrets set Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address 'https://func-clc-was-dev-internalapi.azurewebsites.net' --id d4101dd7-fec4-4011-a0e8-65748f7ee73c`
