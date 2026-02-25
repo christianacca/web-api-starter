@@ -15,7 +15,11 @@
             "approveRequest": false,
             "approveResponse": true
         },
-        "https://learn.microsoft.com": true
+        "https://learn.microsoft.com": true,
+        "https://azure.github.io": {
+            "approveRequest": true,
+            "approveResponse": false
+        }
     },
     "chat.mcp.gallery.enabled": true
 }
