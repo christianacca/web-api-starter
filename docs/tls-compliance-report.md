@@ -15,8 +15,8 @@ All externally and internally accessible Azure resources in this workload enforc
 |---|---|---|---|
 | Public API (Container App) | `api.bicep` | TLS 1.2 / 1.3 | Platform — ACA ingress always uses TLS 1.2 or 1.3 |
 | Public App (Container App) | `app.bicep` | TLS 1.2 / 1.3 | Platform — ACA ingress always uses TLS 1.2 or 1.3 |
-| Internal API (Azure Functions) | `internal-api.bicep` | TLS 1.2 | Explicit — `siteConfig.minTlsVersion: '1.2'` |
-| Azure SQL Server | `azure-sql-server.bicep` | TLS 1.2 | AVM default + platform retirement of TLS 1.0/1.1 |
+| Internal API (Azure Functions) | `internal-api.bicep` | TLS 1.3 | Explicit — `siteConfig.minTlsVersion: '1.3'`, `siteConfig.ftpsState: 'FtpsOnly'` |
+| Azure SQL Server | `azure-sql-server.bicep` | TLS 1.3 | Explicit — `minimalTlsVersion: '1.3'` |
 | Storage Account (PBI reports) | `main.bicep` | TLS 1.2 | AVM module locks `minimumTlsVersion` to `'TLS1_2'` |
 | Storage Account (Functions) | `main.bicep` | TLS 1.2 | AVM module locks `minimumTlsVersion` to `'TLS1_2'` |
 | App Configuration | `shared-config-store-services.bicep` | TLS 1.2 / 1.3 | Platform — all communication is TLS 1.2 or TLS 1.3 |
@@ -58,15 +58,16 @@ siteConfig: {
   use32BitWorkerProcess: false
   cors: { ... }
   http20Enabled: true
-  minTlsVersion: '1.2'
+  minTlsVersion: '1.3'
+  ftpsState: 'FtpsOnly'
 }
 ```
 
-Per official documentation, `minTlsVersion: '1.2'` causes App Service (and therefore Azure Functions, which runs on the same platform) to reject any inbound connection that negotiates a TLS version lower than 1.2:
+Per official documentation, `minTlsVersion: '1.3'` causes App Service (and therefore Azure Functions, which runs on the same platform) to reject any inbound connection that negotiates a TLS version lower than 1.3. Only TLS 1.3 connections are accepted.
 
-> *"TLS 1.2 is the default TLS version for App Service. It provides strong encryption and broad compatibility and meets compliance standards... By default, new web apps and SCM endpoints use TLS 1.2 unless you change them."*
+`ftpsState: 'FtpsOnly'` ensures that plain FTP is rejected; only FTPS (FTP over TLS) is permitted for any deployment tooling that uses the FTP endpoint.
 
-Setting `minTlsVersion: '1.2'` explicitly in the Bicep template makes this configuration declarative and independent of any future platform default changes.
+Both settings are declared explicitly in the Bicep template, making this configuration independent of any future platform default changes.
 
 **Reference:** [What is TLS/SSL in Azure App Service? — Microsoft Learn](https://learn.microsoft.com/en-us/azure/app-service/overview-tls)
 
@@ -77,7 +78,7 @@ Setting `minTlsVersion: '1.2'` explicitly in the Bicep template makes this confi
 **Bicep template:** [`azure-sql-server.bicep`](../tools/infrastructure/arm-templates/azure-sql-server.bicep)  
 **AVM module:** `avm/res/sql/server:0.21.1`
 
-The Bicep template does not pass `minimalTlsVersion` to the AVM module. The AVM module default is `'1.2'`, meaning the logical server is deployed with a minimum of TLS 1.2.
+The Bicep template explicitly sets `minimalTlsVersion: '1.3'` on both the primary and failover SQL servers, causing Azure SQL Database to reject any client connection that negotiates a TLS version lower than 1.3.
 
 Additionally, Microsoft has retired TLS 1.0 and TLS 1.1 support from Azure SQL Database at the platform level:
 
@@ -165,8 +166,8 @@ Traffic Manager itself presents no HTTP/HTTPS endpoint and therefore has no TLS 
 
 Every endpoint and service accessible within this workload enforces TLS 1.2 as the minimum protocol version, either through:
 
-- **Explicit Bicep configuration** (Internal API / Azure Functions — `minTlsVersion: '1.2'`)
-- **AVM module defaults** (Azure SQL Server — `minimalTlsVersion: '1.2'`; Storage Accounts — `minimumTlsVersion: 'TLS1_2'`)
+- **Explicit Bicep configuration** (Internal API / Azure Functions — `minTlsVersion: '1.3'`, `ftpsState: 'FtpsOnly'`; Azure SQL Server — `minimalTlsVersion: '1.3'`)
+- **AVM module defaults** (Storage Accounts — `minimumTlsVersion: 'TLS1_2'`)
 - **Platform-level service guarantees** (Azure Container Apps, App Configuration, Key Vault)
 
 TLS 1.0 and TLS 1.1 are not accepted by any resource in this workload. The workload satisfies the stated security requirement.

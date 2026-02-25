@@ -72,6 +72,7 @@ module server 'br/public:avm/res/sql/server:0.21.1' = {
     administrators: admin
     firewallRules: firewallRules
     auditSettings: { state: 'Disabled' }
+    minimalTlsVersion: '1.3'
     // end: shared settings - keep in sync with failover server definition below
   }
 }
@@ -89,6 +90,7 @@ module failoverServer 'br/public:avm/res/sql/server:0.21.1' = if (failoverInfo !
     administrators: admin
     firewallRules: firewallRules
     auditSettings: { state: 'Disabled' }
+    minimalTlsVersion: '1.3'
     // end: shared settings - keep in sync with primary server definition above
   }
 }

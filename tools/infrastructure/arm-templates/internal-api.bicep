@@ -137,7 +137,9 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
         supportCredentials: corsSupportCredentials
       }
       http20Enabled: true
-      minTlsVersion: '1.2'
+      minTlsVersion: '1.3'
+      minTlsCipherSuite: 'TLS_AES_256_GCM_SHA384'
+      ftpsState: 'FtpsOnly'
     }
     clientAffinityEnabled: false
     serverFarmResourceId: hostingPlan.outputs.resourceId

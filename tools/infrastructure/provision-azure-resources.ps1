@@ -182,7 +182,7 @@
                 Get-AzModuleInfo
                 @{
                     Name            = 'SqlServer'
-                    MinimumVersion  = '22.0.59'
+                    MinimumVersion  = '22.4.5.1'
                 }
             )
             if ($ListModuleRequirementsOnly) {
