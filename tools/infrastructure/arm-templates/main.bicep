@@ -60,7 +60,7 @@ module azureMonitor 'azure-monitor.bicep' = {
 }
 
 var reportStorage = settings.SubProducts.PbiReportStorage
-module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.31.0' = {
+module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.31.1' = {
   name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
   params: {
     name: reportStorage.StorageAccountName
@@ -346,7 +346,7 @@ resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@
   location: location
 }
 
-module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
+module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31.1' = {
   name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
   params: {
     name: settings.SubProducts.InternalApi.StorageAccountName
