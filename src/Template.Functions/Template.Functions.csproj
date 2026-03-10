@@ -3,7 +3,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
     <OutputType>Exe</OutputType>
-    <_FunctionsSkipCleanOutput>true</_FunctionsSkipCleanOutput>
     <IsPublishable>true</IsPublishable>
     <UserSecretsId>1c30ae06-8c59-4fff-bf49-c7be38e7e23b</UserSecretsId>
     <NoWarn>1701;1702;1591</NoWarn>
@@ -49,23 +48,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Template.Shared\Template.Shared.csproj" />
   </ItemGroup>
-  <!-- Root cause: the Worker SDK always builds extensions via an auto-generated WorkerExtensions.csproj
-       that targets net8.0 regardless of this project's TFM. Microsoft.NET.Sdk.Functions (referenced by
-       that sub-project) runs RemoveRuntimeDependencies, which strips System.Memory.Data.dll from
-       .azurefunctions because it is classified as platform-provided on net8.0. Azure.Core (and others)
-       in .azurefunctions depend on it at runtime, so `func start` fails locally.
-       _FunctionsSkipCleanOutput=true (above) suppresses this stripping, but only takes effect in the
-       child build when it is a global MSBuild property. VS/Rider promote project properties to globals
-       automatically; `dotnet build` from the CLI does not. This target injects the property explicitly
-       via _FunctionsExtensionCommonProps, which is the string the Worker SDK passes as the Properties
-       attribute to the child <MSBuild> call — the correct extension point. Scoped to Debug to leave
-       the Release/CI build unchanged, where Azure's host runtime supplies the assembly. -->
-  <Target Name="_FunctionsSkipCleanOutputInExtensions" BeforeTargets="_WorkerExtensionsBuild"
-          Condition="'$(Configuration)' == 'Debug'">
-    <PropertyGroup>
-      <_FunctionsExtensionCommonProps>$(_FunctionsExtensionCommonProps);_FunctionsSkipCleanOutput=$(_FunctionsSkipCleanOutput)</_FunctionsExtensionCommonProps>
-    </PropertyGroup>
-  </Target>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
