@@ -1,6 +1,8 @@
 using Azure.Core;
 using Azure.Core.Serialization;
 using Azure.Identity;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +56,16 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     .AddFunctionHttpContextAccessor() // <- experimental equivalent to IHttpContextAccessor in ASP.NET Core
     .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>();
 
+  // Authentication is required in the Functions project to enable HttpContext.User to be populated from EasyAuth's bearer 
+  // token authentication in isolated-process mode. See UseAuthenticationStartupFilter for details.
+  services
+    .AddTransient<IStartupFilter, UseAuthenticationStartupFilter>()
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opts => {
+      opts.TokenHandlers.Clear();
+      opts.TokenHandlers.Add(new UnsafeTrustedJwtSecurityTokenHandler());
+    });
+
   services.AddApplicationInsightsTelemetryWorkerService();
   services.ConfigureFunctionsApplicationInsights();
 
@@ -76,13 +88,14 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
   ConfigureAzureClients(configuration, services);
 
-  services.Configure<WorkerOptions>(options => {
-    var jsonOptions = new JsonSerializerOptions();
-    jsonOptions.ConfigureStandardOptions();
-    options.Serializer = new JsonObjectSerializer(jsonOptions);
-  });
-
-  services.AddMvcCore(options => options.RemoveStringOutputFormatter())
+  // ensure that the same JsonSerializerOptions configuration is used for Durable Task Worker as in HttpTrigger functions
+  services
+    .Configure<WorkerOptions>(options => {
+      var jsonOptions = new JsonSerializerOptions();
+      jsonOptions.ConfigureStandardOptions();
+      options.Serializer = new JsonObjectSerializer(jsonOptions);
+    })
+    .AddMvcCore(options => options.RemoveStringOutputFormatter())
     .AddJsonOptions(options => options.ConfigureStandardJsonOptions());
 }
 

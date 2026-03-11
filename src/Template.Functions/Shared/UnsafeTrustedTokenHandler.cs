@@ -1,29 +1,35 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Template.Functions.Shared;
 
 /// <summary>
-/// Extract a <see cref="ClaimsPrincipal"/> from a JWT token WITHOUT performing validation on that token
+/// Constructs a <see cref="ClaimsPrincipal"/> from a JWT token by deserializing its claims, without re-validating
+/// the token's signature, issuer, audience, or lifetime.
 /// </summary>
 /// <remarks>
 /// <para>
-///     Usage of this class assumes that the consumer of the functions api is trusted to have already performed that
-///     validation
+///   Token validation is deliberately skipped because it has already been performed upstream, in one of two ways:
 /// </para>
-/// <para>
-///     At minimum the consumer must be authenticated via a function/api key. Better, to setup Azure Managed Identity
-///     between consumer->functions and have the functions app only accessible on a VNet
-/// </para>
-/// <para>
-///     IF we decide that we need to perform double validation of the token (once by YARP and once in the functions app)
-///     then use the following article as guidance:
-///     https://damienbod.com/2020/09/24/securing-azure-functions-using-azure-ad-jwt-bearer-token-authentication-for-user-access-tokens/
-/// </para>
+/// <list type="bullet">
+///   <item>
+///     <description>
+///       <b>EasyAuth (platform level)</b>: Azure Functions EasyAuth validates the bearer token before the request
+///       reaches the worker process. The token in the <c>Authorization</c> header can be trusted.
+///     </description>
+///   </item>
+///   <item>
+///     <description>
+///       <b>YARP reverse proxy</b>: The API gateway validates the user's token and forwards it to the function app
+///       via the <c>MRI-Original-Authorization</c> header. The token is an access token originally issued for the
+///       API, not the function app — so re-validating audience/issuer would correctly fail. EasyAuth must still be
+///       configured on the function app to ensure only trusted callers (e.g. the API's managed identity) can reach it.
+///     </description>
+///   </item>
+/// </list>
 /// </remarks>
-public class UnsafeTrustedJwtSecurityTokenHandler : TokenHandler, ISecurityTokenValidator, ITokenValidator {
+public class UnsafeTrustedJwtSecurityTokenHandler : TokenHandler, ITokenValidator {
   private JwtSecurityTokenHandler Implementation { get; }
   protected TokenValidationParameters TokenValidationParameters { get; }
 
@@ -58,16 +64,25 @@ public class UnsafeTrustedJwtSecurityTokenHandler : TokenHandler, ISecurityToken
   }
 
   public Task<ClaimsPrincipal> ValidateTokenAsync(string securityToken) {
-    var claimsPrincipal =
-      ((ISecurityTokenValidator)this).ValidateToken(securityToken, TokenValidationParameters, out _);
+    var claimsPrincipal = ValidateTokenCore(securityToken, TokenValidationParameters, out _);
     return Task.FromResult(claimsPrincipal);
   }
 
-  public bool CanReadToken(string securityToken) {
-    return Implementation.CanReadToken(securityToken);
+  public override Task<TokenValidationResult> ValidateTokenAsync(string token,
+    TokenValidationParameters validationParameters) {
+    try {
+      var claimsPrincipal = ValidateTokenCore(token, validationParameters, out var securityToken);
+      return Task.FromResult(new TokenValidationResult {
+        IsValid = true,
+        ClaimsIdentity = claimsPrincipal.Identity as ClaimsIdentity,
+        SecurityToken = securityToken
+      });
+    } catch (Exception ex) {
+      return Task.FromResult(new TokenValidationResult { IsValid = false, Exception = ex });
+    }
   }
 
-  ClaimsPrincipal ISecurityTokenValidator.ValidateToken(string securityToken,
+  private ClaimsPrincipal ValidateTokenCore(string securityToken,
     TokenValidationParameters validationParameters,
     out SecurityToken validatedToken) {
     var parameters = TokenValidationParameters;
@@ -77,12 +92,5 @@ public class UnsafeTrustedJwtSecurityTokenHandler : TokenHandler, ISecurityToken
     }
 
     return Implementation.ValidateToken(securityToken, parameters, out validatedToken);
-  }
-
-  bool ISecurityTokenValidator.CanValidateToken => Implementation.CanValidateToken;
-
-  int ISecurityTokenValidator.MaximumTokenSizeInBytes {
-    get => ((ISecurityTokenValidator)Implementation).MaximumTokenSizeInBytes;
-    set => ((ISecurityTokenValidator)Implementation).MaximumTokenSizeInBytes = value;
   }
 }

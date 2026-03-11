@@ -29,9 +29,10 @@ Once up and running, feel free to then switch to running the projects via an IDE
 5. Install postman
     * mac: `brew install --cask postman`
     * windows: `choco install postman` (or manually download and install from <https://www.postman.com/downloads/>)
-6. Install Azure functions core tools
+6. Install Azure functions core tools (minimum version **4.8.0**)
     * windows: `choco install azure-functions-core-tools`
     * mac: `brew tap azure/functions && brew install azure-functions-core-tools@4`
+    * To upgrade an existing installation: `brew upgrade azure-functions-core-tools@4` (mac) or `choco upgrade azure-functions-core-tools` (windows)
 7. Clone the repo: `git clone https://github.com/christianacca/web-api-starter.git`
     * **Tip**: prefer to clone to a directory that keep path short and avoid spaces. For example: `C:\git\` or `~/git/`
 8. Follow guide "[Grant access to Azure dev environment](#grant-access-to-azure-dev-environment)" below.
