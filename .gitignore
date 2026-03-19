@@ -405,3 +405,4 @@ FodyWeavers.xsd
 # Custom ignores
 out/
 scratch/
+tmp/

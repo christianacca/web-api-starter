@@ -51,6 +51,8 @@ void ConfigureAppConfiguration(IConfigurationBuilder configuration, IHostEnviron
 }
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
+  var githubSection = environment.IsDevelopment() ? "Local:Github" : "Github";
+
   services
     .AddFunctionContextAccessor()
     .AddFunctionHttpContextAccessor() // <- experimental equivalent to IHttpContextAccessor in ASP.NET Core
@@ -84,7 +86,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
   
-  services.AddGithubServices("Github");
+  services.AddGithubServices(githubSection);
 
   ConfigureAzureClients(configuration, services);
 

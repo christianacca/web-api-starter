@@ -116,12 +116,12 @@ Run the solution locally in its current webhook-based form and verify that it be
 ### Steps
 
 - [ ] Review the existing local setup guidance and confirm all prerequisites for running the current API and Functions solution are satisfied on this machine.
-- [ ] Build the current solution without migration changes.
-- [ ] Start the current API locally.
-- [ ] Start the current Functions app locally, including any required dependencies such as Azurite.
-- [ ] Trigger the existing workflow-orchestration flow using the current supported path.
-- [ ] Capture the orchestration `instanceId` returned by the current workflow start path.
-- [ ] Observe orchestration progress using agent-verifiable methods. Preferred order:
+- [x] Build the current solution without migration changes.
+- [x] Start the current API locally.
+- [x] Start the current Functions app locally, including any required dependencies such as Azurite.
+- [x] Trigger the existing workflow-orchestration flow using the current supported path.
+- [x] Capture the orchestration `instanceId` returned by the current workflow start path.
+- [x] Observe orchestration progress using agent-verifiable methods. Preferred order:
    - Functions host logs and Durable runtime logs
    - direct inspection of Azurite-backed Durable state for the captured `instanceId`
    - any existing repo scripts that help confirm local host behavior
@@ -131,15 +131,19 @@ Run the solution locally in its current webhook-based form and verify that it be
    - webhook callback path is exercised
    - orchestration receives the expected external events
    - orchestration reaches the expected terminal state
-- [ ] Record the benchmark evidence in this document’s execution log format, including:
+- [x] Record the benchmark evidence in this document’s execution log format, including:
    - commands used
    - functions host log evidence
    - how Durable state was inspected in Azurite
    - the observed orchestration state transitions for the captured `instanceId`
    - any environment-specific local setup notes
-- [ ] If baseline issues are found, stop migration work and either fix them first or document them explicitly as pre-existing constraints.
-- [ ] Update the checklist for this phase.
-- [ ] Feed forward any setup, observability, or reproducibility findings into Phases 1 through 7.
+- [x] If baseline issues are found, stop migration work and either fix them first or document them explicitly as pre-existing constraints.
+- [x] Update the checklist for this phase.
+- [x] Feed forward any setup, observability, or reproducibility findings into Phases 1 through 7.
+
+Blocked: The current local benchmark still cannot complete end to end yet.
+Blocked: GitHub completed workflow run `23289568217` for orchestration instance `f97caa2686f14751b3b9b29d7e85a048`, but no corresponding local API webhook request, Functions webhook handling, or durable external event was observed for that instance.
+Blocked: The remaining Phase 0 blocker is inbound webhook delivery to the local stack. The active GitHub App guidance still points the webhook URL at the deployed dev API (`https://dev-api-was.codingdemo.co.uk/api/github/webhooks`), and there is no documented local tunnel or local webhook override flow in this repo.
 
 ### Verification
 
@@ -152,7 +156,31 @@ Run the solution locally in its current webhook-based form and verify that it be
 
 ### Feed Forward
 
-- Pending.
+- Local verification can use Azurite-backed Durable tables directly. `az storage table list` and `az storage entity query` work against the checked-in `AzureWebJobsStorage` connection string when `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` is set for the self-signed Azurite HTTPS endpoints.
+- The local task hub is `TestHubName`, with durable state recorded in `TestHubNameInstances` and `TestHubNameHistory`.
+- The original local benchmark blocker was a mismatched GitHub App configuration. The Key Vault private key currently loaded locally matches GitHub App `2800136` / installation `108147932`, not the previously configured local values `2800205` / `108147870`.
+- Any future local benchmark that needs the API start path must include an explicit bearer-token acquisition step or a documented local auth bypass, because the proxied `POST /api/workflow/start` route is not anonymously callable.
+- Dispatch success alone is not sufficient benchmark evidence. For local verification of the legacy webhook design, also prove where the active GitHub App webhook is pointed and whether a tunnel or override is routing callbacks back to the local API.
+
+### Phase 0 Execution Log
+
+- Date: 2026-03-18
+- Agent: GitHub Copilot (GPT-5.4)
+- Summary of completed work: Reviewed the local setup and orchestration docs, built the unmodified solution, started Azurite, started the API, started the Functions host, verified local health endpoints, triggered one diagnostic orchestration directly against the Functions host, and captured host-log plus durable-table evidence for the resulting instance failure.
+- Verification run: `build solution`; `dotnet run --project ./src/Template.Api`; `func start` from `src/Template.Functions/bin/Debug/net10.0`; `curl -sk https://localhost:5000/health`; `curl http://localhost:7071/api/Echo`; `curl -sk -X POST https://localhost:5000/api/workflow/start ...` returned `401`; `curl -X POST http://localhost:7071/api/workflow/start -H 'Content-Type: application/json' -d '{"WorkflowFile":"webhook-integration-test.yml","RerunEntireWorkflow":true}'` returned `{"id":"7e3444002d5f4d61b409518b6c631477"}`; `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1 az storage table list --connection-string <AzureWebJobsStorage>` returned `TestHubNameHistory`, `TestHubNameInstances`, `TestHubNamePartitions`; `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1 az storage entity query --table-name TestHubNameInstances ...` showed `RuntimeStatus=Failed` for instance `7e3444002d5f4d61b409518b6c631477`; `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1 az storage entity query --table-name TestHubNameHistory --filter "PartitionKey eq '7e3444002d5f4d61b409518b6c631477'" ...` showed `ExecutionStarted`, `TaskScheduled`, `TaskFailed`, and `ExecutionCompleted` events.
+- Files changed: `docs/github-workflow-direct-callback-migration-plan.md`
+- Findings: The current codebase builds cleanly and both local hosts can start. The local API health endpoint and local Functions echo endpoint both respond `200`. The proxied API workflow-start path requires bearer auth and returned `401 Unauthorized` in this session. A direct diagnostic trigger against the anonymous Functions route created a durable instance but failed immediately in `TriggerWorkflowActivity` because the GitHub App JWT/private key material is invalid, producing `Octokit.AuthorizationException: A JSON web token could not be decoded`. Durable state in Azurite confirms the failure and shows that no webhook wait state was reached.
+- Feed-forward updates applied to later phases: Added Phase 0 feed-forward notes on the Azurite inspection method, the local task hub/table names, the need to fix GitHub App private key material before relying on baseline comparisons, and the need to account for API auth in any future local benchmark.
+- Remaining risks: Phase 0 is not closed. No real GitHub Actions run was dispatched, no webhook callback reached the local stack, and the current webhook-based orchestration path has not been verified end to end on this machine.
+
+- Date: 2026-03-19
+- Agent: GitHub Copilot (GPT-5.4)
+- Summary of completed work: Isolated the original dispatch failure to a mismatched local GitHub App configuration, updated the local API and Functions development settings to use the GitHub App and installation that match the Key Vault private key, removed the API Key Vault disable override, verified both hosts can now load GitHub secrets from Key Vault, retried the supported proxied API workflow-start path with a valid bearer token, and correlated the resulting orchestration instance to a real successful GitHub Actions run.
+- Verification run: `dotnet build src/Template.Functions/Template.Functions.csproj`; repo-local diagnostic `tmp/ghdiag` confirmed both Functions and API config paths can authenticate to GitHub using App `2800136` and installation `108147932`; `curl -sk -X POST https://localhost:5000/api/workflow/start -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' -d '{"WorkflowFile":"webhook-integration-test.yml","ReRunEntireWorkflow":true}'` returned `{"id":"f97caa2686f14751b3b9b29d7e85a048"}`; Functions host logs showed `TriggerWorkflowActivity` completed successfully for that instance; `tmp/ghdiag --instance-id f97caa2686f14751b3b9b29d7e85a048 --list-recent-runs 12` showed GitHub workflow run `23289568217` with name `InternalApi-f97caa2686f14751b3b9b29d7e85a048`, status `completed`, and conclusion `success`.
+- Files changed: `src/Template.Api/appsettings.Development.json`; `src/Template.Functions/appsettings.Development.json`; repo-local diagnostic files under `tmp/ghdiag`; `docs/github-workflow-direct-callback-migration-plan.md`
+- Findings: The original GitHub JWT failure was not caused by missing Key Vault access. The loaded private key was valid, but it matched the dev GitHub App rather than the previously configured local app metadata. After correcting local `Github` settings and re-enabling API Key Vault usage, the supported API start path worked, GitHub dispatch succeeded, and the GitHub Actions workflow completed successfully. However, no corresponding local API webhook request or durable external event was observed for the instance, so the remaining local benchmark blocker is inbound webhook delivery back to the local stack.
+- Feed-forward updates applied to later phases: Added evidence that dispatch and workflow execution now work locally, narrowed the remaining pre-migration blocker to webhook delivery, and recorded that the current active GitHub App guidance still points webhook traffic at the deployed dev API instead of the local API.
+- Remaining risks: Phase 0 is still not closed. Although the current webhook-based system can now dispatch and complete a GitHub Actions run from local code, webhook callback delivery has not been observed locally, so the pre-migration end-to-end webhook benchmark remains incomplete on this machine.
 
 ---
 
@@ -189,7 +217,7 @@ Create the new direct callback contract in the Functions project without yet tea
 
 ### Feed Forward
 
-- Pending.
+- Phase 0 showed that local baseline validation is currently blocked before any callback contract behavior is exercised. Keep Phase 1 changes limited to contract and naming isolation, and do not treat the current local benchmark as proof that the webhook path is healthy.
 
 ---
 
@@ -220,7 +248,7 @@ Swap the current webhook-triggered Functions receiver for a direct HTTP callback
 
 ### Feed Forward
 
-- Pending.
+- Phase 0 exposed two local validation prerequisites for later direct-callback work: a valid GitHub App private key/JWT source is required before any GitHub dispatch-based comparison is meaningful, and local API invocation needs an explicit bearer-token acquisition step if the benchmark continues to go through the proxied API route.
 
 ---
 
