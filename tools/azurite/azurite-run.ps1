@@ -1,1 +1,1 @@
-azurite --oauth basic --cert $PSScriptRoot/dev-certs/127.0.0.1.pem --key $PSScriptRoot/dev-certs/127.0.0.1-key.pem --inMemoryPersistence
+azurite --oauth basic --skipApiVersionCheck --cert $PSScriptRoot/dev-certs/127.0.0.1.pem --key $PSScriptRoot/dev-certs/127.0.0.1-key.pem --inMemoryPersistence

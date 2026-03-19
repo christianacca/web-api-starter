@@ -10,7 +10,8 @@ using Template.Shared.Model;
 namespace Template.Functions;
 
 public class ExampleQueue {
-  private const string QueueName = "default-queue";
+  internal const string QueueName = "default-queue";
+  internal const string PoisonQueueName = $"{QueueName}-poison";
   private const string StorageTable = "defaultqueuestorage";
   private ILogger<ExampleQueue> Logger { get; }
 
@@ -84,7 +85,7 @@ public class ExampleQueue {
   /// </remarks>
   [Function($"{nameof(ExampleQueue)}ExceptionHandler")]
   public async Task RunExceptionHandler(
-    [QueueTrigger($"{QueueName}-poison")] MessageBody messageBody,
+    [QueueTrigger(PoisonQueueName)] MessageBody messageBody,
     [TableInput(StorageTable)] TableClient tableClient,
     long dequeueCount,
     CancellationToken ct
@@ -103,7 +104,7 @@ public class ExampleQueue {
           break;
         default:
           throw new InvalidOperationException(
-            $"No Exception handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{QueueName}-poison'");
+            $"No Exception handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{PoisonQueueName}'");
       }
     }
     catch (Exception) {

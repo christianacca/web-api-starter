@@ -15,6 +15,7 @@ using System.Text.Json;
 using Template.Functions.Shared;
 using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Functions.Shared.HttpContextAccessor;
+using Template.Functions;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 using Template.Shared.Extensions;
@@ -88,7 +89,11 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   
   services.AddGithubServices(githubSection);
 
-  ConfigureAzureClients(configuration, services);
+  if (environment.IsDevelopment()) {
+    services.AddHostedService<DevelopmentQueueInitializer>();
+  }
+
+  ConfigureAzureClients(configuration, services, environment);
 
   // ensure that the same JsonSerializerOptions configuration is used for Durable Task Worker as in HttpTrigger functions
   services
@@ -101,7 +106,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     .AddJsonOptions(options => options.ConfigureStandardJsonOptions());
 }
 
-void ConfigureAzureClients(IConfiguration configuration, IServiceCollection services) {
+void ConfigureAzureClients(IConfiguration configuration, IServiceCollection services, IHostEnvironment environment) {
   services.AddAzureClientsCore(enableLogForwarding: true);
   services.AddAzureClients(cfg => {
     cfg.ConfigureDefaults(opts => { opts.Retry.Mode = RetryMode.Exponential; });
@@ -109,6 +114,11 @@ void ConfigureAzureClients(IConfiguration configuration, IServiceCollection serv
     cfg.UseCredential(sp => new DefaultAzureCredential(
       sp.GetRequiredService<IOptionsMonitor<DefaultAzureCredentialOptions>>().CurrentValue
     ));
+
+    if (environment.IsDevelopment()) {
+      cfg.AddQueueServiceClient(configuration.GetValue<string>("AzureWebJobsStorage") ?? "")
+          .WithName(DevelopmentQueueInitializer.QueueClientName);
+    }
 
     cfg.AddBlobServiceClient(configuration.GetSection("InternalApi:ReportBlobStorage"))
       .WithName("ReportStorageService");
