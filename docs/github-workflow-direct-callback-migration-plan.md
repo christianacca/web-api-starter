@@ -115,7 +115,7 @@ Run the solution locally in its current webhook-based form and verify that it be
 
 ### Steps
 
-- [ ] Review the existing local setup guidance and confirm all prerequisites for running the current API and Functions solution are satisfied on this machine.
+- [x] Review the existing local setup guidance and confirm all prerequisites for running the current API and Functions solution are satisfied on this machine.
 - [x] Build the current solution without migration changes.
 - [x] Start the current API locally.
 - [x] Start the current Functions app locally, including any required dependencies such as Azurite.
@@ -126,7 +126,7 @@ Run the solution locally in its current webhook-based form and verify that it be
    - direct inspection of Azurite-backed Durable state for the captured `instanceId`
    - any existing repo scripts that help confirm local host behavior
    - Durable Functions Monitor only as an optional secondary visual check
-- [ ] Confirm the current design behaves as expected end to end:
+- [x] Confirm the current design behaves as expected end to end:
    - workflow dispatch occurs
    - webhook callback path is exercised
    - orchestration receives the expected external events
@@ -140,10 +140,6 @@ Run the solution locally in its current webhook-based form and verify that it be
 - [x] If baseline issues are found, stop migration work and either fix them first or document them explicitly as pre-existing constraints.
 - [x] Update the checklist for this phase.
 - [x] Feed forward any setup, observability, or reproducibility findings into Phases 1 through 7.
-
-Blocked: The current local benchmark still cannot complete end to end yet.
-Blocked: GitHub completed workflow run `23289568217` for orchestration instance `f97caa2686f14751b3b9b29d7e85a048`, but no corresponding local API webhook request, Functions webhook handling, or durable external event was observed for that instance.
-Blocked: The remaining Phase 0 blocker is inbound webhook delivery to the local stack. The active GitHub App guidance still points the webhook URL at the deployed dev API (`https://dev-api-was.codingdemo.co.uk/api/github/webhooks`), and there is no documented local tunnel or local webhook override flow in this repo.
 
 ### Verification
 
@@ -161,6 +157,8 @@ Blocked: The remaining Phase 0 blocker is inbound webhook delivery to the local 
 - The original local benchmark blocker was a mismatched GitHub App configuration. The Key Vault private key currently loaded locally matches GitHub App `2800136` / installation `108147932`, not the previously configured local values `2800205` / `108147870`.
 - Any future local benchmark that needs the API start path must include an explicit bearer-token acquisition step or a documented local auth bypass, because the proxied `POST /api/workflow/start` route is not anonymously callable.
 - Dispatch success alone is not sufficient benchmark evidence. For local verification of the legacy webhook design, also prove where the active GitHub App webhook is pointed and whether a tunnel or override is routing callbacks back to the local API.
+- A reproducible local webhook benchmark is now possible by hosting the API on `https://localhost:5000`, exposing it through a developer-owned persistent dev tunnel, and pointing the `Web Api Starter (Local)` GitHub App webhook URL at `<tunnel-url>/api/github/webhooks` with anonymous tunnel access enabled for port `5000`.
+- During the successful local benchmark, GitHub delivered one unrelated `workflow_run` webhook for `Orchestrator Test Workflow` that the API logged as unsupported before delivering the expected `WorkflowInProgress` and `WorkflowCompleted` events for the target orchestration instance.
 
 ### Phase 0 Execution Log
 
@@ -181,6 +179,15 @@ Blocked: The remaining Phase 0 blocker is inbound webhook delivery to the local 
 - Findings: The original GitHub JWT failure was not caused by missing Key Vault access. The loaded private key was valid, but it matched the dev GitHub App rather than the previously configured local app metadata. After correcting local `Github` settings and re-enabling API Key Vault usage, the supported API start path worked, GitHub dispatch succeeded, and the GitHub Actions workflow completed successfully. However, no corresponding local API webhook request or durable external event was observed for the instance, so the remaining local benchmark blocker is inbound webhook delivery back to the local stack.
 - Feed-forward updates applied to later phases: Added evidence that dispatch and workflow execution now work locally, narrowed the remaining pre-migration blocker to webhook delivery, and recorded that the current active GitHub App guidance still points webhook traffic at the deployed dev API instead of the local API.
 - Remaining risks: Phase 0 is still not closed. Although the current webhook-based system can now dispatch and complete a GitHub Actions run from local code, webhook callback delivery has not been observed locally, so the pre-migration end-to-end webhook benchmark remains incomplete on this machine.
+
+- Date: 2026-03-20
+- Agent: GitHub Copilot (GPT-5.4)
+- Summary of completed work: Re-ran the current webhook-based flow with the `Web Api Starter (Local)` GitHub App webhook URL pointed at the developer-owned dev tunnel `https://sqpnctzk-5000.uks1.devtunnels.ms/api/github/webhooks`, started Azurite via the checked-in task script, started the local API and Functions hosts, triggered the supported proxied API workflow-start path using a valid bearer token, and captured API logs, Functions host logs, and Azurite-backed Durable state showing end-to-end completion.
+- Verification run: `build solution`; task `start azurite` (runs `tools/azurite/azurite-run.ps1`); `dotnet run --project ./src/Template.Api`; `func start --port 7071 --verbose` from `src/Template.Functions/bin/Debug/net10.0`; `devtunnel host web-api-starter-api-christian`; `curl -sk https://localhost:5000/health`; `curl -s http://localhost:7071/api/Echo`; `curl -sk -X POST https://localhost:5000/api/workflow/start -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' -d '{"WorkflowFile":"webhook-integration-test.yml","ReRunEntireWorkflow":true}'` returned `{"id":"42cf976321bd4288a18a3dc54e3e6228"}`; `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1 az storage entity query --table-name TestHubNameInstances ...` showed `RuntimeStatus=Completed`; `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1 az storage entity query --table-name TestHubNameHistory --filter "PartitionKey eq '42cf976321bd4288a18a3dc54e3e6228'" ...` showed `ExecutionStarted`, `TaskScheduled`, `TaskCompleted`, `EventRaised` (`WorkflowInProgress`, `WorkflowCompleted`), and `ExecutionCompleted`.
+- Files changed: `docs/github-workflow-direct-callback-migration-plan.md`
+- Findings: The supported API path now works end to end in the legacy webhook architecture when the local API is hosted behind the developer-specific dev tunnel and the `Web Api Starter (Local)` GitHub App webhook URL points at that tunnel. API logs showed the proxied `POST /api/workflow/start` request succeeded, followed by three inbound `POST /api/github/webhooks` deliveries. The first was an unrelated `Orchestrator Test Workflow` event that the API logged as unsupported. The next two were forwarded to the local Functions `GithubWebhook` endpoint, which raised durable external events `WorkflowInProgress` with GitHub run id `23353310577` and `WorkflowCompleted` with input `true`. The orchestrator instance `42cf976321bd4288a18a3dc54e3e6228` then reached terminal state `Completed` in Azurite-backed Durable storage.
+- Feed-forward updates applied to later phases: Recorded the concrete local webhook-verification recipe using a persistent dev tunnel and the local GitHub App, confirmed that end-to-end webhook delivery can now be reproduced locally before migration, and noted that unrelated `workflow_run` deliveries may appear in logs and should be distinguished from the target orchestration instance during later comparisons.
+- Remaining risks: Phase 0 is now closed for the current webhook-based design. The remaining migration risks are forward-looking: later phases must preserve the currently verified API-trigger, dispatch, and orchestration semantics while replacing webhook completion delivery with the direct callback path.
 
 ---
 
