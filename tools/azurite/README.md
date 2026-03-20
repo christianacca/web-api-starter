@@ -70,10 +70,24 @@ from command-line first BEFORE starting the function app in VS2022. See instruct
 
 Complete the prerequisites in the command-line section above, then:
 
-Azurite starts automatically as a pre-launch task when you:
+Azurite starts automatically through the VS Code task chain when you debug the Functions app.
 
-* Press **F5** and select **"Debug Functions (Template.Functions)"** from the debug dropdown
-* Or use the debug panel and launch the Functions configuration
+Current recommended flow:
+
+1. Go to **Run and Debug**
+2. Select **"Attach to .NET Functions"** from the debug dropdown
+3. Start debugging
+
+The Functions tooling will start the local Functions host, and that host task depends on the `start azurite` task defined in `.vscode/tasks.json`.
+
+> [!NOTE]
+> VS Code may first show a dialog like:
+>
+> `Failed to verify "AzureWebJobsStorage" connection specified in "local.settings.json". Is the local emulator installed and running?`
+>
+> In this repo, selecting **Debug anyway** is expected. The `start azurite` task then starts Azurite using `./tools/azurite/azurite-run.ps1`, after which debugging continues normally.
+
+Once the Functions host is already running, you can stop and re-run **"Attach to .NET Functions"** without needing Azurite to be started again just for the re-attach.
 
 The Azurite process runs in a dedicated terminal panel and will remain running until you stop it manually or close VS Code.
 

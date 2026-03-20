@@ -54,14 +54,6 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
-			"label": "build functions and start azurite",
-			"dependsOn": [
-				"start azurite",
-				"build functions"
-			],
-			"dependsOrder": "sequence"
-		},
-		{
 			"label": "start azurite",
 			"type": "shell",
 			"command": "pwsh",
@@ -88,6 +80,20 @@
 				"panel": "dedicated",
 				"group": "azurite"
 			}
+		},
+		{
+			"type": "func",
+			"dependsOn": [
+				"build functions",
+				"start azurite"
+			],
+			"dependsOrder": "sequence",
+			"options": {
+				"cwd": "${workspaceFolder}/src/Template.Functions/bin/Debug/net10.0"
+			},
+			"command": "host start",
+			"isBackground": true,
+			"problemMatcher": "$func-dotnet-watch"
 		},
 		{
 			"label": "clean release (functions)",
