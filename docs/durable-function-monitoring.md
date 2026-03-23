@@ -10,3 +10,31 @@ The tool can be found [here](https://github.com/microsoft/DurableFunctionsMonito
 5. Click on the connect icon and enter the address of the storage emulator
     * Address can be obtained from the AzureWebJobsStorage setting found [here](../src/Template.Functions/local.settings.json).
 6. The durable function monitor will load up and allow you to track progress.
+
+## Troubleshooting on macOS
+
+If VS Code on macOS shows an error similar to the following when starting Durable Functions Monitor:
+
+```text
+Func: Failed to start the inproc6 model host. An error occurred trying to start process '/usr/local/Cellar/azure-functions-core-tools@4/4.8.0/in-proc6/func' with working directory '.../durablefunctionsmonitor.../backend'. Permission denied
+```
+
+then the problem may be that the Azure Functions Core Tools in-proc host binaries have lost their execute permission on disk.
+
+This does not mean that this solution is using the in-process Azure Functions worker model. Durable Functions Monitor uses its own backend host, and that host can still invoke an `in-proc6` executable even when the function app itself runs in isolated-process mode.
+
+Inspect and fix the permissions with:
+
+```bash
+ls -l /usr/local/Cellar/azure-functions-core-tools@4/4.8.0/in-proc*/func
+chmod 755 /usr/local/Cellar/azure-functions-core-tools@4/4.8.0/in-proc6/func \
+    /usr/local/Cellar/azure-functions-core-tools@4/4.8.0/in-proc8/func
+```
+
+After updating the permissions, reload VS Code and try Durable Functions Monitor again.
+
+If the execute bit is removed again later, repair the Homebrew installation:
+
+```bash
+brew reinstall azure-functions-core-tools@4
+```
