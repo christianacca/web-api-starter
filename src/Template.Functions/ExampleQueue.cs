@@ -7,6 +7,7 @@ using Template.Functions.GithubWorkflowOrchestrator;
 using Template.Functions.Shared;
 using Template.Shared.Azure.MessageQueue;
 using Template.Shared.Model;
+using System.ComponentModel.DataAnnotations;
 
 namespace Template.Functions;
 
@@ -44,17 +45,19 @@ public class ExampleQueue {
     [TableInput(StorageTable)] TableClient tableClient,
     long dequeueCount,
     CancellationToken ct) {
-    Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
+    ValidateQueueMessageEnvelope(messageBody, QueueName);
+    var messageType = messageBody.Metadata.MessageType;
+
+    Logger.LogInformation("Queue trigger function processing: {MessageType}", messageType);
 
     var lastAttempt = dequeueCount == QueueConstants.MaxDequeueCount;
 
     try {
-      switch (messageBody.Metadata.MessageType) {
+      switch (messageType) {
         case nameof(ExampleMessageData):
           await ProcessExampleMessageAsync(messageBody, ct);
           break;
-        case GithubWorkflowMessageTypes.GithubWorkflowInProgress:
-        case GithubWorkflowMessageTypes.GithubWorkflowCompleted:
+        case var workflowMessageType when GithubWorkflowQueueMessageContract.IsSupported(workflowMessageType):
           ProcessGithubWorkflowMessage(messageBody);
           break;
         case "SimpleMessage":
@@ -62,7 +65,7 @@ public class ExampleQueue {
           break;
         default:
           throw new InvalidOperationException(
-            $"No handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{QueueName}'");
+            $"No handler found for the message type '{messageType}' for the queue '{QueueName}'");
       }
     }
     catch (Exception ex) when (lastAttempt) {
@@ -95,7 +98,10 @@ public class ExampleQueue {
     long dequeueCount,
     CancellationToken ct
   ) {
-    Logger.LogInformation("Queue trigger function processing: {MessageType}", messageBody.Metadata.MessageType);
+    ValidateQueueMessageEnvelope(messageBody, PoisonQueueName);
+    var messageType = messageBody.Metadata.MessageType;
+
+    Logger.LogInformation("Queue trigger function processing: {MessageType}", messageType);
 
     var msgExceptionResponse = await tableClient.GetEntityIfExistsAsync<MessageExceptionTableEntity>(
       MessageExceptionTableEntity.DefaultStoragePartitionKey, messageBody.Id.ToString(), cancellationToken: ct);
@@ -103,17 +109,16 @@ public class ExampleQueue {
 
     var handled = true;
     try {
-      switch (messageBody.Metadata.MessageType) {
+      switch (messageType) {
         case nameof(ExampleMessageData):
           HandleExampleMessageException(messageBody, msgException);
           break;
-        case GithubWorkflowMessageTypes.GithubWorkflowInProgress:
-        case GithubWorkflowMessageTypes.GithubWorkflowCompleted:
+        case var workflowMessageType when GithubWorkflowQueueMessageContract.IsSupported(workflowMessageType):
           HandleGithubWorkflowMessageException(messageBody, msgException);
           break;
         default:
           throw new InvalidOperationException(
-            $"No Exception handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{PoisonQueueName}'");
+            $"No Exception handler found for the message type '{messageType}' for the queue '{PoisonQueueName}'");
       }
     }
     catch (Exception) {
@@ -202,5 +207,13 @@ public class ExampleQueue {
   private static T GetMessageData<T>(MessageBody messageBody) {
     var data = JsonSerializer.Deserialize<T>(messageBody.Data);
     return data == null ? throw new InvalidOperationException("Message data is missing") : data;
+  }
+
+  private static void ValidateQueueMessageEnvelope(MessageBody? messageBody, string queueName) {
+    if (messageBody == null) {
+      throw new ValidationException($"Queue message body is missing for queue '{queueName}'.");
+    }
+
+    Validator.ValidateObject(messageBody, new ValidationContext(messageBody), validateAllProperties: true);
   }
 }

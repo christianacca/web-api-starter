@@ -341,6 +341,76 @@ Contract notes:
 
 ---
 
+## Phase 1.1: Contract Cleanup Before Queue Cutover
+
+### Goal
+
+Resolve the Phase 1 contract and queue-envelope issues before any Phase 2 queue-consumption work begins. This phase keeps behavior unchanged, but tightens the shared queue envelope handling and the workflow message contract so Phase 2 can build on a sound base.
+
+### Locked Design Decisions
+
+- `ExampleQueue` remains the owner of `default-queue`. Phase 1.1 does not introduce a second queue trigger or move queue-envelope validation into a different function.
+- General `MessageBody` envelope validation is a queue concern, not a GitHub workflow concern. The outer envelope must be validated in `ExampleQueue` before any code logs, switches on, or otherwise dereferences `messageBody.Metadata.MessageType`.
+- `GithubWorkflowQueueMessageContract` remains GitHub-specific. After Phase 1.1 it should assume the outer `MessageBody` envelope has already passed general queue-envelope validation and should only validate: supported GitHub workflow message type, presence of `Data`, inner payload shape, and payload field constraints.
+- The documented workflow queue JSON contract is the source of truth and it uses camelCase field names such as `environment`, `instanceId`, `repository`, `runId`, `runAttempt`, `workflowName`, and `conclusion`. Functions-side deserialization must explicitly support that documented camelCase contract and must not rely on undocumented serializer defaults.
+- Supported GitHub workflow message routing must have one source of truth. Replace the current split between `IsSupported(...)` and switch-based deserialization with one mapping from message type to payload contract/validator. If a helper like `IsSupported(...)` remains, it must derive from that same mapping rather than duplicate it.
+- The shared GitHub workflow message names remain exactly `GithubWorkflowInProgress` and `GithubWorkflowCompleted`. Phase 1.1 does not rename them, add aliases, or reintroduce a redundant inner `status` field.
+- Phase 1.1 remains validation-only. `ExampleQueue` still does not raise Durable events from GitHub workflow queue messages in this phase.
+
+### Steps
+
+- [x] Add an explicit general queue-envelope validation step in `ExampleQueue` and run it before any logging or switch dispatch that reads `messageBody.Metadata.MessageType` in both the main queue handler and the poison-queue handler.
+- [x] Keep that general envelope validation outside `GithubWorkflowQueueMessageContract`; do not mix outer `MessageBody` checks into the GitHub-specific payload contract.
+- [x] Update `GithubWorkflowQueueMessageContract` so it validates only GitHub workflow message concerns after the outer queue envelope is known-valid.
+- [x] Make workflow queue payload deserialization explicitly compatible with the documented camelCase JSON contract rather than depending on serializer defaults.
+- [x] Keep the documented payload field set unchanged in this phase: `environment`, `instanceId`, `repository`, `runId`, `runAttempt`, `workflowName`, and for completed messages `conclusion`.
+- [x] Replace the duplicated `IsSupported(...)` plus switch-dispatch arrangement with one authoritative mapping from message type to payload model/validator.
+- [x] If an `IsSupported(...)` helper still exists after the refactor, ensure it reads from the authoritative mapping instead of duplicating the supported-type list.
+- [x] Keep the shared GitHub workflow message names unchanged: `GithubWorkflowInProgress` and `GithubWorkflowCompleted`.
+- [x] Preserve Phase 1 behavior exactly: validation-only handling in `ExampleQueue`, with no Durable event raising from queue messages yet.
+- [x] Build the Functions project.
+- [x] Update the checklist for this phase.
+- [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
+- [x] Feed forward any queue-envelope, serializer, or contract-shape findings into Phases 2 through 7.
+
+### Verification
+
+1. `build functions` succeeds.
+2. `ExampleQueue` no longer dereferences `messageBody.Metadata.MessageType` before a general queue-envelope validation step has run in either queue-trigger entry point.
+3. General queue-envelope validation remains outside `GithubWorkflowQueueMessageContract`, and GitHub-specific validation only runs after the envelope is known-valid.
+4. The documented camelCase workflow payload shape deserializes successfully against the Functions-side contract without changing the documented field names.
+5. Supported workflow message types and payload dispatch are defined in one authoritative mapping, with no second manually-maintained supported-type list.
+6. The only supported GitHub workflow queue message names remain `GithubWorkflowInProgress` and `GithubWorkflowCompleted`.
+7. Queue handling remains validation-only; no Durable event raising is introduced in this phase.
+
+### Human Intervention
+
+- None expected.
+
+### Approval Gate
+
+- None expected.
+
+### Feed Forward
+
+- Phase 1.1 exists to close three pre-Phase-2 issues discovered during review: queue-envelope null-dereference risk in `ExampleQueue`, likely mismatch between documented camelCase payloads and current deserialization behavior, and drift risk between supported-type validation and deserialization dispatch.
+- Later phases must treat these decisions as locked unless the plan is explicitly revised again: outer queue-envelope validation stays in `ExampleQueue`, the GitHub workflow contract stays GitHub-specific and camelCase-compatible, and message-type support/dispatch stays driven from one mapping.
+- Phase 1.1 now enforces the documented workflow payload casing through the shared payload serializer options instead of per-property attributes. Later publishers and tests should keep emitting those exact camelCase field names.
+- Do not begin Phase 2 until these contract-cleanup items are verified.
+
+### Phase 1.1 Execution Log
+
+- Date: 2026-03-24
+- Agent: GitHub Copilot (GPT-5.4)
+- Summary of completed work: Added explicit outer queue-envelope validation in `ExampleQueue` before any logging or dispatch in both queue-trigger entry points, moved the shared non-null envelope rules into `MessageBody` and `QueueMessageMetadata`, kept GitHub-specific validation outside the shared envelope model, refactored workflow payload validation to use one authoritative message-type-to-validator mapping, and made the workflow payload deserializer explicitly use camelCase naming rules while preserving Phase 1's validation-only behavior.
+- Verification run: `build functions`; targeted code inspection of `src/Template.Functions/ExampleQueue.cs` and `src/Template.Functions/GithubWorkflowOrchestrator/GithubWorkflowContracts.cs` confirmed that `messageBody.Metadata.MessageType` is not dereferenced before envelope validation, that GitHub workflow support and payload dispatch are derived from one mapping, and that the payload contract explicitly names `environment`, `instanceId`, `repository`, `runId`, `runAttempt`, `workflowName`, and `conclusion`.
+- Files changed: `src/Template.Functions/ExampleQueue.cs`; `src/Template.Functions/GithubWorkflowOrchestrator/GithubWorkflowContracts.cs`; `docs/github-workflow-direct-callback-migration-plan.md`
+- Findings: The Phase 1 implementation had a real null-dereference risk because both queue-trigger entry points logged `messageBody.Metadata.MessageType` before checking whether the outer envelope had deserialized correctly. The Phase 1 contract also split supported-type validation from payload dispatch, which created avoidable drift risk ahead of Phase 2. The shared envelope rules fit better on `MessageBody` and `QueueMessageMetadata`, but the root null check still has to remain in `ExampleQueue` because model-level validation cannot run if the queue trigger fails to materialize the root object. CamelCase payload compatibility is now enforced through serializer options instead of per-property JSON attributes.
+- Feed-forward updates applied to later phases: Phase 2 should continue to treat `ExampleQueue` as the queue-envelope boundary, should reuse the existing contract mapping instead of reintroducing a second supported-type list, and should keep publisher payloads on the documented camelCase field names when queue publication is added.
+- Remaining risks: The phase commit remains intentionally uncreated because no explicit commit instruction was given in this session. Queue handling is still validation-only by design; Durable event raising and duplicate-side-effect prevention remain Phase 2 work.
+
+---
+
 ## Phase 2: Replace The Functions Webhook Receiver With Queue Consumption
 
 ### Goal
@@ -383,6 +453,7 @@ Swap the current webhook-triggered Functions receiver for queue-driven processin
 
 - Phase 0 exposed two local validation prerequisites for later queue-based work: a valid GitHub App private key/JWT source is required before any GitHub dispatch-based comparison is meaningful, and local API invocation needs an explicit bearer-token acquisition step if the benchmark continues to go through the proxied API route.
 - Phase 1 locked the workflow queue contract on the existing `MessageBody` envelope and the existing `ExampleQueue` trigger, and it now uses one shared GitHub workflow message-name set for both Durable events and queue routing. Phase 2 should build on that branch, replacing validation-only handling with Durable event raising and duplicate protection keyed by `instanceId`, `runId`, `runAttempt`, and message type.
+- Phase 1.1 locked `ExampleQueue` as the outer queue-envelope validation boundary and made workflow payload casing explicit through the shared serializer options. Phase 2 should preserve that split by keeping envelope checks in `ExampleQueue` and reusing the existing workflow contract mapping instead of duplicating message-type support logic.
 - Phase 1 removed redundant payload `status`; Phase 2 and later publishers should rely on `QueueMessageMetadata.MessageType` rather than duplicating lifecycle state inside the inner workflow payload.
 
 ---

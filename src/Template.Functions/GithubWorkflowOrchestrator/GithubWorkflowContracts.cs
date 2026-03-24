@@ -1,52 +1,46 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Template.Shared.Azure.MessageQueue;
+using Template.Shared.Extensions;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
 public static class GithubWorkflowMessageTypes {
   public const string GithubWorkflowInProgress = "GithubWorkflowInProgress";
   public const string GithubWorkflowCompleted = "GithubWorkflowCompleted";
-
-  public static bool IsSupported(string? messageType) {
-    return string.Equals(messageType, GithubWorkflowInProgress, StringComparison.Ordinal) ||
-           string.Equals(messageType, GithubWorkflowCompleted, StringComparison.Ordinal);
-  }
 }
 
 public static class GithubWorkflowQueueMessageContract {
+  private static readonly JsonSerializerOptions PayloadSerializerOptions = CreatePayloadSerializerOptions();
+
+  private static readonly IReadOnlyDictionary<string, Action<string>> ValidatorsByMessageType =
+    new Dictionary<string, Action<string>>(StringComparer.Ordinal) {
+      [GithubWorkflowMessageTypes.GithubWorkflowInProgress] = json => DeserializeAndValidate<GithubWorkflowInProgressMessageData>(json, GithubWorkflowMessageTypes.GithubWorkflowInProgress),
+      [GithubWorkflowMessageTypes.GithubWorkflowCompleted] = json => DeserializeAndValidate<GithubWorkflowCompletedMessageData>(json, GithubWorkflowMessageTypes.GithubWorkflowCompleted)
+    };
+
   public static void Check(MessageBody messageBody) {
     ArgumentNullException.ThrowIfNull(messageBody);
 
-    var messageType = GetMessageType(messageBody);
-
-    if (messageBody.Metadata == null) {
-      throw new ValidationException($"Workflow queue message metadata is missing for message type '{messageType}'.");
-    }
-
-    if (!GithubWorkflowMessageTypes.IsSupported(messageType)) {
-      throw new ValidationException($"Unsupported workflow queue message type '{messageType}'.");
-    }
+    var messageType = messageBody.Metadata?.MessageType ?? throw new ValidationException("Workflow queue message metadata is missing.");
 
     if (string.IsNullOrWhiteSpace(messageBody.Data)) {
       throw new ValidationException($"Workflow queue message data is missing for message type '{messageType}'.");
     }
 
-    switch (messageType) {
-      case GithubWorkflowMessageTypes.GithubWorkflowInProgress:
-        DeserializeAndValidate<GithubWorkflowInProgressMessageData>(messageBody.Data, messageType);
-        break;
-      case GithubWorkflowMessageTypes.GithubWorkflowCompleted:
-        DeserializeAndValidate<GithubWorkflowCompletedMessageData>(messageBody.Data, messageType);
-        break;
+    if (!ValidatorsByMessageType.TryGetValue(messageType, out var validatePayload)) {
+      throw new ValidationException($"Unsupported workflow queue message type '{messageType}'.");
     }
+
+    validatePayload(messageBody.Data);
   }
 
-  private static string GetMessageType(MessageBody messageBody) {
-    return messageBody.Metadata?.MessageType ?? "<missing>";
+  public static bool IsSupported(string? messageType) {
+    return !string.IsNullOrWhiteSpace(messageType) && ValidatorsByMessageType.ContainsKey(messageType);
   }
 
   private static T DeserializeAndValidate<T>(string json, string messageType) where T : class {
-    var model = System.Text.Json.JsonSerializer.Deserialize<T>(json);
+    var model = JsonSerializer.Deserialize<T>(json, PayloadSerializerOptions);
     if (model == null) {
       throw new ValidationException($"Workflow queue message data is missing for message type '{messageType}'.");
     }
@@ -62,6 +56,12 @@ public static class GithubWorkflowQueueMessageContract {
     }
 
     return model;
+  }
+
+  private static JsonSerializerOptions CreatePayloadSerializerOptions() {
+    var options = new JsonSerializerOptions();
+    options.ConfigureStandardOptions();
+    return options;
   }
 }
 
