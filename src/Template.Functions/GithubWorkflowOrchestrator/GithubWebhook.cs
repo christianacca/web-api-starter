@@ -12,9 +12,6 @@ using Template.Shared.Proxy;
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
 public class GithubWebhook(ILogger<GithubWebhook> logger) {
-  public const string WorkflowCompletedEvent = "WorkflowCompleted";
-  public const string WorkflowInProgressEvent = "WorkflowInProgress";
-
   private const string InvalidWorkflowRunNameMessage = "Workflow run name must be in format 'WorkflowRunNamePrefix-instanceId'";
 
   private static readonly string WorkflowRunNamePrefix = $"{FunctionAppIdentifiers.InternalApi}-";
@@ -42,7 +39,7 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
 
   private async Task RaiseWorkflowEvents(string instanceId, WorkflowRunEvent workflowEvent, DurableTaskClient client, CancellationToken ct) {
     if (workflowEvent.Action == WorkflowRunAction.InProgress && workflowEvent.WorkflowRun.Status == WorkflowRunStatus.InProgress) {
-      await client.RaiseEventAsync(instanceId, WorkflowInProgressEvent, workflowEvent.WorkflowRun.Id, ct);
+      await client.RaiseEventAsync(instanceId, GithubWorkflowOrchestrationEvents.WorkflowInProgress, workflowEvent.WorkflowRun.Id, ct);
       return;
     }
 
@@ -50,7 +47,7 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
         workflowEvent.WorkflowRun.Status == WorkflowRunStatus.Completed) {
       var success = workflowEvent.WorkflowRun.Conclusion.HasValue &&
                     workflowEvent.WorkflowRun.Conclusion.Value == WorkflowRunConclusion.Success;
-      await client.RaiseEventAsync(instanceId, WorkflowCompletedEvent, success, ct);
+      await client.RaiseEventAsync(instanceId, GithubWorkflowOrchestrationEvents.WorkflowCompleted, success, ct);
       return;
     }
 

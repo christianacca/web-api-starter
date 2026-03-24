@@ -243,11 +243,58 @@ Run the solution locally in its current webhook-based form and verify that it be
 
 Create the new workflow-completion queue message contract in the Functions project without yet tearing out the webhook path. The result of this phase is a clear, compilable queue message model, neutral orchestration naming, and a fixed plan that extends `ExampleQueue` as the owner of `default-queue`.
 
+### Locked Contract
+
+Neutral Durable event names:
+
+1. `WorkflowInProgress`
+2. `WorkflowCompleted`
+
+Stable `QueueMessageMetadata.MessageType` values:
+
+1. `GithubWorkflowInProgress`
+2. `GithubWorkflowCompleted`
+
+Minimum payload for `GithubWorkflowInProgress`:
+
+```json
+{
+   "instanceId": "42cf976321bd4288a18a3dc54e3e6228",
+   "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228",
+   "runId": 23353310577,
+   "status": "in_progress",
+   "runAttempt": 1,
+   "environment": "dev",
+   "repository": "christianacca/web-api-starter"
+}
+```
+
+Minimum payload for `GithubWorkflowCompleted`:
+
+```json
+{
+   "instanceId": "42cf976321bd4288a18a3dc54e3e6228",
+   "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228",
+   "runId": 23353310577,
+   "status": "completed",
+   "conclusion": "success",
+   "runAttempt": 1,
+   "environment": "dev",
+   "repository": "christianacca/web-api-starter"
+}
+```
+
+Contract notes:
+
+1. `ExampleQueue` remains the sole owner of `default-queue`.
+2. The queue transport remains the existing `MessageBody` plus `QueueMessageMetadata` envelope.
+3. Phase 1 validates the workflow queue contract in `ExampleQueue` but does not yet raise Durable events from queue messages.
+
 ### Steps
 
-- [ ] Introduce a neutral workflow-completion queue message concept in the Functions project, for example `GithubWorkflowQueueMessage` or `GithubWorkflowCompletionMessage`.
-- [ ] Move orchestration event names out of the current webhook class into a neutral shared type so the orchestrator is no longer coupled to `GithubWebhook`.
-- [ ] Define a queue message payload model carrying at least:
+- [x] Introduce a neutral workflow-completion queue message concept in the Functions project, for example `GithubWorkflowQueueMessage` or `GithubWorkflowCompletionMessage`.
+- [x] Move orchestration event names out of the current webhook class into a neutral shared type so the orchestrator is no longer coupled to `GithubWebhook`.
+- [x] Define a queue message payload model carrying at least:
   - `instanceId`
   - `workflowName`
   - `runId`
@@ -255,16 +302,16 @@ Create the new workflow-completion queue message contract in the Functions proje
   - `conclusion`
   - `runAttempt`
   - repository metadata if needed for diagnostics
-- [ ] Define the new workflow-completion message type so it fits the existing `ExampleQueue` dispatch pattern on `default-queue`.
-- [ ] Reuse the existing `MessageBody` plus `QueueMessageMetadata` envelope and do not introduce a second queue envelope format.
-- [ ] Fix the stable `QueueMessageMetadata.MessageType` names for the workflow message contract.
-- [ ] Add validation rules for the new workflow-completion queue payload and message metadata.
-- [ ] Fix the exact minimum JSON payload fields for both `GithubWorkflowInProgress` and `GithubWorkflowCompleted`.
-- [ ] Update any orchestration code that references event constants from the old webhook class.
-- [ ] Build the Functions project.
-- [ ] Update the checklist for this phase.
+- [x] Define the new workflow-completion message type so it fits the existing `ExampleQueue` dispatch pattern on `default-queue`.
+- [x] Reuse the existing `MessageBody` plus `QueueMessageMetadata` envelope and do not introduce a second queue envelope format.
+- [x] Fix the stable `QueueMessageMetadata.MessageType` names for the workflow message contract.
+- [x] Add validation rules for the new workflow-completion queue payload and message metadata.
+- [x] Fix the exact minimum JSON payload fields for both `GithubWorkflowInProgress` and `GithubWorkflowCompleted`.
+- [x] Update any orchestration code that references event constants from the old webhook class.
+- [x] Build the Functions project.
+- [x] Update the checklist for this phase.
 - [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
-- [ ] Feed forward any naming, message-shape, queue-ownership, or event-contract findings into Phases 2 through 7.
+- [x] Feed forward any naming, message-shape, queue-ownership, or event-contract findings into Phases 2 through 7.
 
 ### Verification
 
@@ -285,6 +332,20 @@ Create the new workflow-completion queue message contract in the Functions proje
 ### Feed Forward
 
 - Phase 0 is now complete. Keep Phase 1 changes limited to message contract and queue ownership isolation so the verified webhook benchmark remains a stable comparison point.
+- Phase 1 locked the neutral Durable event names to `WorkflowInProgress` and `WorkflowCompleted`; Phase 2 should raise those same events from queue processing rather than introducing a second event vocabulary.
+- Phase 1 locked `QueueMessageMetadata.MessageType` to `GithubWorkflowInProgress` and `GithubWorkflowCompleted`; later phases should reuse those exact values in workflows, scripts, and queue consumers.
+- Phase 1 added contract validation inside `ExampleQueue` while keeping webhook delivery active; Phase 2 should replace the current validation-only branch with Durable event raising in the same queue owner instead of creating a second `default-queue` trigger.
+
+### Phase 1 Execution Log
+
+- Date: 2026-03-24
+- Agent: GitHub Copilot (GPT-5.4)
+- Summary of completed work: Added a neutral workflow queue contract in the Functions project, moved orchestration event names into a shared type, extended `ExampleQueue` to recognize and validate `GithubWorkflowInProgress` and `GithubWorkflowCompleted` messages on `default-queue`, and kept the existing webhook delivery path intact.
+- Verification run: `build functions`; repo search for `GithubWorkflowInProgress|GithubWorkflowCompleted`; repo search for `GithubWebhook.Workflow(InProgress|Completed)Event`.
+- Files changed: `src/Template.Functions/GithubWorkflowOrchestrator/GithubWorkflowContracts.cs`; `src/Template.Functions/GithubWorkflowOrchestrator/GithubWebhook.cs`; `src/Template.Functions/GithubWorkflowOrchestrator/GithubWorkflowOrchestrator.cs`; `src/Template.Functions/ExampleQueue.cs`; `docs/github-workflow-direct-callback-migration-plan.md`
+- Findings: The orchestrator was coupled to webhook-owned event-name constants, so Phase 1 introduced a neutral event contract before any queue cutover work. The existing `MessageBody` plus `QueueMessageMetadata` envelope was sufficient for the workflow queue design, so no second queue envelope was needed. `ExampleQueue` can now act as the contract-validation point for workflow queue messages while remaining the only `default-queue` trigger.
+- Feed-forward updates applied to later phases: Locked the message-type names and minimum payload fields in the plan, and constrained Phase 2 to extend the existing `ExampleQueue` branch rather than creating a competing queue-triggered function.
+- Remaining risks: The phase commit remains intentionally uncreated because no explicit commit instruction was given in this session. Queue message handling is validation-only in this phase by design; Durable event raising still belongs to Phase 2.
 
 ---
 
@@ -329,6 +390,7 @@ Swap the current webhook-triggered Functions receiver for queue-driven processin
 ### Feed Forward
 
 - Phase 0 exposed two local validation prerequisites for later queue-based work: a valid GitHub App private key/JWT source is required before any GitHub dispatch-based comparison is meaningful, and local API invocation needs an explicit bearer-token acquisition step if the benchmark continues to go through the proxied API route.
+- Phase 1 locked the workflow queue contract on the existing `MessageBody` envelope and the existing `ExampleQueue` trigger. Phase 2 should build on that branch, replacing validation-only handling with Durable event raising and duplicate protection keyed by `instanceId`, `runId`, `runAttempt`, and message type.
 
 ---
 

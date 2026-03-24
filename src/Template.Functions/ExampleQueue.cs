@@ -1,8 +1,10 @@
 using System.Text.Json;
+using System.ComponentModel.DataAnnotations;
 using Azure;
 using Azure.Data.Tables;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Template.Functions.GithubWorkflowOrchestrator;
 using Template.Functions.Shared;
 using Template.Shared.Azure.MessageQueue;
 using Template.Shared.Model;
@@ -51,6 +53,10 @@ public class ExampleQueue {
       switch (messageBody.Metadata.MessageType) {
         case nameof(ExampleMessageData):
           await ProcessExampleMessageAsync(messageBody, ct);
+          break;
+        case GithubWorkflowQueueMessageTypes.GithubWorkflowInProgress:
+        case GithubWorkflowQueueMessageTypes.GithubWorkflowCompleted:
+          ProcessGithubWorkflowMessage(messageBody);
           break;
         case "SimpleMessage":
           ProcessSimpleMessage(messageBody, lastAttempt);
@@ -102,6 +108,10 @@ public class ExampleQueue {
         case nameof(ExampleMessageData):
           HandleExampleMessageException(messageBody, msgException);
           break;
+        case GithubWorkflowQueueMessageTypes.GithubWorkflowInProgress:
+        case GithubWorkflowQueueMessageTypes.GithubWorkflowCompleted:
+          HandleGithubWorkflowMessageException(messageBody, msgException);
+          break;
         default:
           throw new InvalidOperationException(
             $"No Exception handler found for the message type '{messageBody.Metadata.MessageType}' for the queue '{PoisonQueueName}'");
@@ -132,6 +142,18 @@ public class ExampleQueue {
     }
   }
 
+  private void HandleGithubWorkflowMessageException(MessageBody messageBody, MessageExceptionTableEntity? msgException) {
+    var detail = msgException?.GetExceptionDetailObject<SanitizedProblem>();
+    if (detail == null) {
+      Logger.LogWarning("Workflow queue message moved to poison queue: {MessageType}-{MessageId}",
+        messageBody.Metadata.MessageType, messageBody.Id);
+      return;
+    }
+
+    Logger.LogWarning("Workflow queue message moved to poison queue: {MessageType}-{MessageId}; Details: {@Detail}",
+      messageBody.Metadata.MessageType, messageBody.Id, detail);
+  }
+
   // ReSharper disable once UnusedParameter.Local
   private async Task ProcessExampleMessageAsync(MessageBody message, CancellationToken ct) {
     Logger.LogInformation(
@@ -155,6 +177,19 @@ public class ExampleQueue {
     }
 
     await Task.CompletedTask;
+  }
+
+  private void ProcessGithubWorkflowMessage(MessageBody message) {
+    try {
+      GithubWorkflowQueueMessageContract.Validate(message);
+    }
+    catch (ValidationException ex) {
+      throw new InvalidOperationException(
+        $"Workflow queue message contract validation failed for '{message.Metadata.MessageType}'.", ex);
+    }
+
+    Logger.LogInformation(
+      "Validated workflow queue message contract for: {MessageType}-{MessageId}", message.Metadata.MessageType, message.Id);
   }
 
   private void ProcessSimpleMessage(MessageBody message, bool lastAttempt) {
