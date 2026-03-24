@@ -13,30 +13,30 @@ public static class GithubWorkflowMessageTypes {
 public static class GithubWorkflowQueueMessageContract {
   private static readonly JsonSerializerOptions PayloadSerializerOptions = CreatePayloadSerializerOptions();
 
-  private static readonly IReadOnlyDictionary<string, Action<string>> ValidatorsByMessageType =
-    new Dictionary<string, Action<string>>(StringComparer.Ordinal) {
+  private static readonly IReadOnlyDictionary<string, Func<string, GithubWorkflowQueueMessageBase>> PayloadReadersByMessageType =
+    new Dictionary<string, Func<string, GithubWorkflowQueueMessageBase>>(StringComparer.Ordinal) {
       [GithubWorkflowMessageTypes.GithubWorkflowInProgress] = json => DeserializeAndValidate<GithubWorkflowInProgressMessageData>(json, GithubWorkflowMessageTypes.GithubWorkflowInProgress),
       [GithubWorkflowMessageTypes.GithubWorkflowCompleted] = json => DeserializeAndValidate<GithubWorkflowCompletedMessageData>(json, GithubWorkflowMessageTypes.GithubWorkflowCompleted)
     };
 
   public static void Check(MessageBody messageBody) {
+    Parse(messageBody);
+  }
+
+  public static GithubWorkflowQueueMessage Parse(MessageBody messageBody) {
     ArgumentNullException.ThrowIfNull(messageBody);
 
-    var messageType = messageBody.Metadata?.MessageType ?? throw new ValidationException("Workflow queue message metadata is missing.");
+    var messageType = messageBody.Metadata.MessageType;
 
-    if (string.IsNullOrWhiteSpace(messageBody.Data)) {
-      throw new ValidationException($"Workflow queue message data is missing for message type '{messageType}'.");
-    }
-
-    if (!ValidatorsByMessageType.TryGetValue(messageType, out var validatePayload)) {
+    if (!PayloadReadersByMessageType.TryGetValue(messageType, out var readPayload)) {
       throw new ValidationException($"Unsupported workflow queue message type '{messageType}'.");
     }
 
-    validatePayload(messageBody.Data);
+    return new GithubWorkflowQueueMessage(messageType, readPayload(messageBody.Data));
   }
 
   public static bool IsSupported(string? messageType) {
-    return !string.IsNullOrWhiteSpace(messageType) && ValidatorsByMessageType.ContainsKey(messageType);
+    return !string.IsNullOrWhiteSpace(messageType) && PayloadReadersByMessageType.ContainsKey(messageType);
   }
 
   private static T DeserializeAndValidate<T>(string json, string messageType) where T : class {
@@ -65,6 +65,8 @@ public static class GithubWorkflowQueueMessageContract {
   }
 }
 
+public sealed record GithubWorkflowQueueMessage(string MessageType, GithubWorkflowQueueMessageBase Payload);
+
 public abstract class GithubWorkflowQueueMessageBase {
   [Required(AllowEmptyStrings = false)]
   public string Environment { get; set; } = null!;
@@ -91,4 +93,6 @@ public sealed class GithubWorkflowInProgressMessageData : GithubWorkflowQueueMes
 public sealed class GithubWorkflowCompletedMessageData : GithubWorkflowQueueMessageBase {
   [Required(AllowEmptyStrings = false)]
   public string Conclusion { get; set; } = null!;
+
+  public bool IsSuccess => string.Equals(Conclusion, "success", StringComparison.OrdinalIgnoreCase);
 }

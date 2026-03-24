@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using Template.Functions.GithubWorkflowOrchestrator;
 using Template.Functions.Shared;
 using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Functions.Shared.HttpContextAccessor;
@@ -57,7 +58,8 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   services
     .AddFunctionContextAccessor()
     .AddFunctionHttpContextAccessor() // <- experimental equivalent to IHttpContextAccessor in ASP.NET Core
-    .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>();
+    .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>()
+    .AddSingleton<GithubWorkflowQueueMessageProcessor>();
 
   // Authentication is required in the Functions project to enable HttpContext.User to be populated from EasyAuth's bearer 
   // token authentication in isolated-process mode. See UseAuthenticationStartupFilter for details.
