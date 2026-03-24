@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.ComponentModel.DataAnnotations;
 using Azure;
 using Azure.Data.Tables;
 using Microsoft.Azure.Functions.Worker;
@@ -54,8 +53,8 @@ public class ExampleQueue {
         case nameof(ExampleMessageData):
           await ProcessExampleMessageAsync(messageBody, ct);
           break;
-        case GithubWorkflowQueueMessageTypes.GithubWorkflowInProgress:
-        case GithubWorkflowQueueMessageTypes.GithubWorkflowCompleted:
+        case GithubWorkflowMessageTypes.GithubWorkflowInProgress:
+        case GithubWorkflowMessageTypes.GithubWorkflowCompleted:
           ProcessGithubWorkflowMessage(messageBody);
           break;
         case "SimpleMessage":
@@ -108,8 +107,8 @@ public class ExampleQueue {
         case nameof(ExampleMessageData):
           HandleExampleMessageException(messageBody, msgException);
           break;
-        case GithubWorkflowQueueMessageTypes.GithubWorkflowInProgress:
-        case GithubWorkflowQueueMessageTypes.GithubWorkflowCompleted:
+        case GithubWorkflowMessageTypes.GithubWorkflowInProgress:
+        case GithubWorkflowMessageTypes.GithubWorkflowCompleted:
           HandleGithubWorkflowMessageException(messageBody, msgException);
           break;
         default:
@@ -180,13 +179,7 @@ public class ExampleQueue {
   }
 
   private void ProcessGithubWorkflowMessage(MessageBody message) {
-    try {
-      GithubWorkflowQueueMessageContract.Validate(message);
-    }
-    catch (ValidationException ex) {
-      throw new InvalidOperationException(
-        $"Workflow queue message contract validation failed for '{message.Metadata.MessageType}'.", ex);
-    }
+    GithubWorkflowQueueMessageContract.Check(message);
 
     Logger.LogInformation(
       "Validated workflow queue message contract for: {MessageType}-{MessageId}", message.Metadata.MessageType, message.Id);

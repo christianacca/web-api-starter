@@ -39,7 +39,7 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
 
   private async Task RaiseWorkflowEvents(string instanceId, WorkflowRunEvent workflowEvent, DurableTaskClient client, CancellationToken ct) {
     if (workflowEvent.Action == WorkflowRunAction.InProgress && workflowEvent.WorkflowRun.Status == WorkflowRunStatus.InProgress) {
-      await client.RaiseEventAsync(instanceId, GithubWorkflowOrchestrationEvents.WorkflowInProgress, workflowEvent.WorkflowRun.Id, ct);
+      await client.RaiseEventAsync(instanceId, GithubWorkflowMessageTypes.GithubWorkflowInProgress, workflowEvent.WorkflowRun.Id, ct);
       return;
     }
 
@@ -47,7 +47,7 @@ public class GithubWebhook(ILogger<GithubWebhook> logger) {
         workflowEvent.WorkflowRun.Status == WorkflowRunStatus.Completed) {
       var success = workflowEvent.WorkflowRun.Conclusion.HasValue &&
                     workflowEvent.WorkflowRun.Conclusion.Value == WorkflowRunConclusion.Success;
-      await client.RaiseEventAsync(instanceId, GithubWorkflowOrchestrationEvents.WorkflowCompleted, success, ct);
+      await client.RaiseEventAsync(instanceId, GithubWorkflowMessageTypes.GithubWorkflowCompleted, success, ct);
       return;
     }
 

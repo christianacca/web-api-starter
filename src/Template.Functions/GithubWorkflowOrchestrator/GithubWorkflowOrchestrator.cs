@@ -18,7 +18,7 @@ public class GithubWorkflowOrchestrator {
       WorkflowFile = input.WorkflowFile
     };
     var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), triggerInput);
-    var runId = await context.WaitForExternalEvent<long>(GithubWorkflowOrchestrationEvents.WorkflowInProgress, input.Timeout, 0);
+    var runId = await context.WaitForExternalEvent<long>(GithubWorkflowMessageTypes.GithubWorkflowInProgress, input.Timeout, 0);
 
     if (runId == 0) {
       var foundRunId = await CheckWorkflowInProgressAsync(context, workflowName);
@@ -29,7 +29,7 @@ public class GithubWorkflowOrchestrator {
     }
 
     var currentAttempt = 1;
-    var success = await context.WaitForExternalEvent<bool?>(GithubWorkflowOrchestrationEvents.WorkflowCompleted, input.Timeout, null);
+    var success = await context.WaitForExternalEvent<bool?>(GithubWorkflowMessageTypes.GithubWorkflowCompleted, input.Timeout, null);
 
     if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
       return;
@@ -56,7 +56,7 @@ public class GithubWorkflowOrchestrator {
         }
       }
 
-      success = await context.WaitForExternalEvent<bool?>(GithubWorkflowOrchestrationEvents.WorkflowCompleted, input.Timeout, null);
+      success = await context.WaitForExternalEvent<bool?>(GithubWorkflowMessageTypes.GithubWorkflowCompleted, input.Timeout, null);
       if (await CheckWorkflowSuccessAsync(context, success, runId, currentAttempt, input.MaxAttempts)) {
         return;
       }

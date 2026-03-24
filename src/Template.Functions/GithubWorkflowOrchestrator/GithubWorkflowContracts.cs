@@ -3,12 +3,7 @@ using Template.Shared.Azure.MessageQueue;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
-public static class GithubWorkflowOrchestrationEvents {
-  public const string WorkflowCompleted = "WorkflowCompleted";
-  public const string WorkflowInProgress = "WorkflowInProgress";
-}
-
-public static class GithubWorkflowQueueMessageTypes {
+public static class GithubWorkflowMessageTypes {
   public const string GithubWorkflowInProgress = "GithubWorkflowInProgress";
   public const string GithubWorkflowCompleted = "GithubWorkflowCompleted";
 
@@ -18,51 +13,59 @@ public static class GithubWorkflowQueueMessageTypes {
   }
 }
 
-public static class GithubWorkflowQueueStatuses {
-  public const string Completed = "completed";
-  public const string InProgress = "in_progress";
-}
-
 public static class GithubWorkflowQueueMessageContract {
-  public static void Validate(MessageBody messageBody) {
+  public static void Check(MessageBody messageBody) {
     ArgumentNullException.ThrowIfNull(messageBody);
 
+    var messageType = GetMessageType(messageBody);
+
     if (messageBody.Metadata == null) {
-      throw new ValidationException("Message metadata is missing.");
+      throw new ValidationException($"Workflow queue message metadata is missing for message type '{messageType}'.");
     }
 
-    if (!GithubWorkflowQueueMessageTypes.IsSupported(messageBody.Metadata.MessageType)) {
-      throw new ValidationException($"Unsupported workflow queue message type '{messageBody.Metadata.MessageType}'.");
+    if (!GithubWorkflowMessageTypes.IsSupported(messageType)) {
+      throw new ValidationException($"Unsupported workflow queue message type '{messageType}'.");
     }
 
     if (string.IsNullOrWhiteSpace(messageBody.Data)) {
-      throw new ValidationException("Message data is missing.");
+      throw new ValidationException($"Workflow queue message data is missing for message type '{messageType}'.");
     }
 
-    switch (messageBody.Metadata.MessageType) {
-      case GithubWorkflowQueueMessageTypes.GithubWorkflowInProgress:
-        DeserializeAndValidate<GithubWorkflowInProgressMessageData>(messageBody.Data);
+    switch (messageType) {
+      case GithubWorkflowMessageTypes.GithubWorkflowInProgress:
+        DeserializeAndValidate<GithubWorkflowInProgressMessageData>(messageBody.Data, messageType);
         break;
-      case GithubWorkflowQueueMessageTypes.GithubWorkflowCompleted:
-        DeserializeAndValidate<GithubWorkflowCompletedMessageData>(messageBody.Data);
+      case GithubWorkflowMessageTypes.GithubWorkflowCompleted:
+        DeserializeAndValidate<GithubWorkflowCompletedMessageData>(messageBody.Data, messageType);
         break;
-      default:
-        throw new ValidationException($"Unsupported workflow queue message type '{messageBody.Metadata.MessageType}'.");
     }
   }
 
-  private static T DeserializeAndValidate<T>(string json) where T : class {
+  private static string GetMessageType(MessageBody messageBody) {
+    return messageBody.Metadata?.MessageType ?? "<missing>";
+  }
+
+  private static T DeserializeAndValidate<T>(string json, string messageType) where T : class {
     var model = System.Text.Json.JsonSerializer.Deserialize<T>(json);
     if (model == null) {
-      throw new ValidationException("Message data is missing.");
+      throw new ValidationException($"Workflow queue message data is missing for message type '{messageType}'.");
     }
 
-    Validator.ValidateObject(model, new ValidationContext(model), validateAllProperties: true);
+    try {
+      Validator.ValidateObject(model, new ValidationContext(model), validateAllProperties: true);
+    }
+    catch (ValidationException ex) {
+      throw new ValidationException(
+        $"Workflow queue message validation failed for message type '{messageType}': {ex.Message}",
+        ex.ValidationAttribute,
+        ex.Value);
+    }
+
     return model;
   }
 }
 
-public abstract class GithubWorkflowQueueMessageBase : IValidatableObject {
+public abstract class GithubWorkflowQueueMessageBase {
   [Required(AllowEmptyStrings = false)]
   public string Environment { get; set; } = null!;
 
@@ -80,33 +83,12 @@ public abstract class GithubWorkflowQueueMessageBase : IValidatableObject {
   public int RunAttempt { get; set; }
 
   [Required(AllowEmptyStrings = false)]
-  public string Status { get; set; } = null!;
-
-  [Required(AllowEmptyStrings = false)]
   public string WorkflowName { get; set; } = null!;
-
-  public abstract IEnumerable<ValidationResult> Validate(ValidationContext validationContext);
 }
 
-public sealed class GithubWorkflowInProgressMessageData : GithubWorkflowQueueMessageBase {
-  public override IEnumerable<ValidationResult> Validate(ValidationContext validationContext) {
-    if (!string.Equals(Status, GithubWorkflowQueueStatuses.InProgress, StringComparison.OrdinalIgnoreCase)) {
-      yield return new ValidationResult(
-        $"Status must be '{GithubWorkflowQueueStatuses.InProgress}' for {GithubWorkflowQueueMessageTypes.GithubWorkflowInProgress} messages.",
-        [nameof(Status)]);
-    }
-  }
-}
+public sealed class GithubWorkflowInProgressMessageData : GithubWorkflowQueueMessageBase;
 
 public sealed class GithubWorkflowCompletedMessageData : GithubWorkflowQueueMessageBase {
   [Required(AllowEmptyStrings = false)]
   public string Conclusion { get; set; } = null!;
-
-  public override IEnumerable<ValidationResult> Validate(ValidationContext validationContext) {
-    if (!string.Equals(Status, GithubWorkflowQueueStatuses.Completed, StringComparison.OrdinalIgnoreCase)) {
-      yield return new ValidationResult(
-        $"Status must be '{GithubWorkflowQueueStatuses.Completed}' for {GithubWorkflowQueueMessageTypes.GithubWorkflowCompleted} messages.",
-        [nameof(Status)]);
-    }
-  }
 }

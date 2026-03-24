@@ -245,12 +245,7 @@ Create the new workflow-completion queue message contract in the Functions proje
 
 ### Locked Contract
 
-Neutral Durable event names:
-
-1. `WorkflowInProgress`
-2. `WorkflowCompleted`
-
-Stable `QueueMessageMetadata.MessageType` values:
+Shared GitHub workflow message names used for both Durable external events and `QueueMessageMetadata.MessageType`:
 
 1. `GithubWorkflowInProgress`
 2. `GithubWorkflowCompleted`
@@ -262,7 +257,6 @@ Minimum payload for `GithubWorkflowInProgress`:
    "instanceId": "42cf976321bd4288a18a3dc54e3e6228",
    "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228",
    "runId": 23353310577,
-   "status": "in_progress",
    "runAttempt": 1,
    "environment": "dev",
    "repository": "christianacca/web-api-starter"
@@ -276,7 +270,6 @@ Minimum payload for `GithubWorkflowCompleted`:
    "instanceId": "42cf976321bd4288a18a3dc54e3e6228",
    "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228",
    "runId": 23353310577,
-   "status": "completed",
    "conclusion": "success",
    "runAttempt": 1,
    "environment": "dev",
@@ -293,12 +286,11 @@ Contract notes:
 ### Steps
 
 - [x] Introduce a neutral workflow-completion queue message concept in the Functions project, for example `GithubWorkflowQueueMessage` or `GithubWorkflowCompletionMessage`.
-- [x] Move orchestration event names out of the current webhook class into a neutral shared type so the orchestrator is no longer coupled to `GithubWebhook`.
+- [x] Move orchestration event names out of the current webhook class into a shared GitHub workflow message-name type so the orchestrator is no longer coupled to `GithubWebhook`.
 - [x] Define a queue message payload model carrying at least:
   - `instanceId`
   - `workflowName`
   - `runId`
-  - `status`
   - `conclusion`
   - `runAttempt`
   - repository metadata if needed for diagnostics
@@ -316,7 +308,7 @@ Contract notes:
 ### Verification
 
 1. `build functions` succeeds.
-2. The orchestrator compiles against the new neutral event contract.
+2. The orchestrator compiles against the shared GitHub workflow message-name contract.
 3. A repo search shows the new queue message model exists.
 4. The plan explicitly extends `ExampleQueue` as the sole owner of `default-queue` and does not introduce competing queue-triggered consumers.
 5. The stable workflow queue message type names and minimum payload fields are explicitly documented.
@@ -332,19 +324,19 @@ Contract notes:
 ### Feed Forward
 
 - Phase 0 is now complete. Keep Phase 1 changes limited to message contract and queue ownership isolation so the verified webhook benchmark remains a stable comparison point.
-- Phase 1 locked the neutral Durable event names to `WorkflowInProgress` and `WorkflowCompleted`; Phase 2 should raise those same events from queue processing rather than introducing a second event vocabulary.
-- Phase 1 locked `QueueMessageMetadata.MessageType` to `GithubWorkflowInProgress` and `GithubWorkflowCompleted`; later phases should reuse those exact values in workflows, scripts, and queue consumers.
+- Phase 1 locked one shared GitHub workflow message-name set to `GithubWorkflowInProgress` and `GithubWorkflowCompleted`; Phase 2 should reuse those same names for both Durable events and queue routing rather than introducing a second event vocabulary.
 - Phase 1 added contract validation inside `ExampleQueue` while keeping webhook delivery active; Phase 2 should replace the current validation-only branch with Durable event raising in the same queue owner instead of creating a second `default-queue` trigger.
+- Phase 1 also established that payload `status` is redundant because `QueueMessageMetadata.MessageType` already conveys the same lifecycle state to both code and human operators; later phases should treat `MessageType` as the only status carrier for this queue contract.
 
 ### Phase 1 Execution Log
 
 - Date: 2026-03-24
 - Agent: GitHub Copilot (GPT-5.4)
-- Summary of completed work: Added a neutral workflow queue contract in the Functions project, moved orchestration event names into a shared type, extended `ExampleQueue` to recognize and validate `GithubWorkflowInProgress` and `GithubWorkflowCompleted` messages on `default-queue`, and kept the existing webhook delivery path intact.
+- Summary of completed work: Added a shared GitHub workflow queue contract in the Functions project, moved orchestration event names into the same shared GitHub workflow message-name type used by queue routing, extended `ExampleQueue` to recognize and validate `GithubWorkflowInProgress` and `GithubWorkflowCompleted` messages on `default-queue`, and kept the existing webhook delivery path intact.
 - Verification run: `build functions`; repo search for `GithubWorkflowInProgress|GithubWorkflowCompleted`; repo search for `GithubWebhook.Workflow(InProgress|Completed)Event`.
 - Files changed: `src/Template.Functions/GithubWorkflowOrchestrator/GithubWorkflowContracts.cs`; `src/Template.Functions/GithubWorkflowOrchestrator/GithubWebhook.cs`; `src/Template.Functions/GithubWorkflowOrchestrator/GithubWorkflowOrchestrator.cs`; `src/Template.Functions/ExampleQueue.cs`; `docs/github-workflow-direct-callback-migration-plan.md`
-- Findings: The orchestrator was coupled to webhook-owned event-name constants, so Phase 1 introduced a neutral event contract before any queue cutover work. The existing `MessageBody` plus `QueueMessageMetadata` envelope was sufficient for the workflow queue design, so no second queue envelope was needed. `ExampleQueue` can now act as the contract-validation point for workflow queue messages while remaining the only `default-queue` trigger.
-- Feed-forward updates applied to later phases: Locked the message-type names and minimum payload fields in the plan, and constrained Phase 2 to extend the existing `ExampleQueue` branch rather than creating a competing queue-triggered function.
+- Findings: The orchestrator was coupled to webhook-owned event-name constants, so Phase 1 introduced one shared GitHub workflow message-name contract before any queue cutover work. The existing `MessageBody` plus `QueueMessageMetadata` envelope was sufficient for the workflow queue design, so no second queue envelope was needed. `ExampleQueue` can now act as the contract-validation point for workflow queue messages while remaining the only `default-queue` trigger.
+- Feed-forward updates applied to later phases: Locked the shared GitHub workflow message names and minimum payload fields in the plan, removed redundant payload `status` from the contract because `MessageType` already conveys the same state, and constrained Phase 2 to extend the existing `ExampleQueue` branch rather than creating a competing queue-triggered function.
 - Remaining risks: The phase commit remains intentionally uncreated because no explicit commit instruction was given in this session. Queue message handling is validation-only in this phase by design; Durable event raising still belongs to Phase 2.
 
 ---
@@ -390,7 +382,8 @@ Swap the current webhook-triggered Functions receiver for queue-driven processin
 ### Feed Forward
 
 - Phase 0 exposed two local validation prerequisites for later queue-based work: a valid GitHub App private key/JWT source is required before any GitHub dispatch-based comparison is meaningful, and local API invocation needs an explicit bearer-token acquisition step if the benchmark continues to go through the proxied API route.
-- Phase 1 locked the workflow queue contract on the existing `MessageBody` envelope and the existing `ExampleQueue` trigger. Phase 2 should build on that branch, replacing validation-only handling with Durable event raising and duplicate protection keyed by `instanceId`, `runId`, `runAttempt`, and message type.
+- Phase 1 locked the workflow queue contract on the existing `MessageBody` envelope and the existing `ExampleQueue` trigger, and it now uses one shared GitHub workflow message-name set for both Durable events and queue routing. Phase 2 should build on that branch, replacing validation-only handling with Durable event raising and duplicate protection keyed by `instanceId`, `runId`, `runAttempt`, and message type.
+- Phase 1 removed redundant payload `status`; Phase 2 and later publishers should rely on `QueueMessageMetadata.MessageType` rather than duplicating lifecycle state inside the inner workflow payload.
 
 ---
 
@@ -507,7 +500,6 @@ Proposed minimum payload for `GithubWorkflowCompleted`:
   "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228",
   "runId": 23353310577,
   "runAttempt": 1,
-  "status": "completed",
   "conclusion": "success",
   "environment": "dev",
   "repository": "christianacca/web-api-starter"
@@ -519,11 +511,12 @@ Design notes:
 1. `instanceId` is the orchestration correlation key and must always be present.
 2. `runId` is required on both message types so Durable event handling and later diagnostics remain consistent.
 3. `runAttempt` should be included from the start even if the initial implementation only needs attempt `1`.
-4. `environment` should refer to the primary environment used for queue publication.
-5. `repository` should be the full `owner/repo` string for diagnostics and defensive validation.
-6. Queue publishers should serialize the outer `MessageBody` once and should serialize the inner payload once into `MessageBody.Data`.
-7. The Functions consumer should treat the tuple `instanceId` plus `runId` plus `runAttempt` plus message type as the minimum duplicate-detection key.
-8. Repeated queue messages with the same duplicate-detection key must not cause duplicate durable side effects.
+4. `MessageType` already carries the lifecycle state, so payload `status` should not be duplicated in the inner workflow queue payload.
+5. `environment` should refer to the primary environment used for queue publication.
+6. `repository` should be the full `owner/repo` string for diagnostics and defensive validation.
+7. Queue publishers should serialize the outer `MessageBody` once and should serialize the inner payload once into `MessageBody.Data`.
+8. The Functions consumer should treat the tuple `instanceId` plus `runId` plus `runAttempt` plus message type as the minimum duplicate-detection key.
+9. Repeated queue messages with the same duplicate-detection key must not cause duplicate durable side effects.
 
 ### Steps
 
