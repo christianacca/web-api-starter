@@ -1,0 +1,41 @@
+name: publish-workflow-queue-message
+description: Publish a workflow queue message to Azure Storage Queue using Entra-authenticated Azure CLI
+
+inputs:
+  message-type:
+    description: Queue message type to write into MessageBody.Metadata.MessageType
+    required: true
+  payload-json:
+    description: Raw JSON payload to serialize into MessageBody.Data
+    required: true
+  storage-account:
+    description: Azure Storage account name that owns the target queue
+    required: true
+  queue-name:
+    description: Azure Storage queue name
+    required: true
+
+outputs:
+  published:
+    description: Whether the message was published successfully
+    value: ${{ steps.publish.outputs.published }}
+  message-id:
+    description: Published MessageBody id
+    value: ${{ steps.publish.outputs.message-id }}
+
+runs:
+  using: composite
+  steps:
+    - id: publish
+      shell: pwsh
+      env:
+        MESSAGE_TYPE: ${{ inputs.message-type }}
+        PAYLOAD_JSON: ${{ inputs.payload-json }}
+        STORAGE_ACCOUNT: ${{ inputs.storage-account }}
+        QUEUE_NAME: ${{ inputs.queue-name }}
+      run: |
+        ${{ github.action_path }}/publish-workflow-queue-message.ps1 `
+          -MessageType $env:MESSAGE_TYPE `
+          -PayloadJson $env:PAYLOAD_JSON `
+          -StorageAccountName $env:STORAGE_ACCOUNT `
+          -QueueName $env:QUEUE_NAME

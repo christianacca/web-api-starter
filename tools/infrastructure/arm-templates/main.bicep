@@ -346,6 +346,8 @@ resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@
   location: location
 }
 
+var internalApiGithubActionsPrincipalId = settings.CliPrincipals[settings.EnvironmentName]
+
 module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31.1' = {
   name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
   params: {
@@ -366,6 +368,7 @@ module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31
     roleAssignments: [
       { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Processor', principalType: 'ServicePrincipal' }
       { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
+      { principalId: internalApiGithubActionsPrincipalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
     ]
   }
 }

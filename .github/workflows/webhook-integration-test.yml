@@ -10,21 +10,33 @@ on:
 
 run-name: ${{ inputs.workflowName }}
 
+permissions:
+  contents: read
+
 jobs:
   github-app-authz:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       authz-pipeline-envs: ${{ steps.authz.outputs.pipeline }}
       authz-primary-env: ${{ steps.authz.outputs.primary }}
+      authz-authorized-target-envs: ${{ steps.authz.outputs.authorized-target-envs }}
+      published-in-progress: ${{ steps.authz.outputs.published-in-progress }}
     steps:
       - uses: actions/checkout@v4
       - id: authz
         uses: ./.github/actions/github-app-authz-envs
+        with:
+          gated-environments: |
+            dev
+            qa
 
   dev-task:
     runs-on: ubuntu-latest
     needs: github-app-authz
-    if: contains(fromJSON(needs.github-app-authz.outputs.authz-pipeline-envs), 'dev')
+    if: contains(fromJSON(needs.github-app-authz.outputs.authz-authorized-target-envs), 'dev')
     environment:
       name: dev
     steps:
@@ -34,7 +46,7 @@ jobs:
   qa-auto-approve:
     runs-on: ubuntu-latest
     needs: github-app-authz
-    if: contains(fromJSON(needs.github-app-authz.outputs.authz-pipeline-envs), 'qa')
+    if: contains(fromJSON(needs.github-app-authz.outputs.authz-authorized-target-envs), 'qa')
     steps:
       - name: Wait for deployment to be registered
         run: sleep 20
@@ -49,9 +61,34 @@ jobs:
   qa-task:
     runs-on: ubuntu-latest
     needs: github-app-authz
-    if: contains(fromJSON(needs.github-app-authz.outputs.authz-pipeline-envs), 'qa')
+    if: contains(fromJSON(needs.github-app-authz.outputs.authz-authorized-target-envs), 'qa')
     environment:
       name: qa
     steps:
       - uses: actions/checkout@v4
       - run: echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
+
+  publish-completed:
+    runs-on: ubuntu-latest
+    needs:
+      - github-app-authz
+      - dev-task
+      - qa-auto-approve
+      - qa-task
+    if: ${{ always() && needs.github-app-authz.outputs.published-in-progress == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish completed queue message
+        uses: ./.github/actions/publish-github-workflow-completed
+        with:
+          github-environment: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+          needs-json: ${{ toJSON(needs) }}
+          queue-name: default-queue
+          repository: ${{ github.repository }}
+          run-attempt: ${{ github.run_attempt }}
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ inputs.workflowName }}

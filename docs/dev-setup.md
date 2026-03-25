@@ -52,8 +52,9 @@ Once up and running, feel free to then switch to running the projects via an IDE
     * windows: `iex "& { $(irm https://aka.ms/install-artifacts-credprovider.ps1) }"`
     * mac: `sh -c "$(curl -fsSL https://aka.ms/install-artifacts-credprovider.sh)"`
     * for more details on installation see: <https://github.com/microsoft/artifacts-credprovider#setup>
-11. If you need GitHub or another external service to call your local API, install Microsoft dev tunnels CLI:
+11. If you need GitHub or another external service to call one of your local services, install Microsoft dev tunnels CLI:
     * Follow the install instructions here: [Microsft Dev Tunnels / Install](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=windows#install)
+    * For repo-specific tunnel usage, see [Microsoft dev tunnels for local services](./dev-tunnels.md)
 
 ## API
 
@@ -80,158 +81,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
         But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
 6. Start/Run the API project: `dotnet run --project ./src/Template.Api`
 7. Check that the basics are running by browsing to: <https://localhost:5000/health>
-
-## Expose local API via Microsoft dev tunnels
-
-Use this when you need a public URL for the local API.
-
-Default approach for this repo: each developer creates and reuses their own persistent tunnel.
-
-Use a shared tunnel only for the cases where preserving one exact public URL across developers matters.
-
-### URL behavior
-
-If the same persistent tunnel and the same port are hosted again later, the public URL is the same. The URL is tied to the tunnel and port, not to the machine that is currently hosting it.
-
-If a developer creates a different tunnel, that developer gets a different public URL.
-
-If the original tunnel expires and is deleted, recreating it later should be treated as a new tunnel and you should not rely on getting the same public URL back.
-
-> [!INFO]
-> The first time you open the dev tunnel URL in a browser with a normal `GET` request, Microsoft may show an anti-phishing interstitial page before forwarding to the API. This does not block GitHub webhooks because webhook delivery uses `POST`, not a browser `GET`. If you want to verify the endpoint without seeing that browser page, use `curl` or Postman instead of opening the URL directly in the browser.
-
-### Task: create your own persistent tunnel
-
-Objective: create a developer-specific persistent tunnel that you can reuse without coordinating with another developer.
-
-Choose your own unique tunnel id. Recommended format: `web-api-starter-api-<your-alias>`.
-
-Example using alias `christian`:
-
-```pwsh
-dotnet run --project ./src/Template.Api
-devtunnel user login
-devtunnel create web-api-starter-api-christian --expiration 30d
-devtunnel port create web-api-starter-api-christian -p 5000 --protocol https
-devtunnel set web-api-starter-api-christian
-```
-
-**Then choose the access mode you need:**
-
-Option 1: **anonymous**
-
-Use this when GitHub or another non-interactive caller must reach the tunnel directly.
-
-```pwsh
-devtunnel access create web-api-starter-api-christian --port-number 5000 --anonymous
-devtunnel host web-api-starter-api-christian
-```
-
-Option 2: **Entra ID protected**
-
-Use this when the tunnel should be limited to signed-in users from the current Entra tenant.
-
-```pwsh
-devtunnel access create web-api-starter-api-christian --tenant
-devtunnel host web-api-starter-api-christian
-```
-
-Use the URL printed for port `5000`, then append `/api/github/webhooks` when configuring the GitHub App webhook or when allowlisting the origin elsewhere.
-
-If `devtunnel create` fails with `Conflict with existing entity`, choose a different tunnel id.
-
-### Task: host your own existing tunnel on the same machine
-
-Objective: bring your developer-specific tunnel back online quickly.
-
-```pwsh
-dotnet run --project ./src/Template.Api
-devtunnel user login
-devtunnel host web-api-starter-api-christian
-```
-
-This reuses your existing public URL.
-
-### Task: host your own existing tunnel on a different machine
-
-Objective: move hosting of your developer-specific tunnel to another machine without changing your public URL.
-
-```pwsh
-dotnet run --project ./src/Template.Api
-devtunnel user login
-devtunnel host web-api-starter-api-christian
-```
-
-This reuses the existing public URL.
-
-### Task: list your own existing persistent tunnels
-
-Objective: find the tunnels that you already own.
-
-```pwsh
-devtunnel user login
-devtunnel list
-```
-
-This only lists tunnels you own. The CLI does not document tenant-wide discovery of other developers' tunnels.
-
-### Management task: delete one of your persistent tunnels
-
-Objective: permanently remove a tunnel that you own and no longer need.
-
-```pwsh
-devtunnel user login
-devtunnel delete <your-tunnel-id>
-```
-
-Example:
-
-```pwsh
-devtunnel delete web-api-starter-api-christian
-```
-
-Deleting a tunnel removes that tunnel object. If you later create a new tunnel, do not rely on getting the same public URL back.
-
-For other maintenance tasks not covered here, use the official command-line reference: [Microsoft dev tunnels CLI command reference](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/cli-commands).
-
-### Advanced task: share one public URL across developers
-
-Objective: let another developer host the same tunnel, preserving the same public URL.
-
-Use this only when multiple developers must reuse one exact public URL.
-
-One developer first creates the shared tunnel. Recommended shared id: `web-api-starter-api-shared`.
-
-The creator must then issue a host token or management token for that shared tunnel. Tenant access on its own is not enough for hosting; tenant access is for connecting.
-
-Creator runs:
-
-```pwsh
-devtunnel user login
-devtunnel token web-api-starter-api-shared --scopes host
-```
-
-Other developer runs:
-
-```pwsh
-dotnet run --project ./src/Template.Api
-devtunnel host web-api-starter-api-shared --access-token <host-token>
-```
-
-If the other developer also needs to change access rules or ports, issue a management token instead of a host token.
-
-This also reuses the existing public URL.
-
-### Task: rotate back to private-by-default after webhook verification
-
-Objective: keep the tunnel reusable for developers, but remove anonymous webhook exposure when it is no longer needed.
-
-```pwsh
-devtunnel access reset <your-tunnel-id>
-devtunnel access create <your-tunnel-id> --tenant
-```
-
-Re-add anonymous port access only for the period where GitHub must call the local webhook endpoint.
+8. If you need to expose the local API externally, see [API tunnel guidance](./dev-tunnels.md#api-on-port-5000).
 
 ## App
 
@@ -251,6 +101,7 @@ Re-add anonymous port access only for the period where GitHub must call the loca
         But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
 3. Start/Run the API project: `dotnet run --project ./src/Template.App`
 4. Check that the basics are running by browsing to: <https://localhost:5001/health>
+5. If you need to expose the local App externally, see [App tunnel guidance](./dev-tunnels.md#app-on-port-5001).
 
 ## Functions App
 
@@ -281,6 +132,8 @@ Re-add anonymous port access only for the period where GitHub must call the loca
     2. Import the postman environment [api-local.postman_environment.json](../tests/postman/api-local.postman_environment.json)
     3. Run the requests "GetUser Function" in the collection "MRI Web API Starter>Proxied"
        **Note**: assumes you're already running the Api project (see above section)
+9. If you need to expose the local Functions HTTP endpoints externally, see [Functions tunnel guidance](./dev-tunnels.md#functions-http-endpoints-on-port-7071).
+10. If you need to expose the local Azurite queue for temporary workflow queue verification, see [Azurite queue tunnel guidance](./dev-tunnels.md#azurite-queue-on-port-10001).
 
 
 ## Running the API and Functions app from VS2022
