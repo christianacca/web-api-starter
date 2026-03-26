@@ -36,23 +36,23 @@ If the original tunnel expires and is deleted, recreating it later should be tre
 
 Objective: create one developer-specific tunnel that you can reuse and add multiple ports to over time.
 
-Choose your own unique tunnel id. Recommended format: `web-api-starter-local-<your-alias>`.
+Choose your own unique tunnel id. Recommended format: `web-api-starter-<your-alias>`.
 
 Example using alias `christian`:
 
 ```pwsh
 devtunnel user login
-devtunnel create web-api-starter-local-christian --expiration 30d
-devtunnel set web-api-starter-local-christian
+devtunnel create web-api-starter-christian --expiration 30d
+devtunnel set web-api-starter-christian
 ```
 
 Add whichever ports you want this tunnel to expose:
 
 ```pwsh
-devtunnel port create web-api-starter-local-christian -p 5000 --protocol https
-devtunnel port create web-api-starter-local-christian -p 5001 --protocol https
-devtunnel port create web-api-starter-local-christian -p 7071 --protocol http
-devtunnel port create web-api-starter-local-christian -p 10001 --protocol https
+devtunnel port create web-api-starter-christian -p 5000 --protocol https
+devtunnel port create web-api-starter-christian -p 5001 --protocol https
+devtunnel port create web-api-starter-christian -p 7071 --protocol http
+devtunnel port create web-api-starter-christian -p 10001 --protocol https
 ```
 
 You only need to add the ports you actually plan to use.
@@ -70,8 +70,8 @@ Use this when GitHub or another non-interactive caller must reach the exposed po
 Examples:
 
 ```pwsh
-devtunnel access create web-api-starter-local-christian --port 5000 --anonymous
-devtunnel access create web-api-starter-local-christian --port 10001 --anonymous
+devtunnel access create web-api-starter-christian --port-number 5000 --anonymous
+devtunnel access create web-api-starter-christian --port-number 10001 --anonymous
 ```
 
 Option 2: `tenant`
@@ -81,8 +81,8 @@ Use this when you only need interactive access from signed-in users in the curre
 Examples:
 
 ```pwsh
-devtunnel access create web-api-starter-local-christian --port 5001 --tenant
-devtunnel access create web-api-starter-local-christian --port 7071 --tenant
+devtunnel access create web-api-starter-christian --port-number 5001 --tenant
+devtunnel access create web-api-starter-christian --port-number 7071 --tenant
 ```
 
 If you want the same access mode for all ports on the tunnel, you can create the rule at the tunnel level instead of per port.
@@ -95,7 +95,7 @@ Start whichever local services you need first, then host the tunnel:
 
 ```pwsh
 devtunnel user login
-devtunnel host web-api-starter-local-christian
+devtunnel host web-api-starter-christian
 ```
 
 This hosts every configured port on that tunnel.
@@ -103,8 +103,8 @@ This hosts every configured port on that tunnel.
 To inspect the configured ports and their public URLs:
 
 ```pwsh
-devtunnel show web-api-starter-local-christian
-devtunnel port list web-api-starter-local-christian
+devtunnel show web-api-starter-christian
+devtunnel port list web-api-starter-christian
 ```
 
 ## Service-specific usage
@@ -135,10 +135,10 @@ Use the public URL printed for port `10001` as the public queue-service relay UR
 
 For this repo's local Azurite setup, replace the local queue-service base endpoint `https://127.0.0.1:10001/devstoreaccount1` with the tunnel URL plus `/devstoreaccount1`.
 
-For example, if the tunnel prints `https://web-api-starter-local-christian-10001.usw2.devtunnels.ms`, the public queue-service base URL becomes:
+For example, if the tunnel prints `https://web-api-starter-christian-10001.usw2.devtunnels.ms`, the public queue-service base URL becomes:
 
 ```text
-https://web-api-starter-local-christian-10001.usw2.devtunnels.ms/devstoreaccount1
+https://web-api-starter-christian-10001.usw2.devtunnels.ms/devstoreaccount1
 ```
 
 The workflow queue name remains `default-queue`.
@@ -170,7 +170,7 @@ devtunnel delete <your-tunnel-id>
 Example:
 
 ```pwsh
-devtunnel delete web-api-starter-local-christian
+devtunnel delete web-api-starter-christian
 ```
 
 Deleting a tunnel removes that tunnel object. If you later create a new tunnel, do not rely on getting the same public URL back.

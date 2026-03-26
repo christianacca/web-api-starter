@@ -41,6 +41,7 @@ $messageBody = @{
         messageType = $MessageType
     }
 } | ConvertTo-Json -Compress -Depth 10
+$encodedMessageBody = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($messageBody))
 
 if ([string]::IsNullOrWhiteSpace($StorageConnectionString)) {
     $publishTarget = "$StorageAccountName/$QueueName"
@@ -48,7 +49,7 @@ if ([string]::IsNullOrWhiteSpace($StorageConnectionString)) {
         --account-name $StorageAccountName `
         --queue-name $QueueName `
         --auth-mode login `
-        --content $messageBody `
+        --content $encodedMessageBody `
         --only-show-errors 2>&1
 }
 else {
@@ -56,7 +57,7 @@ else {
     $publishResponse = az storage message put `
         --connection-string $StorageConnectionString `
         --queue-name $QueueName `
-        --content $messageBody `
+        --content $encodedMessageBody `
         --only-show-errors 2>&1
 }
 

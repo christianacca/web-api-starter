@@ -30,7 +30,7 @@ public sealed class GithubWorkflowQueueMessageProcessor(ILogger<GithubWorkflowQu
       await RaiseGithubWorkflowEventAsync(workflowMessage, client, ct);
 
       processingState.MarkCompleted();
-      await tableClient.UpdateEntityAsync(processingState, processingState.ETag, TableUpdateMode.Replace, ct);
+      await tableClient.UpsertEntityAsync(processingState, TableUpdateMode.Replace, ct);
 
       logger.LogInformation(
         "Raised durable workflow event from queue message: {MessageType}-{MessageId}; InstanceId: {InstanceId}; RunId: {RunId}; RunAttempt: {RunAttempt}",

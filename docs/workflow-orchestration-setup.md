@@ -663,6 +663,8 @@ gh auth login
 
 Run the commands below from the repository root.
 
+The command blocks are written for PowerShell. If your active terminal is not PowerShell, either open a PowerShell terminal first or invoke checked-in `.ps1` scripts through `pwsh -File`.
+
 Use four terminals:
 
 1. Terminal A: Azurite
@@ -732,6 +734,12 @@ In Terminal A, run:
 
 ```pwsh
 ./tools/azurite/azurite-run.ps1
+```
+
+If Terminal A is not a PowerShell session, run:
+
+```text
+pwsh -File ./tools/azurite/azurite-run.ps1
 ```
 
 Leave Terminal A running.
@@ -810,7 +818,7 @@ $Run = $null
     Select-Object -ExpandProperty workflow_runs |
     Where-Object {
       $_.head_branch -eq $WorkflowBranch -and
-      $_.path -like "*/$WorkflowFile@*" -and
+      (Split-Path $_.path -Leaf) -eq $WorkflowFile -and
       $_.display_title -eq $WorkflowName
     } |
     Sort-Object created_at -Descending |
@@ -855,8 +863,8 @@ Select-String -Path $FunctionsLog -Pattern $InstanceId, $WorkflowName, 'GithubWo
 Expected evidence:
 
 1. the orchestration instance id appears in the log
-2. `GithubWorkflowInProgress` appears in the log
-3. `GithubWorkflowCompleted` appears in the log
+2. `GithubWorkflowInProgress` appears in the log, for example in a durable-host line such as `Reason: RaiseEvent:GithubWorkflowInProgress`
+3. `GithubWorkflowCompleted` appears in the log, for example in a durable-host line such as `Reason: RaiseEvent:GithubWorkflowCompleted`
 
 #### Step 11: Inspect Durable state in Azurite
 
@@ -868,8 +876,8 @@ $StorageConnectionString = $LocalSettings.Values.AzureWebJobsStorage
 
 $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 
-$InstancesJson = az storage entity query --table-name TestHubNameInstances --connection-string "$StorageConnectionString" --filter "RowKey eq '$InstanceId'" --accept application/json --only-show-errors
-$HistoryJson = az storage entity query --table-name TestHubNameHistory --connection-string "$StorageConnectionString" --filter "PartitionKey eq '$InstanceId'" --accept application/json --only-show-errors
+$InstancesJson = az storage entity query --table-name TestHubNameInstances --connection-string "$StorageConnectionString" --filter "PartitionKey eq '$InstanceId'" --only-show-errors -o json
+$HistoryJson = az storage entity query --table-name TestHubNameHistory --connection-string "$StorageConnectionString" --filter "PartitionKey eq '$InstanceId'" --only-show-errors -o json
 
 $InstancesJson | Set-Content $DurableInstancesLog
 $HistoryJson | Set-Content $DurableHistoryLog
@@ -877,6 +885,8 @@ $HistoryJson | Set-Content $DurableHistoryLog
 Get-Content $DurableInstancesLog
 Get-Content $DurableHistoryLog
 ```
+
+Some Azure CLI versions do not accept `--accept application/json` on `az storage entity query`. The `-o json` form above is the compatibility baseline for this runbook.
 
 Expected evidence:
 
