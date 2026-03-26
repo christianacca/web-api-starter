@@ -53,7 +53,6 @@ void ConfigureAppConfiguration(IConfigurationBuilder configuration, IHostEnviron
 }
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
-  var githubSection = environment.IsDevelopment() ? "Local:Github" : "Github";
 
   services
     .AddFunctionContextAccessor()
@@ -89,7 +88,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
   
-  services.AddGithubServices(githubSection);
+  services.AddGithubServices("Github");
 
   if (environment.IsDevelopment()) {
     services.AddHostedService<DevelopmentQueueInitializer>();

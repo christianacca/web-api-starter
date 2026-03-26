@@ -119,11 +119,10 @@ void ConfigureLogging(IHostBuilder host) {
 }
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
-  var githubSection = environment.IsDevelopment() ? "Local:Github" : "Github";
 
   services.AddHttpContextAccessor();
 
-  services.AddGithubAppOptions(githubSection);
+  services.AddGithubAppOptions("Github");
 
   services
     .AddAzureAppConfiguration()
@@ -281,8 +280,7 @@ void ConfigureMiddleware(WebApplication app) {
   app.MapControllers().RequireAuthorization();
   app.MapHealthChecks("/health");
 
-  var githubSection = app.Environment.IsDevelopment() ? "Local:Github" : "Github";
-  var webhookEndpoint = app.MapGitHubWebhooks(secret: app.Configuration.GetSection($"{githubSection}:WebhookSecret").Value ?? string.Empty);
+  var webhookEndpoint = app.MapGitHubWebhooks(secret: app.Configuration.GetSection("Github:WebhookSecret").Value ?? string.Empty);
   webhookEndpoint.RequireRateLimiting(GithubRateLimiterPolicyName);
   app.MapReverseProxy();
 }
