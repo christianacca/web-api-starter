@@ -33,10 +33,10 @@ The steady-state design is:
 3. Update support-ticket generation to request a GitHub App for Actions permissions only.
 4. Reuse the existing `default-queue`.
    `ExampleQueue` remains the owner of `default-queue`, and the existing message envelope plus dispatch pattern stays in place.
-5. Avoid dual delivery competition within an environment.
-   For any environment being migrated, webhook-driven orchestration events and queue-driven orchestration events must not both be active at the same time.
-6. Preferred cutover strategy: disable webhook delivery at the source.
-   For each environment, the preferred approach is to disable GitHub App webhook delivery before enabling queue publishing in that environment. Code-based suppression is a fallback option only if GitHub-side reconfiguration cannot be completed safely in time.
+5. Avoid relying on dual delivery in the steady state.
+   Queue-driven orchestration events are the intended completion path. Residual GitHub webhook deliveries may continue transiently during rollout, but the migration should not depend on webhook callbacks remaining healthy once the queue path is deployed.
+6. Remove GitHub App webhook behavior after the queue path is deployed everywhere.
+   The simplified rollout is: make queue publication the default on `master`, deploy that application/workflow state to all environments, then remove the remaining GitHub App webhook behavior and related configuration.
 7. Use Azure CLI for workflow queue publication.
    The publishing path should use `az storage message put --auth-mode login` from checked-in scripts or composite actions, not ad hoc REST calls and not shared-key authentication.
 8. Use least-privilege queue sender RBAC.
@@ -60,10 +60,10 @@ The steady-state design is:
 4. If verification fails, fix the phase before moving on.
 5. Preserve existing behavior unless the phase explicitly changes it.
 6. Prefer automated verification using build tasks, targeted searches, and reproducible commands.
-7. Treat per-environment cutover as a control point.
-   Before enabling queue-based completion delivery for a given environment, disable or suppress webhook-based event raising for that same environment so both channels cannot compete.
-8. Prefer source-side elimination over application-side suppression.
-   If webhook delivery can be disabled in GitHub for an environment, do that instead of adding temporary code to ignore duplicate deliveries.
+7. Treat global deployment of the queue path as the rollout control point.
+   Do not remove API-side webhook handling from the deployed application until the queue-publishing workflow changes have been merged to `master` and deployed to every environment that will receive the cleanup deployment.
+8. Remove GitHub-side webhook behavior after the application cleanup is deployed.
+   Once the queue path is deployed everywhere, remove or disable the remaining GitHub App webhook behavior rather than keeping webhook delivery active as a long-lived failing path.
 9. If reusing `default-queue`, keep a single queue-triggered owner for that queue.
    Do not create multiple independent queue-triggered Functions bound to `default-queue` unless the plan explicitly changes queue ownership semantics.
 10. Keep the existing queue message handling pattern.
@@ -461,7 +461,7 @@ Swap the current webhook-triggered Functions receiver for queue-driven processin
 
 ### Goal
 
-Authorize the GitHub Actions service principal to publish messages to the Function App storage queue and prove the workflow can acquire the right queue access, while preparing a safe per-environment cutover.
+Authorize the GitHub Actions service principal to publish messages to the Function App storage queue and prove the workflow can acquire the right queue access, while preparing the later global rollout.
 
 ### `github-app-authz-envs` Interface Contract
 
@@ -644,11 +644,11 @@ Rules:
 - [x] Support local branch selection through `.NET user-secrets` on `Github:Branch` rather than checked-in local appsettings changes.
 - [x] Support local queue publication through a public Azurite queue endpoint configured locally, with the workflow publisher using a connection-string-based path only when the development-only override is present.
 - [x] Define the local verification procedure for this phase so it runs through the real local orchestrator start path, the real GitHub Actions workflow on a feature branch, and the real `GithubWorkflowInProgress` plus `GithubWorkflowCompleted` queue messages delivered back into local Azurite.
-- [x] Keep queue-based completion delivery dark or non-default until the per-environment cutover phase is complete.
+- [x] Keep queue-based completion delivery contained to the showcase workflow until the global rollout and cleanup phases are ready.
 - [x] Build the solution.
 - [x] Update the checklist for this phase.
 - [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
-- [x] Feed forward workflow, storage-auth, and queue-publishing findings into Phases 4 through 7.
+- [x] Feed forward workflow, storage-auth, and queue-publishing findings into Phases 4 through 6.
 
 ### Verification
 
@@ -679,7 +679,7 @@ Rules:
 - Phase 3 resolved queue publication through one reusable action and one checked-in PowerShell helper. Later phases should keep publication logic in that shared path instead of reintroducing inline `az storage` calls in workflow YAML.
 - The internal API storage-account sender RBAC now comes from `settings.CliPrincipals[settings.EnvironmentName]`, and those principal ids are still sourced through [set-azure-connection-variables.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/azure-login/set-azure-connection-variables.ps1) via [get-product-azure-connections.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-azure-connections.ps1) and [get-product-conventions.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-conventions.ps1). Later infrastructure changes should preserve that single conventions path rather than hard-coding principal ids elsewhere.
 - `github-app-authz-envs` now fails closed on unsupported actors and empty gated-environment intersections, and it publishes the bootstrap `GithubWorkflowInProgress` message exactly once. Later phases should keep bootstrap publication centralized there and should not add a second `in progress` publisher anywhere else in the workflow.
-- The showcase workflow keeps queue-based delivery dark by limiting it to [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml). Phase 4 still needs a source-side GitHub App webhook cutover before any environment can rely on queue publication as the default completion path.
+- The showcase workflow keeps queue-based delivery dark by limiting it to [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml). Phase 4 should be the point where queue publication becomes the default on `master` and is deployed to every environment before API-side webhook cleanup begins.
 - The workflow name now carries the dispatcher prefix, and both bootstrap and completion publishers derive the target storage account from that prefix rather than assuming a hard-coded dispatcher like `InternalApi`. Later phases should preserve that non-hardcoded parsing unless the queue contract moves dispatcher identity into an explicit field again.
 - Both bootstrap and completion publishers still derive `instanceId` from the required `workflowName` input using the `<dispatcher>-<instanceId>` naming scheme. The current producer still emits `InternalApi-{instanceId}`. Later workflow or orchestrator changes must preserve that contract unless the queue payload contract is explicitly revised.
 - The completion publisher computes `conclusion` from downstream job results and only runs when `published-in-progress == 'true'`. Later phases should preserve that guard so workflows do not emit orphaned completion messages after a failed bootstrap path.
@@ -701,65 +701,19 @@ Rules:
 - Files changed: `.github/actions/github-app-authz-envs/action.yml`; `.github/actions/github-app-authz-envs/get-authorized-target-envs.ps1`; `.github/actions/github-app-authz-envs/new-bootstrap-payload.ps1`; `.github/actions/_shared/GitHubWorkflowQueueSupport.psm1`; `.github/actions/publish-workflow-queue-message/action.yml`; `.github/actions/publish-workflow-queue-message/publish-workflow-queue-message.ps1`; `.github/actions/publish-github-workflow-completed/action.yml`; `.github/actions/publish-github-workflow-completed/new-completed-payload.ps1`; `.github/workflows/webhook-integration-test.yml`; `src/Template.Functions/GithubWorkflowOrchestrator/TriggerWorkflowActivity.cs`; `tools/infrastructure/arm-templates/main.bicep`; `docs/github-workflow-direct-callback-migration-plan.md`
 - Findings (infrastructure): The internal API queue owner was already the environment-specific storage account declared in [main.bicep](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/arm-templates/main.bicep), and that storage-account name already flows into conventions as `SubProducts.InternalApi.StorageAccountName`. The GitHub Actions service-principal object ids already flow from [set-azure-connection-variables.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/azure-login/set-azure-connection-variables.ps1) into deployment through [get-product-azure-connections.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-azure-connections.ps1) and [get-product-conventions.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-conventions.ps1), so Phase 3 only needed to thread that existing principal into the storage-account role assignments.
 - Findings (publisher): Queue publication again infers the target dispatcher from the workflow-name prefix, but the publisher actions now parse that prefix generically instead of assuming `InternalApi`, while still deriving `instanceId` from the remainder of the workflow name. The higher-level workflow queue logic is now shared through a focused PowerShell module rather than duplicated inline across two composite actions, and that module now uses module-relative path resolution so it does not implicitly depend on the current working directory being the repository root.
-- Findings (webhook settings): The current webhook settings for the dev cutover path remain: webhook URL `https://dev-api-was.codingdemo.co.uk/api/github/webhooks`, subscribed event `workflow_run`, operational owner `GitHub Admin Team` as documented in [github-app-creation.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/github-app-creation.md), and rollback path `re-enable webhook delivery for the GitHub App, keep the conventional webhook URL, and restore active workflow_run delivery if Phase 4 cutover needs to be reversed`.
+- Findings (webhook settings): The current webhook settings for the dev environment remain: webhook URL `https://dev-api-was.codingdemo.co.uk/api/github/webhooks`, subscribed event `workflow_run`, operational owner `GitHub Admin Team` as documented in [github-app-creation.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/github-app-creation.md), and the remaining GitHub-side cleanup work belongs after the queue-based path has been deployed to all environments.
 - Findings (local E2E validation): The first live local E2E run reached the real GitHub Actions workflow successfully but failed at the Functions queue trigger boundary because the Phase 3 publisher emitted an unencoded `MessageBody` document while the function app kept the default Storage Queues base64 trigger semantics. The workflow-specific fix is to publish the `MessageBody` envelope in the encoding expected by the queue trigger rather than changing the host-wide queue extension setting. The later dedupe completion failure in `GithubWorkflowQueueMessageProcessor` was a separate real bug: the completion update used `UpdateEntityAsync` with an uninitialized ETag after the durable event had already been raised. Replacing that completion update with a non-ETag-dependent upsert removed the false retry path.
 - Findings (final local evidence): The final local validation run used instance `f2e0a677ceca42d48609cd5685bd59b3` and GitHub Actions run `23612688056` on branch `github-workflow-auth-callback`. The workflow completed with conclusion `success`, the Functions log recorded `RaiseEvent:GithubWorkflowInProgress`, `RaiseEvent:GithubWorkflowCompleted`, and terminal orchestrator completion for that instance, and Azurite-backed `TestHubNameInstances` plus `TestHubNameHistory` both recorded the same instance in a completed terminal state.
-- Feed-forward updates applied to later phases: Recorded that queue publication is now centralized in one composite action, one low-level PowerShell transport helper, and one focused shared PowerShell module, that the sender RBAC path should continue to use conventions-driven principal ids, that the showcase workflow remains the only non-default queue-publishing path before cutover, that the final completion publisher already has the `always()` plus `published-in-progress` guard later phases should preserve, and that action-support scripts should continue to use env-mapped inputs plus module-relative path resolution rather than inline script interpolation or cwd-dependent helper paths.
-- Remaining risks: Phase 3 local verification is now complete, including a live GitHub Actions run feeding queue callbacks back into local Azurite. The remaining risks are operational and belong to later phases: shared-environment webhook disablement, environment-specific rollback validation, and confirmation that the queue-only path behaves the same way after source-side webhook cutover.
+- Feed-forward updates applied to later phases: Recorded that queue publication is now centralized in one composite action, one low-level PowerShell transport helper, and one focused shared PowerShell module, that the sender RBAC path should continue to use conventions-driven principal ids, that the showcase workflow remains the only non-default queue-publishing path before the global rollout phase, that the final completion publisher already has the `always()` plus `published-in-progress` guard later phases should preserve, and that action-support scripts should continue to use env-mapped inputs plus module-relative path resolution rather than inline script interpolation or cwd-dependent helper paths.
+- Remaining risks: Phase 3 local verification is now complete, including a live GitHub Actions run feeding queue callbacks back into local Azurite. The remaining risks are operational and belong to later phases: global deployment of the queue-based path, application cleanup after that rollout, GitHub-side webhook removal, and confirmation that the queue-only path behaves the same way after webhook behavior is removed.
 
 ---
 
-## Phase 4: Per-Environment Cutover To Prevent Competing Event Delivery
+## Phase 4: Deploy Queue-Based Workflow Completion And Remove API-Side Webhook Processing
 
 ### Goal
 
-For each environment, prevent webhook and queue-driven delivery from competing for the same orchestration events.
-
-### Steps
-
-- [ ] Choose the target environment for cutover.
-- [ ] Disable GitHub App webhook delivery for that environment before queue publishing goes live.
-- [ ] Verify the webhook configuration change has taken effect for that environment.
-- [ ] Use code or configuration-based suppression only if GitHub-side disablement is temporarily blocked.
-- [ ] Enable queue-based completion delivery for that same environment.
-- [ ] Run an environment-scoped validation that proves only one channel is producing orchestration events.
-- [ ] Verify rollback instructions are tested and documented.
-- [ ] Update the checklist for this phase.
-- [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
-- [ ] Feed forward any cutover sequencing or rollback findings into Phases 5 through 7.
-
-### Verification
-
-1. For the target environment, only the queue-based path produces orchestration events.
-2. No duplicate `in progress` or `completed` events are observed for the same orchestration instance.
-3. GitHub App webhook delivery is confirmed disabled for the target environment, or an explicit temporary suppression exception is documented.
-4. Rollback steps are documented and usable.
-5. The environment validation includes at least one duplicate-message probe or replay check proving the queue consumer remains idempotent after cutover.
-
-### Human Intervention
-
-- Expected for shared-environment cutover activities.
-- A human may need to approve the choice of cutover environment, perform or authorize the GitHub-side webhook disablement, and confirm rollback ownership for the environment being changed.
-
-### Approval Gate
-
-- Required before enabling queue-based completion delivery for a real shared environment.
-
-### Feed Forward
-
-- Phase 3 kept queue publication dark by limiting it to [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml). Phase 4 should preserve that containment mindset during the first real environment cutover and avoid broadening workflow adoption until source-side webhook disablement is confirmed.
-- Phase 3 now treats `github-app-authz-envs` as the single fail-closed bootstrap publisher for `GithubWorkflowInProgress`. Phase 4 should keep that centralization and must not add any second bootstrap publisher during cutover-specific workflow changes.
-- Phase 3 restored the `workflowName` contract to `<dispatcher>-<instanceId>` and made dispatcher parsing generic rather than hard-coded to `InternalApi`. Phase 4 should preserve that generic parsing when validating the first cutover environment, and any environment-specific suppression or rollback logic should not assume a single dispatcher name unless the producer contract is revised explicitly.
-- Phase 3 refactored the higher-level action logic into [.github/actions/_shared/GitHubWorkflowQueueSupport.psm1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared/GitHubWorkflowQueueSupport.psm1) plus thin entry scripts. If Phase 4 needs workflow-publication changes for cutover validation or rollback, it should extend that module/entry-point structure rather than reintroducing inline PowerShell into workflow YAML.
-- Phase 3 hardened action-support path resolution to be module-relative and currently passes GitHub expression values through `env:` before invoking typed PowerShell parameters. Phase 4 should preserve those patterns in any cutover-specific workflow or rollback scripts.
-
----
-
-## Phase 5: Remove API-Side GitHub Webhook Processing And Package Dependencies
-
-### Goal
-
-Eliminate the API project as a GitHub webhook receiver and remove webhook-specific package dependencies from the app projects once queue-driven completion is proven.
+Remove the remaining API-side webhook code, prove the queue-only path locally end to end, deploy that cleanup through `master`, and then verify the deployed queue-only path end to end in a real environment.
 
 ### Steps
 
@@ -772,9 +726,15 @@ Eliminate the API project as a GitHub webhook receiver and remove webhook-specif
 - [ ] Remove any webhook-only logging overrides and settings classes.
 - [ ] Build the API, Functions, and full solution.
 - [ ] Search the repo for obsolete runtime references to webhook code paths.
+- [ ] Run a local end-to-end verification of the Phase 4 cleanup on the `master`-equivalent code path.
+- [ ] Confirm locally that queue-driven workflow completion still succeeds after API-side webhook handling has been removed.
+- [ ] Merge the Phase 4 cleanup and queue-default workflow path to `master`.
+- [ ] Deploy that application and workflow state to the real Azure environments that will receive the webhook cleanup.
+- [ ] Run an end-to-end verification against at least one real deployed environment after rollout.
+- [ ] Confirm the deployed environment completes the orchestration through the queue-only path.
 - [ ] Update the checklist for this phase.
 - [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
-- [ ] Feed forward cleanup findings into Phases 6 and 7.
+- [ ] Feed forward cleanup findings into Phases 5 and 6.
 
 ### Verification
 
@@ -786,26 +746,36 @@ Eliminate the API project as a GitHub webhook receiver and remove webhook-specif
    - `WebhookEventProcessor`
    - `Octokit.Webhooks`
    - `Github:WebhookSecret`
+5. A local end-to-end verification confirms queue-driven workflow completion still works after API-side webhook handling has been removed.
+6. The Phase 4 cleanup and queue-default workflow path are merged to `master`.
+7. The Phase 4 deployment reaches the intended real Azure environments.
+8. A real deployed environment end-to-end verification confirms orchestration completion still works through the queue-only path after rollout.
 
 ### Human Intervention
 
-- None expected after the cutover phase is complete.
+- Expected for the global rollout itself if deployment approvals or protected environments are involved.
+- A human may need to approve the `master` rollout, trigger or approve deployment to real Azure environments, and confirm the post-deployment end-to-end verification target environment.
 
 ### Approval Gate
 
-- None expected.
+- Required before deploying the Phase 4 cleanup to real Azure environments.
 
 ### Feed Forward
 
-- Pending.
+- Phase 3 kept queue publication dark by limiting it to [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml). Phase 4 should first remove the remaining API webhook code, then prove the queue-only path locally, and only then roll that state out through `master`.
+- Phase 4 should preserve both gates: local end-to-end verification before any real Azure deployment, and real deployed-environment end-to-end verification immediately after rollout.
+- Phase 3 now treats `github-app-authz-envs` as the single fail-closed bootstrap publisher for `GithubWorkflowInProgress`. Phase 4 should keep that centralization and must not add any second bootstrap publisher during the default-rollout work.
+- Phase 3 restored the `workflowName` contract to `<dispatcher>-<instanceId>` and made dispatcher parsing generic rather than hard-coded to `InternalApi`. Phase 4 should preserve that generic parsing during the global rollout and cleanup.
+- Phase 3 refactored the higher-level action logic into [.github/actions/_shared/GitHubWorkflowQueueSupport.psm1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared/GitHubWorkflowQueueSupport.psm1) plus thin entry scripts. Phase 4 should extend that module/entry-point structure rather than reintroducing inline PowerShell into workflow YAML.
+- Phase 3 hardened action-support path resolution to be module-relative and currently passes GitHub expression values through `env:` before invoking typed PowerShell parameters. Phase 4 should preserve those patterns in any final default-rollout workflow changes.
 
 ---
 
-## Phase 6: Remove Webhook Dependency From Infrastructure Scripts And Operational Tooling
+## Phase 5: Remove Webhook Dependency From Infrastructure Scripts And GitHub App Operations
 
 ### Goal
 
-Stop scripts, conventions, and support workflows from requiring GitHub webhook configuration.
+Stop scripts, conventions, and GitHub App operational steps from requiring webhook configuration once the application cleanup has been deployed.
 
 ### Steps
 
@@ -813,28 +783,30 @@ Stop scripts, conventions, and support workflows from requiring GitHub webhook c
 - [ ] Update [tools/infrastructure/upload-github-app-secrets.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/upload-github-app-secrets.ps1) to stop accepting, displaying, or uploading webhook secrets.
 - [ ] Update [tools/infrastructure/generate-github-app-servicenow-ticket.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/generate-github-app-servicenow-ticket.ps1) so it requests an Actions-permissions app only.
 - [ ] Update conventions, deployment docs, or infra helpers as needed so the workflow can discover the Function App storage account and `default-queue` without relying on ad hoc secrets.
+- [ ] Remove or disable the remaining webhook behavior from all GitHub Apps after the queue-path deployment and Phase 4 application cleanup are complete.
 - [ ] Search `tools/infrastructure/` for webhook-era terminology and remove or rewrite it.
 - [ ] If any scripts are intended to be run in dry-run mode, execute those dry runs and inspect the output.
 - [ ] Build the solution if any shared code or settings are touched.
 - [ ] Update the checklist for this phase.
 - [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
-- [ ] Feed forward tooling and wording findings into Phase 7.
+- [ ] Feed forward tooling and wording findings into Phase 6.
 
 ### Verification
 
 1. Dry-run output from updated support scripts no longer mentions webhook URL or webhook secret.
 2. Repo search under `tools/infrastructure/` confirms webhook-specific setup has been removed or intentionally deprecated, and queue-publication prerequisites are documented.
-3. If shared project files were touched, `build solution` succeeds.
+3. GitHub App webhook behavior has been removed or disabled after the queue-path deployment and Phase 4 cleanup are complete.
+4. If shared project files were touched, `build solution` succeeds.
 
 ### Human Intervention
 
 - None expected for the code and script changes themselves.
-- Human intervention may be required if validating the updated scripts depends on protected infrastructure, organizational process ownership, or credentials unavailable to the agent.
+- Human intervention may be required to apply the GitHub App webhook removal if that operational change is owned outside the repo.
 
 ### Approval Gate
 
 - None by default.
-- Add an approval gate only if script validation must run against protected shared infrastructure.
+- Add an approval gate only if GitHub App webhook removal or script validation depends on protected shared infrastructure or organizational ownership.
 
 ### Feed Forward
 
@@ -842,7 +814,7 @@ Stop scripts, conventions, and support workflows from requiring GitHub webhook c
 
 ---
 
-## Phase 7: Rewrite Documentation For The Queue-Based Architecture
+## Phase 6: Rewrite Documentation For The Queue-Based Architecture
 
 ### Goal
 
@@ -898,7 +870,7 @@ Do not mark the migration complete until all items below are true.
 - [ ] Queue message transport uses raw serialized `MessageBody` JSON with no manual base64 encoding.
 - [ ] Duplicate workflow queue messages have been tested and do not create duplicate durable side effects.
 - [ ] The orchestrator still works when a callback is delayed or missing and fallback polling is required.
-- [ ] Each migrated environment has only one active orchestration event delivery path.
+- [ ] Queue-based completion is the only intended orchestration event delivery path in deployed environments, and legacy GitHub webhook behavior has been removed or disabled.
 - [ ] The API project is no longer a GitHub webhook receiver.
 - [ ] Webhook packages and webhook configuration have been removed from the application projects.
 - [ ] Infra scripts and support-ticket generation no longer require webhook setup.
