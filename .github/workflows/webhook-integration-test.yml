@@ -7,6 +7,10 @@ on:
         description: 'Workflow run name (format: functionappidentifier-instanceId)'
         required: true
         type: string
+      localVerification:
+        description: 'Optional local-only queue publication override JSON supplied by the local Functions dispatcher'
+        required: false
+        type: string
 
 run-name: ${{ inputs.workflowName }}
 
@@ -32,6 +36,7 @@ jobs:
           gated-environments: |
             dev
             qa
+          local-verification: ${{ inputs.localVerification }}
 
   dev-task:
     runs-on: ubuntu-latest
@@ -86,6 +91,7 @@ jobs:
         uses: ./.github/actions/publish-github-workflow-completed
         with:
           github-environment: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+          local-verification: ${{ inputs.localVerification }}
           needs-json: ${{ toJSON(needs) }}
           queue-name: default-queue
           repository: ${{ github.repository }}

@@ -494,9 +494,9 @@ Outputs:
 
 1. `primary`
    The primary environment for the dispatching GitHub App.
-2. `pipeline`
+1. `pipeline`
    The dispatching GitHub App's full authorized pipeline environment list as JSON.
-3. `authorized-target-envs`
+1. `authorized-target-envs`
    The ordered intersection between `gated-environments` and the app-authorized pipeline environments, serialized as a JSON array for downstream `if` conditions.
    Expected shape:
 
@@ -504,7 +504,7 @@ Outputs:
 ["dev","qa"]
 ```
 
-4. `published-in-progress`
+1. `published-in-progress`
    Boolean-like output indicating whether the bootstrap `in progress` message was successfully published.
 
 Behavior:
@@ -588,6 +588,35 @@ Design notes:
 8. The Functions consumer should treat the tuple `instanceId` plus `runId` plus `runAttempt` plus message type as the minimum duplicate-detection key.
 9. Repeated queue messages with the same duplicate-detection key must not cause duplicate durable side effects.
 
+### Local Verification Seam For Phase 3
+
+Phase 3 local end-to-end verification now uses one workflow-carried override seam rather than ad hoc action edits.
+
+Local-only workflow input:
+
+1. `localVerification`
+    Optional JSON string supplied only by the local Functions dispatcher when running in development.
+
+Expected JSON shape:
+
+```json
+{
+   "storageConnectionString": "DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=<azurite-key>;QueueEndpoint=https://<your-dev-tunnel-host>/devstoreaccount1"
+}
+```
+
+Rules:
+
+1. The steady-state workflow path remains unchanged when `localVerification` is absent.
+2. The local Functions dispatcher should populate `localVerification` only when running in development and only when a public Azurite queue endpoint override has been configured locally.
+3. `github-app-authz-envs` and `publish-github-workflow-completed` should treat `localVerification` as the single source of truth for Phase 3 local queue publication overrides.
+4. When `localVerification` is present, the shared queue support path should bypass conventions-based storage-account lookup for publication transport only.
+5. When `localVerification` is present, the reusable queue publisher should publish with `az storage message put --connection-string ...` rather than `--auth-mode login`.
+6. Authorization, workflow gating, payload shape, workflow-name parsing, and message correlation rules must stay identical between steady-state and local-verification runs.
+7. The workflow branch used for local verification should be overridden locally through `.NET user-secrets` on `Github:Branch`, not by editing checked-in development appsettings.
+8. The public queue endpoint used to construct `localVerification.storageConnectionString` should also be configured locally through `.NET user-secrets`, for example `Github:LocalVerification:QueueEndpoint`.
+9. `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` is not part of the Phase 3 queue-publication seam. It may still be needed for separate direct local CLI diagnostics against the self-signed `https://127.0.0.1` Azurite endpoints, but the dev-tunnel queue-publication path validated for Phase 3 uses the public tunnel endpoint and should not rely on that environment variable.
+
 ### Steps
 
 - [x] Identify the storage account that backs the Function App `default-queue` in each environment and trace how that account is expressed in conventions and deployment.
@@ -595,16 +624,10 @@ Design notes:
 - [x] Trace where those principal ids and storage scopes are composed in deployment and update that parent logic.
 - [x] Verify the principal ids sourced from [set-azure-connection-variables.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/azure-login/set-azure-connection-variables.ps1) flow correctly into deployment.
 - [x] Confirm the workflow has the storage account name, queue name, and `auth-mode login` inputs it needs to publish to `default-queue`.
-- [x] Document the current GitHub App webhook settings for the environment being migrated:
-   - webhook URL
-   - subscribed events
-   - operational owner
-   - rollback steps to restore webhook delivery if needed
+- [x] Document the current GitHub App webhook settings for the environment being migrated, including webhook URL, subscribed events, operational owner, and rollback steps to restore webhook delivery if needed.
 - [x] Prepare the GitHub-side change needed to disable webhook delivery for the target environment once queue-publication verification is ready.
 - [x] Update [github-app-authz-envs/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/github-app-authz-envs/action.yml) so it accepts a required multi-line `gated-environments` input.
-- [x] Update `github-app-authz-envs` so it computes the intersection between:
-   - the workflow-gated environments passed in by the workflow, and
-   - the dispatching GitHub App's authorized pipeline environments
+- [x] Update `github-app-authz-envs` so it computes the intersection between the workflow-gated environments passed in by the workflow and the dispatching GitHub App's authorized pipeline environments.
 - [x] Make `github-app-authz-envs` fail the workflow if that intersection is empty.
 - [x] Update `github-app-authz-envs` outputs so downstream jobs consume `authorized-target-envs` rather than the unconstrained pipeline environment list.
 - [x] Preserve the existing `primary` and `pipeline` outputs unless a later phase proves they can be removed safely.
@@ -613,13 +636,14 @@ Design notes:
 - [x] Extend `github-app-authz-envs` to discover the target storage account and publish the `in progress` message to `default-queue` for that primary environment by calling the reusable queue publisher action.
 - [x] Make `github-app-authz-envs` fail if actor resolution, environment authorization, Azure login, storage discovery, or bootstrap queue publication fails.
 - [x] Keep `github-app-authz-envs` focused on bootstrap behavior only. The `completed` queue message should be published later in the workflow by calling the same reusable queue publisher action from a final step that always runs.
-- [x] Update the showcase workflow [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml) to:
-   - pass the workflow's gated environments into `github-app-authz-envs` using a multi-line YAML block scalar
-   - consume the `authorized-target-envs` output from `github-app-authz-envs`
-   - rely on `github-app-authz-envs` to publish the single bootstrap `in progress` message
-   - publish the `completed` message to `default-queue` by invoking the same reusable queue publisher action in a final step that always runs
+- [x] Update the showcase workflow [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml) to pass the workflow's gated environments into `github-app-authz-envs` using a multi-line YAML block scalar, accept an optional `localVerification` workflow input for local Phase 3 verification, consume the `authorized-target-envs` output from `github-app-authz-envs`, rely on `github-app-authz-envs` to publish the single bootstrap `in progress` message, and publish the `completed` message to `default-queue` by invoking the same reusable queue publisher action in a final step that always runs.
 - [x] Ensure only the bootstrap step publishes the `in progress` message and only the final completion step publishes the `completed` message.
 - [x] Ensure the final completion publisher step is guarded with `if: always()` and only attempts publication when the bootstrap path already reported `published-in-progress == 'true'`.
+- [x] Add one development-only local verification seam so the local Functions dispatcher can send an optional `localVerification` workflow input without changing the steady-state workflow path.
+- [x] Keep the local verification seam narrow: override only queue publication transport and branch selection, while preserving the same workflow, payload, and orchestration correlation behavior used in steady state.
+- [x] Support local branch selection through `.NET user-secrets` on `Github:Branch` rather than checked-in local appsettings changes.
+- [x] Support local queue publication through a public Azurite queue endpoint configured locally, with the workflow publisher using a connection-string-based path only when the development-only override is present.
+- [x] Define the local verification procedure for this phase so it runs through the real local orchestrator start path, the real GitHub Actions workflow on a feature branch, and the real `GithubWorkflowInProgress` plus `GithubWorkflowCompleted` queue messages delivered back into local Azurite.
 - [x] Keep queue-based completion delivery dark or non-default until the per-environment cutover phase is complete.
 - [x] Build the solution.
 - [x] Update the checklist for this phase.
@@ -636,6 +660,9 @@ Design notes:
 6. Infrastructure diffs show the GitHub Actions principal receives the built-in `Storage Queue Data Message Sender` role on the expected storage account scope.
 7. The reusable queue publication helper uses `az storage message put --auth-mode login` and does not fall back to shared keys, connection strings, or SAS.
 8. If deployment validation is available, confirm the workflow can publish raw `MessageBody` JSON to the intended storage account and queue using the chosen auth mode.
+9. For local Phase 3 verification, use the canonical runbook in [docs/workflow-orchestration-setup.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/workflow-orchestration-setup.md) under `Exact Local E2E Validation Procedure` rather than restating the operator steps in this plan.
+10. That runbook is the source of truth for the local-only configuration needed by the `localVerification` seam, including `Github:Branch`, `Github:LocalVerification:QueueEndpoint`, tunnel hosting, Functions startup, and durable-state inspection.
+11. If direct local Azure CLI diagnostics against `https://127.0.0.1` Azurite are needed during troubleshooting, follow the same runbook notes and treat `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` as a separate operator-side diagnostic prerequisite rather than part of the queue-publication seam itself.
 
 ### Human Intervention
 
@@ -659,15 +686,19 @@ Design notes:
 - Phase 3 now keeps the higher-level workflow authorization, workflow-name parsing, storage-account resolution, and payload-building logic in a focused PowerShell module at [.github/actions/_shared/GitHubWorkflowQueueSupport.psm1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared/GitHubWorkflowQueueSupport.psm1), with thin action-local entry scripts. Later phases should extend that module or its entry points rather than pushing logic back into inline YAML.
 - The shared module now resolves infrastructure scripts relative to `$PSScriptRoot` instead of assuming the current working directory is the repository root. Later phases should keep action-support PowerShell path resolution module-relative or script-relative rather than depending on runner cwd.
 - The current action pattern passes GitHub expression values through `env:` and then into typed PowerShell parameters. Later phases should preserve that boundary as a hardening measure instead of interpolating untrusted workflow values directly into inline script text.
+- Phase 3 local verification now uses one development-only workflow input named `localVerification`. Later phases should keep local E2E verification on that single seam rather than introducing separate ad hoc action flags or conventions overrides for local-only queue publication.
+- The canonical local-only operator procedure now lives in [docs/workflow-orchestration-setup.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/workflow-orchestration-setup.md) under `Exact Local E2E Validation Procedure`. Later phases should update that section rather than duplicating or drifting from it here. If you step outside that seam and run direct local Azure CLI diagnostics against the self-signed `https://127.0.0.1` Azurite endpoints, handle `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` as a separate troubleshooting prerequisite.
 
 ### Phase 3 Execution Log
 
 - Date: 2026-03-24
 - Agent: GitHub Copilot (GPT-5.4)
-- Summary of completed work: Added a reusable workflow queue publisher composite action and backing PowerShell helper that publish raw `MessageBody` JSON with `az storage message put --auth-mode login`, extended `github-app-authz-envs` to accept multi-line gated environments, fail closed on unsupported actors and empty intersections, sign into Azure for the dispatching app's primary environment, derive the target storage account from the dispatcher prefix encoded in `workflowName` without hard-coding `InternalApi`, and publish exactly one bootstrap `GithubWorkflowInProgress` message, updated the showcase workflow to consume `authorized-target-envs`, extracted the final `GithubWorkflowCompleted` publication into a dedicated repo-local composite action, and then refactored the higher-level repeated PowerShell logic in both actions into a focused module under [.github/actions/_shared](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared) plus thin action-local entry scripts while keeping the job-level `if: always()` guard and the low-level queue transport action unchanged. Phase 3 also hardened those shared scripts so infrastructure helper paths resolve from the module location rather than the runner's current working directory.
+- Summary of completed work: Added a reusable workflow queue publisher composite action and backing PowerShell helper that publish raw `MessageBody` JSON with `az storage message put --auth-mode login`, extended `github-app-authz-envs` to accept multi-line gated environments, fail closed on unsupported actors and empty intersections, sign into Azure for the dispatching app's primary environment, derive the target storage account from the dispatcher prefix encoded in `workflowName` without hard-coding `InternalApi`, and publish exactly one bootstrap `GithubWorkflowInProgress` message, updated the showcase workflow to consume `authorized-target-envs`, extracted the final `GithubWorkflowCompleted` publication into a dedicated repo-local composite action, and then refactored the higher-level repeated PowerShell logic in both actions into a focused module under [.github/actions/_shared](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared) plus thin action-local entry scripts while keeping the job-level `if: always()` guard and the low-level queue transport action unchanged. Phase 3 also hardened those shared scripts so infrastructure helper paths resolve from the module location rather than the runner's current working directory, and it now includes a development-only `localVerification` seam that lets local end-to-end verification publish back into Azurite through a public queue endpoint without altering the steady-state production path.
 - Verification run: `dotnet build "$PWD/WebApiStarterTemplate.sln" /property:GenerateFullPaths=true /consoleloggerparameters:NoSummary`; targeted repo searches for `gated-environments`, `authorized-target-envs`, `published-in-progress`, `publish-workflow-queue-message`, and `GitHubWorkflowQueueSupport`; targeted Bicep inspection of `Storage Queue Data Message Sender` assignments on the internal API storage account; `pwsh -NoProfile -Command '$module = Join-Path $PWD ".github/actions/_shared/GitHubWorkflowQueueSupport.psm1"; Import-Module $module -Force; $envName = (& ./tools/infrastructure/get-product-environment-names.ps1 | Select-Object -First 1); $context = Resolve-WorkflowQueueContext -WorkflowName "InternalApi-test-instance" -EnvironmentName $envName; Write-Host "env=$envName storage=$($context.StorageAccountName) dispatcher=$($context.WorkflowDispatcherName)"'`
 - Files changed: `.github/actions/github-app-authz-envs/action.yml`; `.github/actions/github-app-authz-envs/get-authorized-target-envs.ps1`; `.github/actions/github-app-authz-envs/new-bootstrap-payload.ps1`; `.github/actions/_shared/GitHubWorkflowQueueSupport.psm1`; `.github/actions/publish-workflow-queue-message/action.yml`; `.github/actions/publish-workflow-queue-message/publish-workflow-queue-message.ps1`; `.github/actions/publish-github-workflow-completed/action.yml`; `.github/actions/publish-github-workflow-completed/new-completed-payload.ps1`; `.github/workflows/webhook-integration-test.yml`; `src/Template.Functions/GithubWorkflowOrchestrator/TriggerWorkflowActivity.cs`; `tools/infrastructure/arm-templates/main.bicep`; `docs/github-workflow-direct-callback-migration-plan.md`
-- Findings: The internal API queue owner was already the environment-specific storage account declared in [main.bicep](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/arm-templates/main.bicep), and that storage-account name already flows into conventions as `SubProducts.InternalApi.StorageAccountName`. The GitHub Actions service-principal object ids already flow from [set-azure-connection-variables.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/azure-login/set-azure-connection-variables.ps1) into deployment through [get-product-azure-connections.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-azure-connections.ps1) and [get-product-conventions.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-conventions.ps1), so Phase 3 only needed to thread that existing principal into the storage-account role assignments. Queue publication again infers the target dispatcher from the workflow-name prefix, but the publisher actions now parse that prefix generically instead of assuming `InternalApi`, while still deriving `instanceId` from the remainder of the workflow name. The higher-level workflow queue logic is now shared through a focused PowerShell module rather than duplicated inline across two composite actions, and that module now uses module-relative path resolution so it does not implicitly depend on the current working directory being the repository root. The current webhook settings for the dev cutover path remain: webhook URL `https://dev-api-was.codingdemo.co.uk/api/github/webhooks`, subscribed event `workflow_run`, operational owner `GitHub Admin Team` as documented in [github-app-creation.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/github-app-creation.md), and rollback path `re-enable webhook delivery for the GitHub App, keep the conventional webhook URL, and restore active `workflow_run` delivery if Phase 4 cutover needs to be reversed`.
+- Findings (infrastructure): The internal API queue owner was already the environment-specific storage account declared in [main.bicep](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/arm-templates/main.bicep), and that storage-account name already flows into conventions as `SubProducts.InternalApi.StorageAccountName`. The GitHub Actions service-principal object ids already flow from [set-azure-connection-variables.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/azure-login/set-azure-connection-variables.ps1) into deployment through [get-product-azure-connections.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-azure-connections.ps1) and [get-product-conventions.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/get-product-conventions.ps1), so Phase 3 only needed to thread that existing principal into the storage-account role assignments.
+- Findings (publisher): Queue publication again infers the target dispatcher from the workflow-name prefix, but the publisher actions now parse that prefix generically instead of assuming `InternalApi`, while still deriving `instanceId` from the remainder of the workflow name. The higher-level workflow queue logic is now shared through a focused PowerShell module rather than duplicated inline across two composite actions, and that module now uses module-relative path resolution so it does not implicitly depend on the current working directory being the repository root.
+- Findings (webhook settings): The current webhook settings for the dev cutover path remain: webhook URL `https://dev-api-was.codingdemo.co.uk/api/github/webhooks`, subscribed event `workflow_run`, operational owner `GitHub Admin Team` as documented in [github-app-creation.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/github-app-creation.md), and rollback path `re-enable webhook delivery for the GitHub App, keep the conventional webhook URL, and restore active workflow_run delivery if Phase 4 cutover needs to be reversed`.
 - Feed-forward updates applied to later phases: Recorded that queue publication is now centralized in one composite action, one low-level PowerShell transport helper, and one focused shared PowerShell module, that the sender RBAC path should continue to use conventions-driven principal ids, that the showcase workflow remains the only non-default queue-publishing path before cutover, that the final completion publisher already has the `always()` plus `published-in-progress` guard later phases should preserve, and that action-support scripts should continue to use env-mapped inputs plus module-relative path resolution rather than inline script interpolation or cwd-dependent helper paths.
 - Remaining risks: This session verified authoring-time validation and a full solution build, but it did not execute a live GitHub Actions run or an approval-gated Azure deployment. Phase 4 should treat real environment cutover and source-side webhook disablement as still pending operational work.
 

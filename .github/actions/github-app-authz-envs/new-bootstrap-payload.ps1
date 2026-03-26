@@ -1,5 +1,8 @@
 [CmdletBinding()]
 param(
+    [Parameter()]
+    [string] $LocalVerificationDirective = "",
+
     [Parameter(Mandatory)]
     [string] $PrimaryEnvironment,
 
@@ -21,7 +24,7 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot '..' '_shared' 'GitHubWorkflowQueueSupport.psm1') -Force
 
-$workflowQueueContext = Resolve-WorkflowQueueContext -WorkflowName $WorkflowName -EnvironmentName $PrimaryEnvironment
+$workflowQueueContext = Resolve-WorkflowQueueContext -WorkflowName $WorkflowName -EnvironmentName $PrimaryEnvironment -LocalVerificationDirectiveJson $LocalVerificationDirective
 $payloadJson = New-GitHubWorkflowInProgressPayloadJson `
     -EnvironmentName $PrimaryEnvironment `
     -InstanceId $workflowQueueContext.InstanceId `
@@ -32,5 +35,10 @@ $payloadJson = New-GitHubWorkflowInProgressPayloadJson `
 
 if ($env:GITHUB_OUTPUT) {
     "payload-json=$payloadJson" >> $env:GITHUB_OUTPUT
-    "storage-account=$($workflowQueueContext.StorageAccountName)" >> $env:GITHUB_OUTPUT
+    if ($workflowQueueContext.ContainsKey('StorageAccountName')) {
+        "storage-account=$($workflowQueueContext.StorageAccountName)" >> $env:GITHUB_OUTPUT
+    }
+    if ($workflowQueueContext.ContainsKey('StorageConnectionString')) {
+        "storage-connection-string=$($workflowQueueContext.StorageConnectionString)" >> $env:GITHUB_OUTPUT
+    }
 }

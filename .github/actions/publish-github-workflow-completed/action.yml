@@ -5,6 +5,9 @@ inputs:
   github-environment:
     description: Primary GitHub environment used for Azure login and storage-account resolution
     required: true
+  local-verification:
+    description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
+    required: false
   workflow-name:
     description: Dispatcher-prefixed workflow name used for instance correlation and queue routing
     required: true
@@ -40,6 +43,7 @@ runs:
   using: composite
   steps:
     - name: Azure login
+      if: ${{ inputs.local-verification == '' }}
       uses: ./.github/actions/azure-login
       with:
         github-environment: ${{ inputs.github-environment }}
@@ -53,9 +57,11 @@ runs:
         RUN_ATTEMPT: ${{ inputs.run-attempt }}
         RUN_ID: ${{ inputs.run-id }}
         WORKFLOW_NAME: ${{ inputs.workflow-name }}
+        LOCAL_VERIFICATION: ${{ inputs.local-verification }}
       run: |
         ${{ github.action_path }}/new-completed-payload.ps1 `
           -GitHubEnvironment $env:GITHUB_ENVIRONMENT `
+          -LocalVerificationDirective $env:LOCAL_VERIFICATION `
           -NeedsJson $env:NEEDS_JSON `
           -Repository $env:REPOSITORY `
           -RunAttempt ([int]$env:RUN_ATTEMPT) `
@@ -68,4 +74,5 @@ runs:
         message-type: GithubWorkflowCompleted
         payload-json: ${{ steps.payload.outputs.payload-json }}
         queue-name: ${{ inputs.queue-name }}
+        storage-connection-string: ${{ steps.payload.outputs.storage-connection-string }}
         storage-account: ${{ steps.payload.outputs.storage-account }}

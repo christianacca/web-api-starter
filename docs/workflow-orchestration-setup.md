@@ -631,6 +631,302 @@ Use the Postman collection located at `tests/postman/api.postman_collection.json
    - `workflow_run` with action: `in_progress` (when workflow starts)
    - `workflow_run` with action: `completed` (when workflow finishes)
 
+### Exact Local E2E Validation Procedure
+
+Use this procedure to validate the queue-callback path end to end from a local machine. This procedure is intentionally terminal-first and is written so that either a human or a coding agent can run it step by step without needing to infer missing commands.
+
+This procedure validates the following path:
+
+1. local Functions receives `POST /api/workflow/start` on `GithubWorkflowTrigger`
+2. local Functions dispatches the target GitHub Actions workflow on the configured branch
+3. GitHub Actions publishes `GithubWorkflowInProgress` and `GithubWorkflowCompleted` back through the `localVerification` seam
+4. the messages arrive in local Azurite through the dev tunnel queue endpoint
+5. the local Durable orchestration reaches the expected terminal state for the returned `instanceId`
+
+#### Validation Prerequisites
+
+Before running the commands below, make sure all of the following are true:
+
+1. You have already completed the local setup in [Local dev setup](./dev-setup.md) for the Functions app, Azurite, and Azure login.
+2. The branch you currently have checked out locally has been pushed to GitHub.
+3. If you want GitHub Actions to execute `master`, check out `master` locally before running the procedure.
+4. You have GitHub CLI installed and authenticated.
+
+If GitHub CLI is not installed, install it first:
+
+```pwsh
+brew install gh
+gh auth login
+```
+
+#### Terminal Conventions
+
+Run the commands below from the repository root.
+
+Use four terminals:
+
+1. Terminal A: Azurite
+2. Terminal B: dev tunnel host
+3. Terminal C: Functions app
+4. Terminal D: validation commands
+
+#### Step 1: Set validation variables
+
+In Terminal D, set the variables for the run you want to validate.
+
+Replace the placeholder values before running the block.
+
+`$WorkflowBranch` is derived from the branch currently checked out in your local git working tree so that the validation uses the same branch without requiring any manual branch selection.
+
+`$TunnelId` is the id of the persistent dev tunnel you already created for yourself by following [Microsoft dev tunnels for local services](./dev-tunnels.md). Use that existing tunnel id here.
+
+```pwsh
+$WorkflowBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+$TunnelId = '<your-dev-tunnel-id>'
+$QueueTunnelBaseUrl = 'https://<your-dev-tunnel-host>/devstoreaccount1'
+$WorkflowFile = 'webhook-integration-test.yml'
+$FunctionsBaseUrl = 'http://localhost:7071'
+$RepoRoot = (Get-Location).Path
+$TmpDir = Join-Path $RepoRoot 'tmp'
+$FunctionsLog = Join-Path $TmpDir 'local-workflow-functions.log'
+$DurableInstancesLog = Join-Path $TmpDir 'local-workflow-durable-instances.json'
+$DurableHistoryLog = Join-Path $TmpDir 'local-workflow-durable-history.json'
+
+if ([string]::IsNullOrWhiteSpace($WorkflowBranch)) {
+  throw 'Failed to determine the current git branch.'
+}
+
+New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
+
+Write-Host "WorkflowBranch: $WorkflowBranch"
+```
+
+#### Step 2: Restore tools and sign in
+
+In Terminal D, run:
+
+```pwsh
+az login --tenant <your-tenant-id> --allow-no-subscriptions
+dotnet restore --interactive
+dotnet tool restore
+devtunnel user login
+gh auth status
+```
+
+Keep `devtunnel user login` as the default because it is the normal interactive sign-in path. If browser-based sign-in is unavailable in your environment, use the dev tunnel device-flow variant instead (`-d`). Either way, this remains a user-authentication prerequisite, not a fully unattended agent step.
+
+#### Step 3: Apply the local validation overrides
+
+In Terminal D, run:
+
+```pwsh
+dotnet user-secrets set Github:Branch $WorkflowBranch --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets set Github:LocalVerification:QueueEndpoint $QueueTunnelBaseUrl --project ./src/Template.Functions/Template.Functions.csproj
+```
+
+The `Github:Branch` override is what tells the local Functions app which branch GitHub should execute. In this procedure it is set automatically from your current checked out branch so the workflow runs against the same branch you are already working on.
+
+#### Step 4: Start Azurite
+
+In Terminal A, run:
+
+```pwsh
+./tools/azurite/azurite-run.ps1
+```
+
+Leave Terminal A running.
+
+#### Step 5: Start the dev tunnel host
+
+In Terminal B, run:
+
+```pwsh
+$TunnelId = '<your-dev-tunnel-id>'
+devtunnel host $TunnelId
+```
+
+Use the same tunnel id value that you assigned to `$TunnelId` in Terminal D.
+
+Leave Terminal B running.
+
+In Terminal D, confirm that the queue port is actively hosted:
+
+```pwsh
+devtunnel show $TunnelId
+devtunnel port show $TunnelId -p 10001
+```
+
+The tunnel must show `Host connections: 1` or higher before continuing.
+
+#### Step 6: Start the local Functions app
+
+In Terminal C, run:
+
+```pwsh
+dotnet build ./src/Template.Functions/Template.Functions.csproj
+Set-Location ./src/Template.Functions/bin/Debug/net10.0
+func start *>&1 | Tee-Object -FilePath $FunctionsLog
+```
+
+Leave Terminal C running.
+
+In Terminal D, confirm the Functions app is healthy:
+
+```pwsh
+Invoke-RestMethod -Method Get -Uri "$FunctionsBaseUrl/api/Echo"
+```
+
+#### Step 7: Trigger the workflow directly through `GithubWorkflowTrigger`
+
+In Terminal D, run:
+
+```pwsh
+$TriggerResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" -ContentType 'application/json' -Body (@{
+  WorkflowFile = $WorkflowFile
+  RerunEntireWorkflow = $true
+} | ConvertTo-Json)
+
+$InstanceId = $TriggerResponse.Id
+if ([string]::IsNullOrWhiteSpace($InstanceId)) {
+  throw 'Workflow start did not return an instance id.'
+}
+
+$WorkflowName = "InternalApi-$InstanceId"
+
+Write-Host "InstanceId: $InstanceId"
+Write-Host "WorkflowName: $WorkflowName"
+```
+
+#### Step 8: Locate the matching GitHub Actions run on the target branch
+
+In Terminal D, run:
+
+```pwsh
+$Run = $null
+1..24 | ForEach-Object {
+  Start-Sleep -Seconds 10
+  $Run = gh api 'repos/christianacca/web-api-starter/actions/runs?per_page=100' |
+    ConvertFrom-Json |
+    Select-Object -ExpandProperty workflow_runs |
+    Where-Object {
+      $_.head_branch -eq $WorkflowBranch -and
+      $_.path -like "*/$WorkflowFile@*" -and
+      $_.display_title -eq $WorkflowName
+    } |
+    Sort-Object created_at -Descending |
+    Select-Object -First 1
+
+  if ($Run) { break }
+}
+
+if (-not $Run) {
+  throw "Failed to find GitHub Actions run for workflow name '$WorkflowName' on branch '$WorkflowBranch'."
+}
+
+$Run | Select-Object id, display_title, head_branch, status, conclusion, html_url, created_at | Format-List
+```
+
+#### Step 9: Wait for the GitHub Actions run to complete
+
+In Terminal D, run:
+
+```pwsh
+1..60 | ForEach-Object {
+  Start-Sleep -Seconds 10
+  $Run = gh api "repos/christianacca/web-api-starter/actions/runs/$($Run.id)" | ConvertFrom-Json
+  Write-Host "Run status: $($Run.status); conclusion: $($Run.conclusion)"
+  if ($Run.status -eq 'completed') { break }
+}
+
+if ($Run.status -ne 'completed') {
+  throw "GitHub Actions run $($Run.id) did not complete within the expected time window."
+}
+```
+
+#### Step 10: Inspect the local Functions log for queue-message evidence
+
+In Terminal D, run:
+
+```pwsh
+Select-String -Path $FunctionsLog -Pattern $InstanceId, $WorkflowName, 'GithubWorkflowInProgress', 'GithubWorkflowCompleted' |
+  Select-Object LineNumber, Line
+```
+
+Expected evidence:
+
+1. the orchestration instance id appears in the log
+2. `GithubWorkflowInProgress` appears in the log
+3. `GithubWorkflowCompleted` appears in the log
+
+#### Step 11: Inspect Durable state in Azurite
+
+In Terminal D, run:
+
+```pwsh
+$LocalSettings = Get-Content ./src/Template.Functions/local.settings.json -Raw | ConvertFrom-Json
+$StorageConnectionString = $LocalSettings.Values.AzureWebJobsStorage
+
+$env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
+
+$InstancesJson = az storage entity query --table-name TestHubNameInstances --connection-string "$StorageConnectionString" --filter "RowKey eq '$InstanceId'" --accept application/json --only-show-errors
+$HistoryJson = az storage entity query --table-name TestHubNameHistory --connection-string "$StorageConnectionString" --filter "PartitionKey eq '$InstanceId'" --accept application/json --only-show-errors
+
+$InstancesJson | Set-Content $DurableInstancesLog
+$HistoryJson | Set-Content $DurableHistoryLog
+
+Get-Content $DurableInstancesLog
+Get-Content $DurableHistoryLog
+```
+
+Expected evidence:
+
+1. `TestHubNameInstances` returns an entity for the returned `instanceId`
+2. `TestHubNameHistory` returns one or more rows for that same `instanceId`
+3. the instance record shows a terminal orchestration state consistent with the GitHub workflow conclusion
+
+#### Step 12: Optional direct queue verification
+
+If you need to prove the Azure CLI can publish through the public Azurite queue endpoint used by the seam, run this in Terminal D:
+
+```pwsh
+$LocalSettings = Get-Content ./src/Template.Functions/local.settings.json -Raw | ConvertFrom-Json
+$LocalStorageConnectionString = $LocalSettings.Values.AzureWebJobsStorage
+
+if ([string]::IsNullOrWhiteSpace($LocalStorageConnectionString)) {
+  throw 'AzureWebJobsStorage was not found in ./src/Template.Functions/local.settings.json.'
+}
+
+$ValidationConnectionString = ($LocalStorageConnectionString -replace 'QueueEndpoint=[^;]+', "QueueEndpoint=$QueueTunnelBaseUrl")
+
+az storage queue create --name local-validation --connection-string "$ValidationConnectionString" --only-show-errors
+az storage message put --queue-name local-validation --connection-string "$ValidationConnectionString" --content '{"validation":"local-e2e"}' --only-show-errors
+```
+
+This command is part of seam validation through the public tunnel endpoint. It is distinct from direct local CLI diagnostics against `https://127.0.0.1`, which may require `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1`.
+
+#### Pass Criteria
+
+Treat the validation as passed only when all of the following are true:
+
+1. the Functions health check succeeds
+2. the dev tunnel shows an active host connection for port `10001`
+3. `POST /api/workflow/start` on the local Functions host returns a non-empty `instanceId`
+4. a GitHub Actions run exists on the target branch with `display_title` equal to `InternalApi-<instanceId>`
+5. that GitHub Actions run reaches `completed`
+6. the Functions log contains evidence for both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the target instance
+7. Azurite Durable state exists for the same `instanceId` in both `TestHubNameInstances` and `TestHubNameHistory`
+8. the terminal Durable state is consistent with the GitHub Actions run conclusion
+
+#### Failure Handling
+
+If the validation fails, collect and keep these files for diagnosis:
+
+1. `tmp/local-workflow-functions.log`
+2. `tmp/local-workflow-durable-instances.json`
+3. `tmp/local-workflow-durable-history.json`
+
+Record the failing command, the returned `instanceId`, the computed `workflowName`, the GitHub Actions run id, and whether the tunnel showed an active host connection when the failure occurred.
+
 ## Security Considerations
 
 ### Critical Security Practices
@@ -652,7 +948,6 @@ Use the Postman collection located at `tests/postman/api.postman_collection.json
 - **Type-Safe Deserialization**: Octokit.Webhooks provides strongly-typed payload deserialization with validation
 - **Rate Limiting**: Webhook endpoint is protected by rate limiting (100 requests per 1-minute window by default, excess requests rejected immediately)
 - **Endpoint Isolation**: Functions webhook endpoint is never exposed publicly; only accessible via authenticated API proxy
-
 
 ---
 

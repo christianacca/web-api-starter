@@ -67,7 +67,10 @@ function Resolve-WorkflowQueueContext {
         [string] $WorkflowName,
 
         [Parameter(Mandatory)]
-        [string] $EnvironmentName
+        [string] $EnvironmentName,
+
+        [Parameter()]
+        [string] $LocalVerificationDirectiveJson = ""
     )
 
     if ([string]::IsNullOrWhiteSpace($WorkflowName)) {
@@ -81,6 +84,21 @@ function Resolve-WorkflowQueueContext {
 
     $workflowDispatcherName = $WorkflowName.Substring(0, $separatorIndex)
     $instanceId = $WorkflowName.Substring($separatorIndex + 1)
+
+    if (-not [string]::IsNullOrWhiteSpace($LocalVerificationDirectiveJson)) {
+        $localVerificationDirective = $LocalVerificationDirectiveJson | ConvertFrom-Json -AsHashtable
+        $storageConnectionString = [string] $localVerificationDirective.storageConnectionString
+
+        if ([string]::IsNullOrWhiteSpace($storageConnectionString)) {
+            throw "Local verification directive must include 'storageConnectionString'."
+        }
+
+        return @{
+            WorkflowDispatcherName = $workflowDispatcherName
+            InstanceId = $instanceId
+            StorageConnectionString = $storageConnectionString
+        }
+    }
 
     $conventions = & $script:GetProductConventionsScript -EnvironmentName $EnvironmentName -AsHashtable
     $subProduct = $conventions.SubProducts[$workflowDispatcherName]

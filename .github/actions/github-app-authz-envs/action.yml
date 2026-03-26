@@ -5,6 +5,9 @@ inputs:
   gated-environments:
     description: Multi-line list of workflow environments eligible for this workflow
     required: true
+  local-verification:
+    description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
+    required: false
 
 outputs:
   primary:
@@ -34,6 +37,7 @@ runs:
           -TriggeringActor $env:TRIGGERING_ACTOR
 
     - name: Azure login
+      if: ${{ inputs.local-verification == '' }}
       uses: ./.github/actions/azure-login
       with:
         github-environment: ${{ steps.envs.outputs.primary }}
@@ -46,8 +50,10 @@ runs:
         RUN_ATTEMPT: ${{ github.run_attempt }}
         RUN_ID: ${{ github.run_id }}
         WORKFLOW_NAME: ${{ github.event.inputs.workflowName }}
+        LOCAL_VERIFICATION: ${{ inputs.local-verification }}
       run: |
         ${{ github.action_path }}/new-bootstrap-payload.ps1 `
+          -LocalVerificationDirective $env:LOCAL_VERIFICATION `
           -PrimaryEnvironment $env:PRIMARY_ENV `
           -Repository $env:REPOSITORY `
           -RunAttempt ([int]$env:RUN_ATTEMPT) `
@@ -60,4 +66,5 @@ runs:
         message-type: GithubWorkflowInProgress
         payload-json: ${{ steps.bootstrap.outputs.payload-json }}
         queue-name: default-queue
+        storage-connection-string: ${{ steps.bootstrap.outputs.storage-connection-string }}
         storage-account: ${{ steps.bootstrap.outputs.storage-account }}
