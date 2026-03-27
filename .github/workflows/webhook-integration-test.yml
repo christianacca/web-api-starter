@@ -1,5 +1,8 @@
 name: Orchestrator Test Workflow
 
+# Showcase workflow for queue-callback validation during the migration.
+# The dev job intentionally fails on this branch so the local Phase 3 runbook can validate failure-path handling.
+
 on:
   workflow_dispatch:
     inputs:

@@ -663,7 +663,18 @@ gh auth login
 
 Run the commands below from the repository root.
 
-The command blocks are written for PowerShell. If your active terminal is not PowerShell, either open a PowerShell terminal first or invoke checked-in `.ps1` scripts through `pwsh -File`.
+The command blocks are written for PowerShell and are intended to be pasted directly into a PowerShell terminal.
+
+If your active terminal is not PowerShell, open a PowerShell terminal first. Only use `pwsh -File` for checked-in `.ps1` scripts.
+
+> Agent note:
+> If you are running this procedure from a coding agent or from a non-PowerShell shell, do not collapse these multi-line blocks into quoted `pwsh -Command "..."` one-liners. That is the fastest way to break variable expansion, quoting, and JSON handling.
+
+To keep GitHub CLI output non-interactive during this procedure, disable paging in Terminal D before you run any `gh` commands:
+
+```pwsh
+$env:GH_PAGER = 'cat'
+```
 
 Use four terminals:
 
@@ -693,15 +704,25 @@ $TmpDir = Join-Path $RepoRoot 'tmp'
 $FunctionsLog = Join-Path $TmpDir 'local-workflow-functions.log'
 $DurableInstancesLog = Join-Path $TmpDir 'local-workflow-durable-instances.json'
 $DurableHistoryLog = Join-Path $TmpDir 'local-workflow-durable-history.json'
+$RunListLog = Join-Path $TmpDir 'local-workflow-gh-run-list.json'
+$RunLog = Join-Path $TmpDir 'local-workflow-gh-run.json'
 
 if ([string]::IsNullOrWhiteSpace($WorkflowBranch)) {
   throw 'Failed to determine the current git branch.'
 }
 
 New-Item -ItemType Directory -Path $TmpDir -Force | Out-Null
+Remove-Item $FunctionsLog, $DurableInstancesLog, $DurableHistoryLog, $RunListLog, $RunLog -Force -ErrorAction SilentlyContinue
 
 Write-Host "WorkflowBranch: $WorkflowBranch"
 ```
+
+> Agent note:
+> Keep the first non-empty `instanceId` returned by Step 7 as the validation target unless Step 7 itself fails before returning an id.
+>
+> Do not start a second orchestration instance just because a later lookup command needs adjustment. Fix the lookup against the original `instanceId` first.
+>
+> If you do abandon an instance and start over, explicitly record the abandoned `instanceId` and why it was abandoned before proceeding.
 
 #### Step 2: Restore tools and sign in
 
@@ -784,6 +805,8 @@ In Terminal D, confirm the Functions app is healthy:
 Invoke-RestMethod -Method Get -Uri "$FunctionsBaseUrl/api/Echo"
 ```
 
+Do not proceed to Step 7 until the Echo endpoint returns successfully and Terminal C shows the Functions host has started.
+
 #### Step 7: Trigger the workflow directly through `GithubWorkflowTrigger`
 
 In Terminal D, run:
@@ -813,15 +836,13 @@ In Terminal D, run:
 $Run = $null
 1..24 | ForEach-Object {
   Start-Sleep -Seconds 10
-  $Run = gh api 'repos/christianacca/web-api-starter/actions/runs?per_page=100' |
-    ConvertFrom-Json |
-    Select-Object -ExpandProperty workflow_runs |
-    Where-Object {
-      $_.head_branch -eq $WorkflowBranch -and
-      (Split-Path $_.path -Leaf) -eq $WorkflowFile -and
-      $_.display_title -eq $WorkflowName
-    } |
-    Sort-Object created_at -Descending |
+  $RunCandidates = gh run list --workflow $WorkflowFile --branch $WorkflowBranch --limit 100 --json databaseId,displayTitle,status,conclusion,attempt,url,workflowName,createdAt |
+    Tee-Object -FilePath $RunListLog |
+    ConvertFrom-Json
+
+  $Run = $RunCandidates |
+    Where-Object { $_.displayTitle -eq $WorkflowName } |
+    Sort-Object createdAt -Descending |
     Select-Object -First 1
 
   if ($Run) { break }
@@ -831,8 +852,13 @@ if (-not $Run) {
   throw "Failed to find GitHub Actions run for workflow name '$WorkflowName' on branch '$WorkflowBranch'."
 }
 
-$Run | Select-Object id, display_title, head_branch, status, conclusion, html_url, created_at | Format-List
+$Run | Select-Object databaseId, displayTitle, status, conclusion, attempt, url, createdAt | Format-List
 ```
+
+This step uses `gh run list --json` so the result shape is stable and easy to save locally for later inspection.
+
+> Agent note:
+> Prefer this `gh run list --json` path over ad hoc `gh api` calls during automated validation. It avoids the brittle quoting and pager behavior that showed up in earlier runs.
 
 #### Step 9: Wait for the GitHub Actions run to complete
 
@@ -841,15 +867,20 @@ In Terminal D, run:
 ```pwsh
 1..60 | ForEach-Object {
   Start-Sleep -Seconds 10
-  $Run = gh api "repos/christianacca/web-api-starter/actions/runs/$($Run.id)" | ConvertFrom-Json
-  Write-Host "Run status: $($Run.status); conclusion: $($Run.conclusion)"
+  $Run = gh run view $Run.databaseId --json databaseId,attempt,status,conclusion,url,displayTitle |
+    Tee-Object -FilePath $RunLog |
+    ConvertFrom-Json
+
+  Write-Host "Run status: $($Run.status); conclusion: $($Run.conclusion); attempt: $($Run.attempt)"
   if ($Run.status -eq 'completed') { break }
 }
 
 if ($Run.status -ne 'completed') {
-  throw "GitHub Actions run $($Run.id) did not complete within the expected time window."
+  throw "GitHub Actions run $($Run.databaseId) did not complete within the expected time window."
 }
 ```
+
+If you are validating retry behavior, keep the `attempt` value from this step. It is the first check for whether GitHub actually created the rerun you expected.
 
 #### Step 10: Inspect the local Functions log for queue-message evidence
 
@@ -887,6 +918,9 @@ Get-Content $DurableHistoryLog
 ```
 
 Some Azure CLI versions do not accept `--accept application/json` on `az storage entity query`. The `-o json` form above is the compatibility baseline for this runbook.
+
+> Agent note:
+> Run this block directly in PowerShell exactly as written. Do not re-wrap the `--filter` clauses inside another shell string, because that is the easiest way to corrupt the quoting and query the wrong partition.
 
 Expected evidence:
 
@@ -936,6 +970,9 @@ If the validation fails, collect and keep these files for diagnosis:
 3. `tmp/local-workflow-durable-history.json`
 
 Record the failing command, the returned `instanceId`, the computed `workflowName`, the GitHub Actions run id, and whether the tunnel showed an active host connection when the failure occurred.
+
+> Agent note:
+> If the failure occurs after Step 7 returned a valid `instanceId`, keep troubleshooting against that same instance first. Only start a second instance after you have concluded that the first one is unusable for reasons unrelated to ordinary lookup or quoting mistakes.
 
 ## Security Considerations
 
