@@ -1,17 +1,30 @@
 # Durable Function Monitoring
 
 A tool exists that allows for easy monitoring of durable functions. This is useful for tracking the status and steps of a deployment.
-The tool can be found [here](https://github.com/microsoft/DurableFunctionsMonitor). The simplest setup is to run it directly from VS Code as follows:
+The tool can be found in the [Durable Functions Monitor repository](https://github.com/microsoft/DurableFunctionsMonitor). The simplest setup is to run it directly from VS Code as follows:
 
 1. Ensure you have the [Azure Account](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account) VS Code extension installed
-2. Install the VS Code durable function extension from [here](https://marketplace.visualstudio.com/items?itemName=DurableFunctionsMonitor.durablefunctionsmonitor). Detailed instructions for running appear on that page, but basic steps are also listed below.
+2. Install the [Durable Functions Monitor VS Code extension](https://marketplace.visualstudio.com/items?itemName=DurableFunctionsMonitor.durablefunctionsmonitor). Detailed instructions for running appear on that page, but basic steps are also listed below.
 3. Once installed make sure you are logged in to azure via the azure cli.
-4. Within VS Code go click on the Azure view in the side bar and click on durable functions.
-5. Click on the connect icon and enter the address of the storage emulator
-    * Address can be obtained from the AzureWebJobsStorage setting found [here](../src/Template.Functions/local.settings.json).
-6. The durable function monitor will load up and allow you to track progress.
+4. Start Azurite for this repo by running `./tools/azurite/azurite-run.ps1`.
+5. Within VS Code, open the Azure view in the side bar and expand the **Durable Functions** section.
+6. Click the connect icon and enter the address of the storage emulator.
+    * The address can be obtained from the `AzureWebJobsStorage` setting in [src/Template.Functions/local.settings.json](../src/Template.Functions/local.settings.json).
+7. In the **Durable Functions** section, expand the connected storage account for the Azurite emulator, which should appear as `devstoreaccount1`.
+8. Under that storage account, expand **Task Hubs** and open the task hub for this repo, which is `TestHubName`.
+9. Durable Functions Monitor will then load that task hub and allow you to track progress.
 
-## Troubleshooting on macOS
+## Troubleshooting
+
+### General issues
+
+If Durable Functions Monitor connects to `devstoreaccount1` but shows **No Task Hubs found**, the most likely cause is that the local Functions app has never been started and initialized Durable storage artifacts in the currently running Azurite instance.
+
+For this repo, the local Durable task hub is `TestHubName`.
+
+**Solution**: start the functions app in this project that hosts the durable runction orchestrator you want to monitor
+
+### macOS-specific issues
 
 If VS Code on macOS shows an error similar to the following when starting Durable Functions Monitor:
 
