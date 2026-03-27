@@ -21,6 +21,10 @@ on:
       environment-name:
         required: true
         type: string
+      github-branch:
+        required: false
+        type: string
+        default: ''
       git-tag:
         required: true
         type: string
@@ -75,6 +79,21 @@ jobs:
       - uses: ./.github/actions/export-infra-vars
         with:
           environment-name: ${{ inputs.environment-name }}
+
+      - name: Resolve Github branch setting
+        shell: pwsh
+        env:
+          ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+          GITHUB_BRANCH_INPUT: ${{ inputs.github-branch }}
+        run: |
+          $resolvedBranch = if ($env:ENVIRONMENT_NAME -eq 'dev' -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_BRANCH_INPUT)) {
+            $env:GITHUB_BRANCH_INPUT
+          }
+          else {
+            'master'
+          }
+
+          "GITHUB_BRANCH_VALUE=$resolvedBranch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - uses: kanga333/variable-mapper@3681b75f5c6c00162721168fb91ab74925eaebcb # <- v0.3.0
         name: Map variables
@@ -135,7 +154,7 @@ jobs:
                 "EnvironmentInfo_InfraVersion": "${{ env.Infra_Version }}",
                 "Github_Owner": "${{ env.Convention_SubProducts_Github_Owner }}",
                 "Github_Repo": "${{ env.Convention_SubProducts_Github_Repo }}",
-                "Github_Branch": "master",
+                "Github_Branch": "${{ env.GITHUB_BRANCH_VALUE }}",
                 "Github_AppName": "${{ env.Convention_SubProducts_Github_AppName }}",
                 "Github_AppSlug": "${{ env.Convention_SubProducts_Github_AppSlug }}",
                 "Github_AppId": "${{ env.Convention_SubProducts_Github_AppId }}",
