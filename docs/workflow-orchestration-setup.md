@@ -234,6 +234,7 @@ For detailed explanations of each configuration option and their XML documentati
     "PrivateKeyPem": null,
     "WebhookSecret": null,
     "MaxAttempts": 5,
+    "RerunTriggerRetryDelays": ["00:00:15", "00:00:30", "00:01:00"],
     "WorkflowTimeoutHours": 12
   }
 }
@@ -242,6 +243,8 @@ For detailed explanations of each configuration option and their XML documentati
 #### Functions - appsettings.json
 
 Same structure as API configuration above.
+
+`RerunTriggerRetryDelays` controls the delayed retry schedule used before the Functions app asks GitHub to rerun a failed workflow. Each value is a `TimeSpan` string.
 
 #### Rate Limiting Configuration (API only)
 
@@ -748,6 +751,14 @@ dotnet user-secrets set Github:LocalVerification:QueueEndpoint $QueueTunnelBaseU
 ```
 
 The `Github:Branch` override is what tells the local Functions app which branch GitHub should execute. In this procedure it is set automatically from your current checked out branch so the workflow runs against the same branch you are already working on.
+
+If you need to validate a specific rerun schedule locally without editing code, set the indexed `Github:RerunTriggerRetryDelays` values through user-secrets before starting the Functions host. For example, a single 1ms retry is:
+
+```pwsh
+dotnet user-secrets set Github:RerunTriggerRetryDelays:0 00:00:00.001 --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets remove Github:RerunTriggerRetryDelays:1 --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets remove Github:RerunTriggerRetryDelays:2 --project ./src/Template.Functions/Template.Functions.csproj
+```
 
 #### Step 4: Start Azurite
 

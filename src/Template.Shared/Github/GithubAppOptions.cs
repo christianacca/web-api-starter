@@ -10,6 +10,12 @@ namespace Template.Shared.Github;
 /// as a GitHub App, including repository details, authentication credentials, and workflow settings.
 /// </remarks>
 public class GithubAppOptions {
+  private static readonly TimeSpan[] DefaultRerunTriggerRetryDelays = [
+    TimeSpan.FromSeconds(15),
+    TimeSpan.FromSeconds(30),
+    TimeSpan.FromMinutes(1)
+  ];
+
   /// <summary>
   /// Gets or sets the GitHub repository owner or organization name.
   /// </summary>
@@ -64,6 +70,18 @@ public class GithubAppOptions {
   /// </summary>
   /// <value>Defaults to 5 attempts.</value>
   public int MaxAttempts { get; set; } = 5;
+
+  /// <summary>
+  /// Gets or sets the delayed retry schedule used before attempting to trigger a GitHub workflow rerun.
+  /// </summary>
+  /// <value>Defaults to 15, 30, and 60 seconds.</value>
+  public TimeSpan[] RerunTriggerRetryDelays { get; set; } = [];
+
+  public TimeSpan[] GetRerunTriggerRetryDelayValues() {
+    return RerunTriggerRetryDelays.Length == 0
+      ? DefaultRerunTriggerRetryDelays
+      : RerunTriggerRetryDelays;
+  }
   
   /// <summary>
   /// Gets or sets the workflow timeout duration in hours.
