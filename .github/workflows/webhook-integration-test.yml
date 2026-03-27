@@ -1,7 +1,6 @@
 name: Orchestrator Test Workflow
 
 # Showcase workflow for queue-callback validation during the migration.
-# The dev job intentionally fails on this branch so the local Phase 3 runbook can validate failure-path handling.
 
 on:
   workflow_dispatch:
@@ -50,10 +49,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: echo "Building workflow for ${{ inputs.workflowName }} in DEV environment"
-      - name: Intentional failure for failure-path validation
-        run: |
-          echo "Intentionally failing this showcase workflow on the current branch to validate queue-delivered workflow failure handling before Phase 4."
-          exit 1
 
   qa-auto-approve:
     runs-on: ubuntu-latest
