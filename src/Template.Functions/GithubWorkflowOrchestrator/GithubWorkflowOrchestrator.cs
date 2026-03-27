@@ -230,7 +230,7 @@ public class GithubWorkflowOrchestrator {
         finalOutcome: "Succeeded",
         isTerminal: true,
         workflowSucceeded: true,
-        message: "The GitHub workflow completed successfully after the completion event timeout was cross-checked against GitHub."));
+        message: "The GitHub workflow completed successfully after the completion event timeout was cross-checked against GitHub.");
     }
 
     if (currentAttempt >= maxAttempts) {
@@ -243,7 +243,7 @@ public class GithubWorkflowOrchestrator {
         finalOutcome: "Failed",
         isTerminal: true,
         workflowSucceeded: false,
-        message: "The GitHub workflow completed with failure on the final configured orchestration attempt."));
+        message: "The GitHub workflow completed with failure on the final configured orchestration attempt.");
     }
 
     return null;
