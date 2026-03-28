@@ -2,9 +2,11 @@
 
 ## Overview
 
-This guide walks through the process of creating and configuring a GitHub App for use with workflow orchestration systems. The process is divided into responsibilities between three teams:
+This guide walks through the process of creating and configuring a GitHub App for workflow orchestration.
 
-- **Dev Team**: Generates ServiceNow ticket request with environment-specific details
+The process is divided into responsibilities between three teams:
+
+- **Dev Team**: Generates Product Ops Portal request details with environment-specific details
 - **GitHub Admin Team**: Creates the GitHub App for the specified environment, generates credentials, and provides initial configuration
 - **App Admin Team**: Uploads credentials to Azure Key Vault for the specified environment
 - **Dev Team**: Configures App ID and Installation ID for the environment in the application code
@@ -13,7 +15,7 @@ This guide walks through the process of creating and configuring a GitHub App fo
 
 ---
 
-## Part 1: Dev Team - Generate ServiceNow Ticket Request
+## Part 1: Dev Team - Generate Product Ops Portal Request Details
 
 ### Prerequisites
 
@@ -23,17 +25,17 @@ Before requesting GitHub App creation, the Dev Team must:
   git clone https://github.com/christianacca/web-api-starter.git
   cd web-api-starter
   ```
-- Generate a ServiceNow ticket with all required information for the GitHub Admin Team
+- Generate a Product Ops Portal request with all required information for the GitHub Admin Team
 
-### Run the ServiceNow Ticket Generator Script
+### Run the Product Ops Portal Request Generator Script
 
-Run the script `tools/infrastructure/generate-github-app-servicenow-ticket.ps1` to generate the ServiceNow ticket subject and body with environment-specific details.
+Run the script `tools/infrastructure/print-github-app-product-ops-portal-request.ps1` to generate the Product Ops Portal request title and body with environment-specific details.
 
 **Script Usage:**
 
 ```powershell
 cd tools/infrastructure
-./generate-github-app-servicenow-ticket.ps1 -EnvironmentName <environment>
+./print-github-app-product-ops-portal-request.ps1 -EnvironmentName <environment>
 ```
 
 **Available Environment Names:**
@@ -43,40 +45,33 @@ cd tools/infrastructure
 - `staging`
 - `prod-na`, `prod-emea`, `prod-apac`
 
-**Example: Generate ticket for Dev environment**
+**Example: Generate request for Dev environment**
 ```powershell
-./generate-github-app-servicenow-ticket.ps1 -EnvironmentName dev
+./print-github-app-product-ops-portal-request.ps1 -EnvironmentName dev
 ```
 
 **Example Output:**
 
-The script will output ServiceNow ticket fields:
+The script will output Product Ops Portal request fields:
 
 ```
-ServiceNow Ticket Details:
+Product Ops Portal Request Details:
 ─────────────────────────────────────────────────────────────
 
 Request Title:
 GitHub App Creation Request - Web API Starter (dev)
 
-Request Type:
-General IT Request
-
-Priority:
-3 - Moderate
-
 Description:
 Purpose:
-This GitHub App is required to enable workflow orchestration for the dev environment. 
-The application uses GitHub Apps to securely authenticate with GitHub and receive webhook notifications 
-when workflows complete. This allows the application to monitor and respond to GitHub Actions workflow 
-execution, enabling automated deployment pipelines and CI/CD orchestration.
+This GitHub App is required to enable workflow orchestration for the dev environment for 
+the Web API starter Project
+The application uses GitHub Apps to securely authenticate with GitHub and dispatch GitHub Actions
+workflows for this environment.
 
 Environment Details:
 - Environment Name: dev
 - GitHub App Name: Web API Starter (dev)
 - API Domain: dev-api-was.codingdemo.co.uk
-- Webhook URL: https://dev-api-was.codingdemo.co.uk/api/github/webhooks
 
 Repository Information:
 - Repository: christianacca/web-api-starter
@@ -86,30 +81,24 @@ Required Permissions:
 - Actions: Read & Write
 - Metadata: Read
 
-Webhook Configuration:
-- Subscribe to Events: Workflow run
-- Webhook Active: Yes
-
 Next Steps:
 1. Create GitHub App with the above configuration
 2. Install app to repository: christianacca/web-api-starter
 3. Generate private key (.pem file)
-4. Generate webhook secret
-5. Provide the following to App Admin Team:
+4. Provide the following to App Admin Team:
    - App ID
    - Installation ID
    - Private key .pem file (securely)
-   - Webhook secret (securely)
 
 Please refer to the GitHub App Creation Guide - GitHub Admin Team Responsibilities:
 https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team-responsibilities
 ```
 
-### Create ServiceNow Ticket
+### Create Product Ops Portal Request
 
-1. **Copy the generated Request Title and Description** from the script output and create a ticket of the specified **Request Type** and **Priority**
-2. **Create a new ServiceNow ticket** and fill in the corresponding fields
-3. **Submit the ticket** to the GitHub Admin Team
+1. **Copy the generated Request Title and Description** from the script output and create a request with those values
+2. **Create a new [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141) request** and fill in the corresponding fields
+3. **Submit the request** to the GitHub Admin Team through the [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141)
 
 ---
 
@@ -131,10 +120,10 @@ Before creating a GitHub App, ensure you have the necessary permissions:
 ![Organization GitHub Apps Page](assets/organisation-github-app-page.png)
 
 2. Configure basic information:
-   - **GitHub App name**: Use the exact name from the ServiceNow ticket
+   - **GitHub App name**: Use the exact name from the Product Ops Portal request
    - Example: `Web API Starter (dev)`, `Web API Starter (prod-na)`
    - **Description**: Brief description of the app's purpose
-   - **Homepage URL**: Use the **API Domain** from the ServiceNow ticket (e.g., `https://dev-api-was.codingdemo.co.uk`)
+   - **Homepage URL**: Use `https://` plus the **API Domain** from the Product Ops Portal request (for example, if the request shows `dev-api-was.codingdemo.co.uk`, enter `https://dev-api-was.codingdemo.co.uk`)
 
 ![GitHub App Name and Description](assets/creating%20github%20app-%20name%20and%20description.png)
 
@@ -151,47 +140,15 @@ For a complete list of available permissions, see: [GitHub App Permissions Refer
 
 ![GitHub App Permissions](assets/creating%20github%20app-%20permissions.png)
 
-### Step 3: Generate and Save Webhook Secret
+### Step 3: Leave Event Delivery Settings Unused
 
-Generate a secure webhook secret that will be used to validate webhook requests from GitHub.
+This app uses GitHub Actions permissions and repository installation only.
 
-**Using PowerShell:**
-```powershell
-$bytes = New-Object Byte[] 32
-[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-$webhookSecret = [Convert]::ToBase64String($bytes)
-Write-Host $webhookSecret
-```
+1. Leave GitHub event subscription settings unused for this app
+2. Do not create additional secret material for callback delivery
+3. Proceed directly to private key generation
 
-**Using OpenSSL (Git Bash or Linux/Mac):**
-```bash
-openssl rand -base64 32
-```
-
-**IMPORTANT**: Save this webhook secret securely - you will need to:
-1. Enter it in the GitHub App webhook configuration (Step 4)
-2. Share it securely with the App Admin Team for Key Vault upload
-
-### Step 4: Configure Webhook
-
-Configure the webhook settings for the GitHub App using the information from the ServiceNow ticket:
-
-1. **Webhook URL**: Use the exact **Webhook URL** from the ServiceNow ticket
-   - Example from ticket: `https://dev-api-was.codingdemo.co.uk/api/github/webhooks`
-
-2. **Webhook secret**: Enter the webhook secret you generated in Step 3
-
-3. **Subscribe to events**: Check the following event:
-   - **Workflow run**
-   - For more information on available events, see: [GitHub App Webhook Events](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
-
-4. **Webhook active**: Ensure this checkbox is checked
-
-![GitHub App Webhook Setup](assets/creating%20github%20app-%20webhooks%20setup.png)
-
-![GitHub App Events](assets/creating%20github%20app-%20events.png)
-
-### Step 5: Generate Private Key
+### Step 4: Generate Private Key
 
 1. Scroll to the bottom of the app settings page
 2. Click **Generate a private key**
@@ -200,13 +157,13 @@ Configure the webhook settings for the GitHub App using the information from the
 
 ![GitHub App Generate Private Key](assets/creating%20github%20app-%20generate%20a%20private%20key.png)
 
-### Step 6: Note App ID
+### Step 5: Note App ID
 
 - The **App ID** is displayed at the top of the app settings page
 - **Note**: This ID is always available in the GitHub App settings and can be retrieved at any time
 - Copy this ID for the handover to the App Admin Team and Dev Team
 
-### Step 7: Install GitHub App to Repository
+### Step 6: Install GitHub App to Repository
 
 The GitHub App must be installed to the `christianacca/web-api-starter` repository for the app to function correctly.
 
@@ -238,7 +195,7 @@ After installation, verify the app is correctly installed:
 3. Confirm your GitHub App appears in the list of installed apps and click **Configure**
 4. Verify the app has the correct permissions (Actions: Read & Write, Metadata: Read)
 
-### Step 8: Get Installation ID
+### Step 7: Get Installation ID
 
 After installation, retrieve the Installation ID:
 
@@ -257,9 +214,9 @@ After completing the GitHub App creation and installation, the GitHub Admin Team
 
 #### Required Information to Share
 
-1. **ServiceNow Ticket Number**
-   - The ticket number from the initial GitHub App creation request
-   - This helps the App Admin Team track and reference the request
+1. **Product Ops Portal Request URL**
+   - The URL from the initial GitHub App creation request
+   - This helps the App Admin Team open, track, and reference the request
 
 2. **Environment Name**
    - The environment for which this GitHub App was created
@@ -277,11 +234,6 @@ After completing the GitHub App creation and installation, the GitHub Admin Team
 4. **Private Key (.pem file)**
    - Location: Downloaded in Step 5
    - **Share securely**: Use encrypted communication or secure file sharing
-   - The App Admin Team will upload this to Azure Key Vault
-
-5. **Webhook Secret**
-   - Location: Generated in Step 3
-   - **Share securely**: Use encrypted communication (never commit to source control)
    - The App Admin Team will upload this to Azure Key Vault
 
 ---
@@ -309,7 +261,7 @@ After completing the GitHub App creation and installation, the GitHub Admin Team
 
 ### Upload Credentials to Azure Key Vault
 
-The App Admin Team is responsible for uploading the GitHub App credentials to Azure Key Vault for the environment specified in the ServiceNow ticket using the provided PowerShell script.
+The App Admin Team is responsible for uploading the GitHub App credentials to Azure Key Vault for the environment specified in the Product Ops Portal request using the provided PowerShell script.
 
 #### Upload Process
 
@@ -322,7 +274,6 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
    The script `tools/infrastructure/upload-github-app-secrets.ps1` will:
    - Auto-detect the Key Vault name for the environment
    - Upload the private key as `Github--PrivateKeyPem`
-   - Upload the webhook secret as `Github--WebhookSecret`
    - Verify successful upload
 
    **Example for dev environment:**
@@ -330,11 +281,10 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
    cd tools/infrastructure
    ./upload-github-app-secrets.ps1 `
      -EnvironmentName dev `
-     -PemFilePath "C:/temp/github-app-private-key.pem" `
-     -WebhookSecret "the-webhook-secret-from-github-admin"
+       -PemFilePath "C:/temp/github-app-private-key.pem"
    ```
 
-   **Note**: Use the environment name that matches the one specified in the ServiceNow ticket (see Part 1 for available environment names).
+   **Note**: Use the environment name that matches the one specified in the Product Ops Portal request (see Part 1 for available environment names).
 
 3. **Verify Upload Success**
 
@@ -343,8 +293,8 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
    Upload completed successfully
 
    Configuration Details:
-   Key Vault Name    GitHub App Name       GitHub App Slug    GitHub Webhook URL                                      Webhook Secret
-   kv-was-dev        Web API Starter - Dev was-dev            https://dev-api-was.codingdemo.co.uk/api/github/webhooks <secret-value>
+   Key Vault Name    GitHub App Name       GitHub App Slug     Private Key
+   kv-was-dev        Web API Starter (dev) web-api-starter-dev (uploading)
    ```
 
 #### Security Cleanup
@@ -353,7 +303,7 @@ After successfully uploading to the environment:
 
 1. **Delete the .pem file** from your local machine
 
-2. **Clear the webhook secret** from your terminal/clipboard history
+2. **Clear any temporary local copies** or clipboard history containing the private key path or file contents
 
 3. **Verify secrets are accessible** in the Key Vault before proceeding
 
@@ -421,7 +371,7 @@ For security best practices, the GitHub App private key should be rotated regula
 
 ### Part 1: Dev Team - Generate Private Key Rotation Request
 
-When private key rotation is needed, the Dev Team initiates the process by generating a ServiceNow ticket.
+When private key rotation is needed, the Dev Team initiates the process by generating a Product Ops Portal request.
 
 **Prerequisites:**
 - Ensure the repository is cloned locally (if not already done):
@@ -430,31 +380,28 @@ When private key rotation is needed, the Dev Team initiates the process by gener
   cd web-api-starter
   ```
 
-**Run the ServiceNow Ticket Generator Script:**
+**Run the Product Ops Portal Request Generator Script:**
 
 ```powershell
 cd tools/infrastructure
-./generate-github-app-key-rotation-ticket.ps1 -EnvironmentName dev
+./print-github-app-key-rotation-product-ops-portal-request.ps1 -EnvironmentName dev
 ```
 
-**Note**: This generates a rotation ticket for one environment. If multiple environments need rotation, generate separate tickets for each.
+**Note**: This generates a rotation request for one environment. If multiple environments need rotation, generate separate requests for each.
 
 **Example Output:**
 
 ```
-ServiceNow Ticket Details:
+Product Ops Portal Request Details:
 ─────────────────────────────────────────────────────────────
 
 Request Title:
 GitHub App Private Key Rotation Request - Web API Starter (dev)
 
-Request Type:
-General IT Request
-
-Priority:
-3 - Moderate
-
 Description:
+Purpose:
+This request is to rotate the GitHub App private key for the dev environment as part of regular security maintenance and compliance with industry best practices.
+
 GitHub App Information:
 - GitHub App Name: Web API Starter (dev)
 - Environment: dev
@@ -484,11 +431,11 @@ Please refer to the GitHub App Creation Guide - Private Key Rotation section:
 https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team---generate-new-private-key
 ```
 
-**Create ServiceNow Ticket:**
+**Create Product Ops Portal Request:**
 
-1. **Copy the generated Request Title, Request Type, Priority, and Description** from the script output
-2. **Create a new ServiceNow ticket** and fill in the corresponding fields
-3. **Submit to GitHub Admin Team and App Admin Team**
+1. **Copy the generated Request Title and Description** from the script output and create a request with those values
+2. **Create a new [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141) request** and fill in the corresponding fields
+3. **Submit to GitHub Admin Team and App Admin Team through the [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141)**
 4. **Track the rotation process through completion**
 
 ### Part 2: GitHub Admin Team - Generate New Private Key
@@ -506,7 +453,7 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
 3. **Securely Share with App Admin Team**
    - Use encrypted communication (e.g., Azure Key Vault, 1Password, secure file sharing)
    - Share the new `.pem` file with App Admin Team
-   - Include the ServiceNow ticket number and environment name in communication
+   - Include the Product Ops Portal request URL and environment name in communication
 
 4. **Wait for Confirmation**
    - Wait for App Admin Team to confirm successful upload to the environment
@@ -527,19 +474,18 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
      cd web-api-starter
      ```
 
-   Use the upload script for the environment specified in the ServiceNow ticket. When rotating the private key, provide only the `-PemFilePath` parameter to upload just the private key without modifying the existing webhook secret:
+   Use the upload script for the environment specified in the Product Ops Portal request. The script updates only the private key secret for the selected environment:
 
    ```powershell
    cd tools/infrastructure
    
-   # Example: Upload to dev (only private key, preserves existing webhook secret)
+   # Example: Upload to dev
    ./upload-github-app-secrets.ps1 -EnvironmentName dev -PemFilePath "C:/temp/new-github-app-key.pem"
    ```
 
    **Note**: The script will:
    - Update the `Github--PrivateKeyPem` secret with the new private key
-   - Skip webhook secret (since `-WebhookSecret` parameter is not provided)
-   - Display a message "Skipping webhook secret upload (not provided)"
+   - Display a dry-run or success summary for the environment-specific Key Vault
 
 3. **Verify Upload Success**
 
@@ -570,17 +516,17 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
    - Click **Delete** next to the old key
    - Confirm deletion
 
-3. **Update ServiceNow Ticket**
+3. **Update Product Ops Portal Request**
    - Mark the rotation as complete
    - Document the completion date
-   - Close the ticket
+   - Close the request
 
 4. **Test Workflow Integration** (Optional but Recommended)
    After completing the private key rotation, verify the GitHub App is working correctly by testing the workflow orchestration:
 
    - Run the **Trigger Workflow** request in the Postman collection (`tests/postman/api.postman_collection.json`)
    - Verify the workflow runs successfully in GitHub Actions
-   - Confirm the GitHub App authenticates with the new private key and webhooks are processed correctly
+   - Confirm the GitHub App authenticates with the new private key and the workflow runs successfully
 
 ### Rotation Schedule Recommendations
 
@@ -602,47 +548,6 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
 - Store the private key only in Azure Key Vault (uploaded by App Admin Team)
 - Restrict Key Vault access to only necessary personnel and services
 - Use managed identities when accessing the private key from applications
-
-### Webhook Secret
-
-- **GitHub Admin Team**: Generate a strong, cryptographically random webhook secret
-- **App Admin Team**: Upload the secret to Key Vault and then delete from local storage
-- Never commit the secret to source control
-- Rotate the secret regularly (recommended: every 90 days)
-
-#### Webhook Secret Rotation
-
-**IMPORTANT**: Unlike private keys, webhook secrets do NOT have a sunset period. GitHub only allows one active webhook secret at a time per app. This means rotation must be carefully coordinated between the GitHub Admin Team and App Admin Team to minimize downtime.
-
-**Rotation Process:**
-
-1. **Plan a maintenance window**: Choose a time when webhook processing downtime is acceptable (typically during off-hours)
-
-2. **GitHub Admin Team**:
-   - Generate a new webhook secret using the same method as initial creation (Step 3)
-   - **DO NOT update GitHub App settings yet**
-   - Securely share the new webhook secret with App Admin Team
-
-3. **App Admin Team**:
-   - Upload the new webhook secret to the environment's Key Vault:
-     ```powershell
-     cd tools/infrastructure
-     ./upload-github-app-secrets.ps1 -EnvironmentName <env> -WebhookSecret "<new-secret>"
-     ```
-   - Replace `<env>` with the environment name (e.g., `dev`, `prod-na`)
-   - Replace `<new-secret>` with the actual webhook secret from GitHub Admin Team
-   - Verify successful upload
-   - Confirm completion to GitHub Admin Team
-
-4. **GitHub Admin Team** (after App Admin confirmation):
-   - Update the webhook secret in GitHub App settings immediately
-   - Navigate to GitHub App → General → Webhook secret
-   - Enter the new webhook secret
-   - Save changes
-
-**Note**: There will be a brief period between when the App Admin Team uploads the new secret and when the GitHub Admin Team updates it in GitHub settings. During this time, webhooks will continue to work with the old secret. After GitHub Admin updates the secret, any delay in Key Vault cache refresh may cause a brief period of webhook validation failures until the application picks up the new secret from Key Vault.
-
----
 
 ## Additional Resources
 

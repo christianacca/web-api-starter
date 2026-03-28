@@ -1,6 +1,6 @@
 name: Orchestrator Test Workflow
 
-# Temporary compatibility copy for local E2E validation while GitHub still indexes the workflow by its old path.
+# Showcase workflow for queue-callback validation during the migration.
 
 on:
   workflow_dispatch:

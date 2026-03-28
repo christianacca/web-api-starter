@@ -10,6 +10,12 @@ namespace Template.Shared.Github;
 /// as a GitHub App, including repository details, authentication credentials, and workflow settings.
 /// </remarks>
 public class GithubAppOptions {
+  private static readonly TimeSpan[] DefaultRerunTriggerRetryDelays = [
+    TimeSpan.FromSeconds(15),
+    TimeSpan.FromSeconds(30),
+    TimeSpan.FromMinutes(1)
+  ];
+
   /// <summary>
   /// Gets or sets the GitHub repository owner or organization name.
   /// </summary>
@@ -51,19 +57,22 @@ public class GithubAppOptions {
   [Required] public string PrivateKeyPem { get; set; } = null!;
 
   /// <summary>
-  /// Gets or sets the secret used to validate GitHub webhook payloads.
-  /// </summary>
-  /// <remarks>
-  /// This secret ensures webhook requests are genuinely from GitHub and haven't been tampered with.
-  /// Should be kept secure and never committed to source control in plain text.
-  /// </remarks>
-  [Required] public string WebhookSecret { get; set; } = null!;
-
-  /// <summary>
   /// Gets or sets the maximum number of retry attempts for operations.
   /// </summary>
   /// <value>Defaults to 5 attempts.</value>
   public int MaxAttempts { get; set; } = 5;
+
+  /// <summary>
+  /// Gets or sets the delayed retry schedule used before attempting to trigger a GitHub workflow rerun.
+  /// </summary>
+  /// <value>Defaults to 15, 30, and 60 seconds.</value>
+  public TimeSpan[] RerunTriggerRetryDelays { get; set; } = [];
+
+  public TimeSpan[] GetRerunTriggerRetryDelayValues() {
+    return RerunTriggerRetryDelays.Length == 0
+      ? DefaultRerunTriggerRetryDelays
+      : RerunTriggerRetryDelays;
+  }
   
   /// <summary>
   /// Gets or sets the workflow timeout duration in hours.

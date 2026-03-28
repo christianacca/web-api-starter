@@ -12,9 +12,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using Template.Functions.GithubWorkflowOrchestrator;
 using Template.Functions.Shared;
 using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Functions.Shared.HttpContextAccessor;
+using Template.Functions;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 using Template.Shared.Extensions;
@@ -51,10 +53,12 @@ void ConfigureAppConfiguration(IConfigurationBuilder configuration, IHostEnviron
 }
 
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
+
   services
     .AddFunctionContextAccessor()
     .AddFunctionHttpContextAccessor() // <- experimental equivalent to IHttpContextAccessor in ASP.NET Core
-    .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>();
+    .AddSingleton<ITokenValidator, UnsafeTrustedJwtSecurityTokenHandler>()
+    .AddSingleton<GithubWorkflowQueueMessageProcessor>();
 
   // Authentication is required in the Functions project to enable HttpContext.User to be populated from EasyAuth's bearer 
   // token authentication in isolated-process mode. See UseAuthenticationStartupFilter for details.
@@ -86,7 +90,11 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
   
   services.AddGithubServices("Github");
 
-  ConfigureAzureClients(configuration, services);
+  if (environment.IsDevelopment()) {
+    services.AddHostedService<DevelopmentQueueInitializer>();
+  }
+
+  ConfigureAzureClients(configuration, services, environment);
 
   // ensure that the same JsonSerializerOptions configuration is used for Durable Task Worker as in HttpTrigger functions
   services
@@ -99,7 +107,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     .AddJsonOptions(options => options.ConfigureStandardJsonOptions());
 }
 
-void ConfigureAzureClients(IConfiguration configuration, IServiceCollection services) {
+void ConfigureAzureClients(IConfiguration configuration, IServiceCollection services, IHostEnvironment environment) {
   services.AddAzureClientsCore(enableLogForwarding: true);
   services.AddAzureClients(cfg => {
     cfg.ConfigureDefaults(opts => { opts.Retry.Mode = RetryMode.Exponential; });
@@ -107,6 +115,11 @@ void ConfigureAzureClients(IConfiguration configuration, IServiceCollection serv
     cfg.UseCredential(sp => new DefaultAzureCredential(
       sp.GetRequiredService<IOptionsMonitor<DefaultAzureCredentialOptions>>().CurrentValue
     ));
+
+    if (environment.IsDevelopment()) {
+      cfg.AddQueueServiceClient(configuration.GetValue<string>("AzureWebJobsStorage") ?? "")
+          .WithName(DevelopmentQueueInitializer.QueueClientName);
+    }
 
     cfg.AddBlobServiceClient(configuration.GetSection("InternalApi:ReportBlobStorage"))
       .WithName("ReportStorageService");

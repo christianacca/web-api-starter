@@ -1,6 +1,11 @@
 name: github-app-authz-envs
 description: Retrieves primary and pipeline environments by matching GitHub App slug against triggering actor
 
+inputs:
+  gated-environments:
+    description: Multi-line list of workflow environments eligible for this workflow
+    required: true
+
 outputs:
   primary:
     description: 'The primary environment for this GitHub App'
@@ -8,30 +13,22 @@ outputs:
   pipeline:
     description: 'JSON array of authorized environments in the deployment pipeline'
     value: ${{ steps.envs.outputs.pipeline }}
+  authorized-target-envs:
+    description: 'JSON array of workflow-gated environments authorized for the dispatching GitHub App'
+    value: ${{ steps.envs.outputs.authorized-target-envs }}
+  installation-id:
+    description: 'GitHub App installation id for the dispatching actor'
+    value: ${{ steps.envs.outputs.installation-id }}
 
 runs:
   using: composite
   steps:
-    - id: envs 
+    - id: envs
       shell: pwsh
+      env:
+        GATED_ENVIRONMENTS: ${{ inputs.gated-environments }}
+        TRIGGERING_ACTOR: ${{ github.triggering_actor }}
       run: |
-        $environments = & ./tools/infrastructure/get-product-environment-names.ps1
-        $actor = "${{ github.triggering_actor }}"
-        
-        $primaryEnv = ""
-        $pipelineJson = "[]"
-        
-        foreach ($env in $environments) {
-          $conventions = & ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName $env | ConvertFrom-Json
-          $githubConfig = $conventions.SubProducts.Github
-          $expectedAppSlug = $githubConfig.AppSlug
-
-          if ($expectedAppSlug -and ($actor -eq "${expectedAppSlug}[bot]")) {
-            $primaryEnv = $githubConfig.AuthorizedEnvironment.Primary
-            $pipelineJson = $githubConfig.AuthorizedEnvironment.Pipeline | ConvertTo-Json -Compress
-            break
-          }
-        }
-        
-        echo "primary=$primaryEnv" >> $env:GITHUB_OUTPUT
-        echo "pipeline=$pipelineJson" >> $env:GITHUB_OUTPUT
+        ${{ github.action_path }}/get-authorized-target-envs.ps1 `
+          -GatedEnvironments $env:GATED_ENVIRONMENTS `
+          -TriggeringActor $env:TRIGGERING_ACTOR
