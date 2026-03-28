@@ -1,0 +1,120 @@
+name: Orchestrator Retry Test Fail Twice
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflowName:
+        description: 'Workflow run name (format: functionappidentifier-instanceId)'
+        required: true
+        type: string
+      localVerification:
+        description: 'Optional local-only queue publication override JSON supplied by the local Functions dispatcher'
+        required: false
+        type: string
+
+run-name: ${{ inputs.workflowName }}
+
+permissions:
+  contents: read
+
+jobs:
+  github-app-authz:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      authz-primary-env: ${{ steps.authz.outputs.primary }}
+      authz-authorized-target-envs: ${{ steps.authz.outputs.authorized-target-envs }}
+      authz-installation-id: ${{ steps.authz.outputs.installation-id }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: authz
+        uses: ./.github/actions/github-app-authz-envs
+        with:
+          gated-environments: |
+            dev
+
+  publish-inprogress:
+    runs-on: ubuntu-latest
+    needs: github-app-authz
+    environment:
+      name: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      authz-primary-env: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+      authz-authorized-target-envs: ${{ needs.github-app-authz.outputs.authz-authorized-target-envs }}
+      authz-installation-id: ${{ needs.github-app-authz.outputs.authz-installation-id }}
+      published-in-progress: ${{ steps.publish.outputs.published }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: publish
+        uses: ./.github/actions/publish-github-workflow-event
+        with:
+          github-environment: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+          github-app-installation-id: ${{ needs.github-app-authz.outputs.authz-installation-id }}
+          message-type: GithubWorkflowInProgress
+          local-verification: ${{ inputs.localVerification }}
+          queue-name: default-queue
+          repository: ${{ github.repository }}
+          run-attempt: ${{ github.run_attempt }}
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ inputs.workflowName }}
+
+  stable-job:
+    runs-on: ubuntu-latest
+    needs: publish-inprogress
+    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev')
+    environment:
+      name: dev
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "stable-job succeeded on workflow attempt ${GITHUB_RUN_ATTEMPT}"
+
+  flaky-job:
+    runs-on: ubuntu-latest
+    needs:
+      - publish-inprogress
+      - stable-job
+    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev')
+    environment:
+      name: dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail until rerun attempt 3
+        run: |
+          echo "workflow run attempt: ${GITHUB_RUN_ATTEMPT}"
+          if [[ "${GITHUB_RUN_ATTEMPT}" -lt 3 ]]; then
+            echo "Intentional failure before success threshold 3"
+            exit 1
+          fi
+          echo "Success after two orchestrator retries"
+
+  publish-completed:
+    runs-on: ubuntu-latest
+    needs:
+      - publish-inprogress
+      - stable-job
+      - flaky-job
+    if: ${{ always() && needs.publish-inprogress.outputs.published-in-progress == 'true' }}
+    environment:
+      name: ${{ needs.publish-inprogress.outputs.authz-primary-env }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish completed queue message
+        uses: ./.github/actions/publish-github-workflow-event
+        with:
+          github-environment: ${{ needs.publish-inprogress.outputs.authz-primary-env }}
+          github-app-installation-id: ${{ needs.publish-inprogress.outputs.authz-installation-id }}
+          message-type: GithubWorkflowCompleted
+          local-verification: ${{ inputs.localVerification }}
+          needs-json: ${{ toJSON(needs) }}
+          queue-name: default-queue
+          repository: ${{ github.repository }}
+          run-attempt: ${{ github.run_attempt }}
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ inputs.workflowName }}
