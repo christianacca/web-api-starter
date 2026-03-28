@@ -57,15 +57,6 @@ public class GithubAppOptions {
   [Required] public string PrivateKeyPem { get; set; } = null!;
 
   /// <summary>
-  /// Gets or sets the secret used to validate GitHub webhook payloads.
-  /// </summary>
-  /// <remarks>
-  /// This secret ensures webhook requests are genuinely from GitHub and haven't been tampered with.
-  /// Should be kept secure and never committed to source control in plain text.
-  /// </remarks>
-  [Required] public string WebhookSecret { get; set; } = null!;
-
-  /// <summary>
   /// Gets or sets the maximum number of retry attempts for operations.
   /// </summary>
   /// <value>Defaults to 5 attempts.</value>

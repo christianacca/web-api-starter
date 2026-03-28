@@ -7,8 +7,7 @@
       "Host.Results": "Information",
       "Host.Startup": "Information",
       "Host.Triggers": "Information",
-      "Function": "Information",
-      "Octokit.Webhooks": "Error"
+      "Function": "Information"
     },
     "applicationInsights": {
       "samplingSettings": {

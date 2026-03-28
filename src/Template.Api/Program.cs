@@ -5,7 +5,6 @@ using Hellang.Middleware.ProblemDetails.Mvc;
 using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Options;
@@ -14,14 +13,11 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.OpenApi;
 using Mri.AppInsights.AspNetCore.Configuration;
 using Mri.Azure.ManagedIdentity;
-using Octokit.Webhooks;
-using Octokit.Webhooks.AspNetCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Compact;
 using System.Reflection;
 using Template.Api.Endpoints.Configurations;
-using Template.Api.Endpoints.GithubWebhookProxy;
 using Template.Api.Shared;
 using Template.Api.Shared.ExceptionHandling;
 using Template.Api.Shared.Mvc;
@@ -34,8 +30,6 @@ using Template.Shared.Github;
 using Template.Shared.Util;
 
 // ReSharper disable UnusedParameter.Local
-
-const string GithubRateLimiterPolicyName = "GithubWebhookPolicy";
 
 var consoleOnlyLogger = new LoggerConfiguration().WriteTo.Console(new CompactJsonFormatter()).CreateLogger();
 Log.Logger = new LoggerConfiguration().WriteTo.Console(new CompactJsonFormatter()).CreateBootstrapLogger();
@@ -110,7 +104,6 @@ void ConfigureLogging(IHostBuilder host) {
       .MinimumLevel.Override(typeof(TokenServiceFactory).Namespace ?? "", LogEventLevel.Information)
       .MinimumLevel.Override(typeof(ProblemDetailsMiddleware).Namespace ?? "", LogEventLevel.Warning)
       .MinimumLevel.Override(typeof(DeveloperExceptionPageMiddleware).Namespace ?? "", LogEventLevel.Warning)
-      .MinimumLevel.Override("Octokit.Webhooks", LogEventLevel.Error)
       .ReadFrom.Configuration(context.Configuration)
       .Enrich.FromLogContext()
       .ReadFrom.Services(services)
@@ -185,13 +178,6 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
     services.AddAppInsights(aiSettings);
   }
 
-
-  services.AddRateLimiter(options => {
-    options.AddFixedWindowLimiter(GithubRateLimiterPolicyName, limiterOptions => {
-      configuration.GetSection("RateLimiting:GithubWebhook").Bind(limiterOptions);
-    });
-  });
-
   void ConfigureAzureClients() {
 
     services.AddAzureClientsCore(enableLogForwarding: true);
@@ -239,8 +225,6 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
       configuration.GetValue<string>("Api:ReverseProxy:Clusters:FunctionsApp:Destinations:Primary:Address") ?? "",
       TokenOptionNames.FunctionApp
     );
-
-    services.AddScoped<WebhookEventProcessor, WorkflowRunWebhookProcessor>();
   }
 }
 
@@ -268,8 +252,6 @@ void ConfigureMiddleware(WebApplication app) {
   app.UseAuthentication();
   app.UseAuthorization();
 
-  app.UseRateLimiter();
-
   app.UseAppInsightsSampling();
 
   app.UseWhen(ctx => !IsProxiedRequest(ctx), _ => {
@@ -279,9 +261,6 @@ void ConfigureMiddleware(WebApplication app) {
 
   app.MapControllers().RequireAuthorization();
   app.MapHealthChecks("/health");
-
-  var webhookEndpoint = app.MapGitHubWebhooks(secret: app.Configuration.GetSection("Github:WebhookSecret").Value ?? string.Empty);
-  webhookEndpoint.RequireRateLimiting(GithubRateLimiterPolicyName);
   app.MapReverseProxy();
 }
 
