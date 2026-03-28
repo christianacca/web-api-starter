@@ -85,10 +85,22 @@ public sealed class GithubWorkflowQueueMessageProcessor(ILogger<GithubWorkflowQu
         return null;
       }
 
-      logger.LogWarning(
-        "Workflow queue message is already in progress; skipping duplicate delivery: {MessageType}-{MessageId}; InstanceId: {InstanceId}; RunId: {RunId}; RunAttempt: {RunAttempt}",
+      if (existingState?.QueueMessageId == message.Id) {
+        logger.LogInformation(
+          "Resuming retry for workflow queue message: {MessageType}-{MessageId}; InstanceId: {InstanceId}; RunId: {RunId}; RunAttempt: {RunAttempt}",
+          workflowMessage.MessageType,
+          message.Id,
+          workflowMessage.Payload.InstanceId,
+          workflowMessage.Payload.RunId,
+          workflowMessage.Payload.RunAttempt);
+        return existingState;
+      }
+
+      logger.LogInformation(
+        "Skipping in-flight duplicate workflow queue message: {MessageType}-{MessageId}; ExistingQueueMessageId: {ExistingQueueMessageId}; InstanceId: {InstanceId}; RunId: {RunId}; RunAttempt: {RunAttempt}",
         workflowMessage.MessageType,
         message.Id,
+        existingState?.QueueMessageId,
         workflowMessage.Payload.InstanceId,
         workflowMessage.Payload.RunId,
         workflowMessage.Payload.RunAttempt);

@@ -10,7 +10,7 @@
       Environment name (dev, qa, rel, demo, staging, prod-*, etc.)
       
       .PARAMETER PemFilePath
-      Optional path to GitHub App private key (.pem file). If provided, uploads the private key.
+            Required path to the GitHub App private key (.pem file). Uploads the private key.
       
       .PARAMETER Dry
       Dry run mode - shows what would be uploaded without uploading
@@ -41,6 +41,8 @@
         [Parameter(Mandatory)]
         [string] $EnvironmentName,
     
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string] $PemFilePath,
     
         [switch] $Dry,
@@ -65,10 +67,6 @@
             
             if ($EnvironmentName -notin $environments) {
                 throw "EnvironmentName '$EnvironmentName' is not valid. Valid values are: $($environments -join ', ')"
-            }
-
-            if (-not $PSBoundParameters.ContainsKey('PemFilePath')) {
-                throw "-PemFilePath is required. This script uploads only Github--PrivateKeyPem."
             }
 
             if (-not $Dry) {

@@ -4,9 +4,11 @@ using Azure.Data.Tables;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
+using System.Text;
 using Template.Functions.GithubWorkflowOrchestrator;
 using Template.Functions.Shared;
 using Template.Shared.Azure.MessageQueue;
+using Template.Shared.Extensions;
 using Template.Shared.Model;
 using System.ComponentModel.DataAnnotations;
 
@@ -16,6 +18,7 @@ public class ExampleQueue {
   internal const string QueueName = "default-queue";
   internal const string PoisonQueueName = $"{QueueName}-poison";
   private const string StorageTable = "defaultqueuestorage";
+  private static readonly JsonSerializerOptions QueueMessageSerializerOptions = CreateQueueMessageSerializerOptions();
   private ILogger<ExampleQueue> Logger { get; }
   private GithubWorkflowQueueMessageProcessor GithubWorkflowQueueMessageProcessor { get; }
 
@@ -99,12 +102,27 @@ public class ExampleQueue {
   /// </remarks>
   [Function($"{nameof(ExampleQueue)}ExceptionHandler")]
   public async Task RunExceptionHandler(
-    [QueueTrigger(PoisonQueueName)] MessageBody messageBody,
+    [QueueTrigger(PoisonQueueName)] BinaryData rawMessageBody,
     [TableInput(StorageTable)] TableClient tableClient,
     long dequeueCount,
     CancellationToken ct
   ) {
-    ValidateQueueMessageEnvelope(messageBody, PoisonQueueName);
+    if (!TryParsePoisonQueueMessage(rawMessageBody, out var messageBody)) {
+      return;
+    }
+
+    if (messageBody == null) {
+      return;
+    }
+
+    try {
+      ValidateQueueMessageEnvelope(messageBody, PoisonQueueName);
+    }
+    catch (ValidationException ex) {
+      LogAndDrainMalformedPoisonQueueMessage(rawMessageBody, ex);
+      return;
+    }
+
     var messageType = messageBody.Metadata.MessageType;
 
     Logger.LogInformation("Queue trigger function processing: {MessageType}", messageType);
@@ -120,8 +138,11 @@ public class ExampleQueue {
           HandleExampleMessageException(messageBody, msgException);
           break;
         default:
-          throw new InvalidOperationException(
-            $"No Exception handler found for the message type '{messageType}' for the queue '{PoisonQueueName}'");
+          Logger.LogWarning(
+            "No poison queue handler is registered for message type '{MessageType}' on queue '{QueueName}'. The poison message will be drained.",
+            messageType,
+            PoisonQueueName);
+          break;
       }
     }
     catch (Exception) {
@@ -189,7 +210,7 @@ public class ExampleQueue {
   }
 
   private static T GetMessageData<T>(MessageBody messageBody) {
-    var data = JsonSerializer.Deserialize<T>(messageBody.Data);
+    var data = JsonSerializer.Deserialize<T>(messageBody.Data, QueueMessageSerializerOptions);
     return data == null ? throw new InvalidOperationException("Message data is missing") : data;
   }
 
@@ -199,5 +220,32 @@ public class ExampleQueue {
     }
 
     Validator.ValidateObject(messageBody, new ValidationContext(messageBody), validateAllProperties: true);
+  }
+
+  private static JsonSerializerOptions CreateQueueMessageSerializerOptions() {
+    var options = new JsonSerializerOptions();
+    options.ConfigureStandardOptions();
+    return options;
+  }
+
+  private bool TryParsePoisonQueueMessage(BinaryData rawMessageBody, out MessageBody? messageBody) {
+    try {
+      messageBody = JsonSerializer.Deserialize<MessageBody>(rawMessageBody.ToArray(), QueueMessageSerializerOptions);
+      return messageBody != null;
+    }
+    catch (JsonException ex) {
+      LogAndDrainMalformedPoisonQueueMessage(rawMessageBody, ex);
+      messageBody = null;
+      return false;
+    }
+  }
+
+  private void LogAndDrainMalformedPoisonQueueMessage(BinaryData rawMessageBody, Exception ex) {
+    var rawText = Encoding.UTF8.GetString(rawMessageBody.ToArray());
+    Logger.LogError(
+      ex,
+      "Draining malformed poison queue message from '{QueueName}'. Raw payload: {RawPayload}",
+      PoisonQueueName,
+      rawText);
   }
 }

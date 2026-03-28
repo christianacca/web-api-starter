@@ -22,7 +22,7 @@ If Durable Functions Monitor connects to `devstoreaccount1` but shows **No Task 
 
 For this repo, the local Durable task hub is `TestHubName`.
 
-**Solution**: start the functions app in this project that hosts the durable runction orchestrator you want to monitor
+**Solution**: start the functions app in this project that hosts the durable function orchestrator you want to monitor
 
 ### macOS-specific issues
 
