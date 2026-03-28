@@ -118,38 +118,6 @@ function Resolve-WorkflowQueueContext {
     }
 }
 
-function New-GitHubWorkflowInProgressPayloadJson {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $EnvironmentName,
-
-        [Parameter(Mandatory)]
-        [string] $InstanceId,
-
-        [Parameter(Mandatory)]
-        [string] $Repository,
-
-        [Parameter(Mandatory)]
-        [int] $RunAttempt,
-
-        [Parameter(Mandatory)]
-        [long] $RunId,
-
-        [Parameter(Mandatory)]
-        [string] $WorkflowName
-    )
-
-    return (@{
-        environment = $EnvironmentName
-        instanceId = $InstanceId
-        repository = $Repository
-        runAttempt = $RunAttempt
-        runId = $RunId
-        workflowName = $WorkflowName
-    } | ConvertTo-Json -Compress)
-}
-
 function Get-GitHubWorkflowConclusion {
     [CmdletBinding()]
     param(
@@ -175,40 +143,4 @@ function Get-GitHubWorkflowConclusion {
     return 'success'
 }
 
-function New-GitHubWorkflowCompletedPayloadJson {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $Conclusion,
-
-        [Parameter(Mandatory)]
-        [string] $EnvironmentName,
-
-        [Parameter(Mandatory)]
-        [string] $InstanceId,
-
-        [Parameter(Mandatory)]
-        [string] $Repository,
-
-        [Parameter(Mandatory)]
-        [int] $RunAttempt,
-
-        [Parameter(Mandatory)]
-        [long] $RunId,
-
-        [Parameter(Mandatory)]
-        [string] $WorkflowName
-    )
-
-    return (@{
-        conclusion = $Conclusion
-        environment = $EnvironmentName
-        instanceId = $InstanceId
-        repository = $Repository
-        runAttempt = $RunAttempt
-        runId = $RunId
-        workflowName = $WorkflowName
-    } | ConvertTo-Json -Compress)
-}
-
-Export-ModuleMember -Function Resolve-GitHubAppAuthorizationContext, Resolve-WorkflowQueueContext, New-GitHubWorkflowInProgressPayloadJson, Get-GitHubWorkflowConclusion, New-GitHubWorkflowCompletedPayloadJson
+Export-ModuleMember -Function Resolve-GitHubAppAuthorizationContext, Resolve-WorkflowQueueContext, Get-GitHubWorkflowConclusion

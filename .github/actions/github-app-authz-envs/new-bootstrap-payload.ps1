@@ -25,13 +25,14 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..' '_shared' 'GitHubWorkflowQueueSupport.psm1') -Force
 
 $workflowQueueContext = Resolve-WorkflowQueueContext -WorkflowName $WorkflowName -EnvironmentName $PrimaryEnvironment -LocalVerificationDirectiveJson $LocalVerificationDirective
-$payloadJson = New-GitHubWorkflowInProgressPayloadJson `
-    -EnvironmentName $PrimaryEnvironment `
-    -InstanceId $workflowQueueContext.InstanceId `
-    -Repository $Repository `
-    -RunAttempt $RunAttempt `
-    -RunId $RunId `
-    -WorkflowName $WorkflowName
+$payloadJson = [ordered]@{
+    environment = $PrimaryEnvironment
+    instanceId = $workflowQueueContext.InstanceId
+    repository = $Repository
+    runAttempt = $RunAttempt
+    runId = $RunId
+    workflowName = $WorkflowName
+} | ConvertTo-Json -Compress
 
 if ($env:GITHUB_OUTPUT) {
     "payload-json=$payloadJson" >> $env:GITHUB_OUTPUT

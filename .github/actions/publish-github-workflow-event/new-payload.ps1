@@ -31,16 +31,17 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..' '_shared' 'GitHubWorkflowQueueSupport.psm1') -Force
 
 $workflowQueueContext = Resolve-WorkflowQueueContext -WorkflowName $WorkflowName -EnvironmentName $GitHubEnvironment -LocalVerificationDirectiveJson $LocalVerificationDirective
+$payload = [ordered]@{
+    environment = $GitHubEnvironment
+    instanceId = $workflowQueueContext.InstanceId
+    repository = $Repository
+    runAttempt = $RunAttempt
+    runId = $RunId
+    workflowName = $WorkflowName
+}
 
 switch ($MessageType) {
     'GithubWorkflowInProgress' {
-        $payloadJson = New-GitHubWorkflowInProgressPayloadJson `
-            -EnvironmentName $GitHubEnvironment `
-            -InstanceId $workflowQueueContext.InstanceId `
-            -Repository $Repository `
-            -RunAttempt $RunAttempt `
-            -RunId $RunId `
-            -WorkflowName $WorkflowName
         break
     }
     'GithubWorkflowCompleted' {
@@ -49,20 +50,15 @@ switch ($MessageType) {
         }
 
         $conclusion = Get-GitHubWorkflowConclusion -NeedsJson $NeedsJson
-        $payloadJson = New-GitHubWorkflowCompletedPayloadJson `
-            -Conclusion $conclusion `
-            -EnvironmentName $GitHubEnvironment `
-            -InstanceId $workflowQueueContext.InstanceId `
-            -Repository $Repository `
-            -RunAttempt $RunAttempt `
-            -RunId $RunId `
-            -WorkflowName $WorkflowName
+        $payload.conclusion = $conclusion
         break
     }
     default {
         throw "Unsupported MessageType '$MessageType'."
     }
 }
+
+$payloadJson = $payload | ConvertTo-Json -Compress
 
 if ($env:GITHUB_OUTPUT) {
     if ($conclusion) {
