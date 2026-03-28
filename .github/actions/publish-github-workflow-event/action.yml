@@ -1,9 +1,12 @@
-name: publish-github-workflow-completed
-description: Log into Azure, build a GithubWorkflowCompleted payload, and publish it to the workflow queue
+name: publish-github-workflow-event
+description: Log into Azure, build a GitHub workflow queue payload, and publish it to the workflow queue
 
 inputs:
   github-environment:
     description: Primary GitHub environment used for Azure login and storage-account resolution
+    required: true
+  message-type:
+    description: Queue message type to publish
     required: true
   local-verification:
     description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
@@ -12,8 +15,8 @@ inputs:
     description: Dispatcher-prefixed workflow name used for instance correlation and queue routing
     required: true
   needs-json:
-    description: JSON serialization of the workflow needs context
-    required: true
+    description: JSON serialization of the workflow needs context, required for completed events
+    required: false
   repository:
     description: Repository name in owner/repo format
     required: true
@@ -30,13 +33,13 @@ inputs:
 
 outputs:
   published:
-    description: Whether the completion queue message was published successfully
+    description: Whether the queue message was published successfully
     value: ${{ steps.publish.outputs.published }}
   message-id:
     description: Published MessageBody id
     value: ${{ steps.publish.outputs.message-id }}
   conclusion:
-    description: Derived workflow conclusion written into the completed payload
+    description: Derived workflow conclusion written into the completed payload when applicable
     value: ${{ steps.payload.outputs.conclusion }}
 
 runs:
@@ -52,6 +55,7 @@ runs:
       shell: pwsh
       env:
         GITHUB_ENVIRONMENT: ${{ inputs.github-environment }}
+        MESSAGE_TYPE: ${{ inputs.message-type }}
         NEEDS_JSON: ${{ inputs.needs-json }}
         REPOSITORY: ${{ inputs.repository }}
         RUN_ATTEMPT: ${{ inputs.run-attempt }}
@@ -59,9 +63,10 @@ runs:
         WORKFLOW_NAME: ${{ inputs.workflow-name }}
         LOCAL_VERIFICATION: ${{ inputs.local-verification }}
       run: |
-        ${{ github.action_path }}/new-completed-payload.ps1 `
+        ${{ github.action_path }}/new-payload.ps1 `
           -GitHubEnvironment $env:GITHUB_ENVIRONMENT `
           -LocalVerificationDirective $env:LOCAL_VERIFICATION `
+          -MessageType $env:MESSAGE_TYPE `
           -NeedsJson $env:NEEDS_JSON `
           -Repository $env:REPOSITORY `
           -RunAttempt ([int]$env:RUN_ATTEMPT) `
@@ -71,7 +76,7 @@ runs:
     - id: publish
       uses: ./.github/actions/publish-workflow-queue-message
       with:
-        message-type: GithubWorkflowCompleted
+        message-type: ${{ inputs.message-type }}
         payload-json: ${{ steps.payload.outputs.payload-json }}
         queue-name: ${{ inputs.queue-name }}
         storage-connection-string: ${{ steps.payload.outputs.storage-connection-string }}
