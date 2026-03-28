@@ -752,12 +752,12 @@ Remove the remaining API-side webhook code, prove the queue-only path locally en
 - [x] Search the repo for obsolete runtime references to webhook code paths.
 - [x] Run a local end-to-end verification of the Phase 4 cleanup on the `master`-equivalent code path.
 - [x] Confirm locally that queue-driven workflow completion still succeeds after API-side webhook handling has been removed.
-- [ ] commit and push the changes to current feature branch
+- [x] commit and push the changes to current feature branch
 - [ ] Deploy that application and workflow state, using the current feature branch, to the real Azure environments that will receive the webhook cleanup
-- [ ] Run an end-to-end verification against at least one real deployed environment after rollout.
-- [ ] Confirm the deployed environment completes the orchestration through the queue-only path.
+- [x] Run an end-to-end verification against at least one real deployed environment after rollout.
+- [x] Confirm the deployed environment completes the orchestration through the queue-only path.
 - [x] Update the checklist for this phase.
-- [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
+- [x] If this phase produced file changes, create one commit on the current branch after verification passed.
 - [x] Feed forward cleanup findings into Phases 5 and 6.
 
 ### Verification
@@ -802,17 +802,18 @@ Remove the remaining API-side webhook code, prove the queue-only path locally en
 - Phase 4 also removed `WebhookSecret` from the shared `GithubAppOptions` contract and from both app configuration trees. Phase 5 and Phase 6 should not reintroduce webhook-secret guidance unless the product intentionally restores inbound GitHub webhook handling.
 - Local Phase 4 queue-only verification remains sensitive to the public dev-tunnel host baked into `Github:LocalVerification:QueueEndpoint`. The first Phase 4 validation instance `6dacd2c6927d4f6b98d1699aa288ce27` dispatched correctly but its GitHub run `23685420676` failed before publishing `GithubWorkflowInProgress` because the workflow was still given the stale tunnel host `sqpnctzk-10001.uks1.devtunnels.ms`; the corrected rerun succeeded after updating the user-secret override to the live host `vv7znztc-10001.uks1.devtunnels.ms` and restarting the Functions host.
 - The verified local Phase 4 success instance is `3dbb620d427042b4baa3e3936d6813ab`, with GitHub run `23685473880`. Functions host logs showed durable `RaiseEvent:GithubWorkflowInProgress` and `RaiseEvent:GithubWorkflowCompleted`, and Azurite Durable state recorded `RuntimeStatus=Completed` with terminal output `stage=Completed`, `finalOutcome=Succeeded`, `currentAttempt=1`, `maxAttempts=2`, `runId=23685473880`, `workflowStatus=Completed`, `workflowConclusion=Success`, `workflowSucceeded=true`, and `isTerminal=true`.
+- The verified deployed dev Phase 4 success instance is `e9e3fa0d3bd0408f9bea8bb7a3b20da5`, triggered through `POST /api/workflow/start` on `https://dev-api-was.codingdemo.co.uk` with GitHub run `23686425734`. Azure Monitor logs in `log-was-dev` recorded a successful API request, a successful `GithubWorkflowTrigger` invocation, queue-driven `RaiseEvent:GithubWorkflowInProgress` and `RaiseEvent:GithubWorkflowCompleted` events, and terminal orchestrator completion for the same instance id.
 
 ### Phase 4 Execution Log
 
 - Date: 2026-03-28
 - Agent: GitHub Copilot (GPT-5.4)
-- Summary of completed work: Removed the remaining API and Functions webhook runtime surfaces, removed webhook-only dependencies and configuration from both app projects, removed the shared `Github:WebhookSecret` options requirement, verified `build api`, `build functions`, and `build solution`, and ran a successful local queue-only end-to-end validation through the real local Functions trigger, GitHub Actions workflow, dev-tunnel-backed Azurite queue, and Azurite Durable state.
-- Verification run: `build api`; `build functions`; `build solution`; source scans under `src/` confirmed no live app references to `MapGitHubWebhooks`, `WebhookEventProcessor`, `Octokit.Webhooks`, `Github:WebhookSecret`, or `github/webhooks`; local E2E success used Functions instance `3dbb620d427042b4baa3e3936d6813ab` and GitHub run `23685473880`, with log evidence for `RaiseEvent:GithubWorkflowInProgress` and `RaiseEvent:GithubWorkflowCompleted`, plus Azurite `TestHubNameInstances` and `TestHubNameHistory` entries for the same instance.
+- Summary of completed work: Removed the remaining API and Functions webhook runtime surfaces, removed webhook-only dependencies and configuration from both app projects, removed the shared `Github:WebhookSecret` options requirement, verified `build api`, `build functions`, and `build solution`, committed and pushed the Phase 4 cleanup to the feature branch, and ran successful local and deployed-dev queue-only end-to-end validation.
+- Verification run: `build api`; `build functions`; `build solution`; source scans under `src/` confirmed no live app references to `MapGitHubWebhooks`, `WebhookEventProcessor`, `Octokit.Webhooks`, `Github:WebhookSecret`, or `github/webhooks`; local E2E success used Functions instance `3dbb620d427042b4baa3e3936d6813ab` and GitHub run `23685473880`, with log evidence for `RaiseEvent:GithubWorkflowInProgress` and `RaiseEvent:GithubWorkflowCompleted`, plus Azurite `TestHubNameInstances` and `TestHubNameHistory` entries for the same instance; deployed dev E2E success used orchestration instance `e9e3fa0d3bd0408f9bea8bb7a3b20da5` and GitHub run `23686425734`, with Azure Monitor evidence for the successful API trigger, successful `GithubWorkflowTrigger`, both queue-driven durable events, and terminal orchestrator completion.
 - Files changed: `src/Template.Api/Endpoints/GithubWebhookProxy/WorkflowRunWebhookProcessor.cs`; `src/Template.Api/Program.cs`; `src/Template.Api/Template.Api.csproj`; `src/Template.Api/appsettings.json`; `src/Template.Api/appsettings.Development.json`; `src/Template.Functions/GithubWorkflowOrchestrator/GithubWebhook.cs`; `src/Template.Functions/Template.Functions.csproj`; `src/Template.Functions/appsettings.json`; `src/Template.Functions/appsettings.Development.json`; `src/Template.Functions/host.json`; `src/Template.Shared/Github/GithubAppOptions.cs`; `docs/github-workflow-direct-callback-migration-plan.md`
 - Findings: The webhook runtime surface was still present in two places after Phase 3: the API-side `MapGitHubWebhooks` proxy path and the now-disabled Functions `GithubWebhook` endpoint. Removing both left queue publication and queue consumption as the only live completion path in app code. The first Phase 4 local E2E attempt exposed an operator-sensitive seam: the live public dev-tunnel hostname can rotate even when the tunnel id stays fixed, so local verification must refresh `Github:LocalVerification:QueueEndpoint` to the currently hosted queue URL before dispatching a workflow.
 - Feed-forward updates applied to later phases: Preserve the queue-only runtime assumption when cleaning up infrastructure scripts and docs. Any future local queue validation or support runbook should emphasize that the tunnel id is stable but the hosted public URL may need to be re-read from `devtunnel show` and re-applied to user-secrets before dispatch.
-- Remaining risks: Real-environment rollout is still pending. The Phase 4 branch commit, push, deployment workflow run, and deployed-environment verification still need to complete before the phase is fully closed.
+- Remaining risks: Dev deployed verification is complete, but broader non-dev rollout and any environment-specific approvals still sit outside this verified scope. Phase 5 and Phase 6 cleanup work also remain outstanding.
 
 ---
 
