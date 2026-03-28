@@ -5,6 +5,11 @@ using Template.Shared.Extensions;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
 
+internal static class GithubWorkflowQueueContractConstants {
+  internal const string RepositoryFormatRegex = @"^[^/]+/[^/]+$";
+  internal const string SuccessConclusion = "success";
+}
+
 public static class GithubWorkflowMessageTypes {
   public const string GithubWorkflowInProgress = "GithubWorkflowInProgress";
   public const string GithubWorkflowCompleted = "GithubWorkflowCompleted";
@@ -75,7 +80,7 @@ public abstract class GithubWorkflowQueueMessageBase {
   public string InstanceId { get; set; } = null!;
 
   [Required(AllowEmptyStrings = false)]
-  [RegularExpression(@"^[^/]+/[^/]+$", ErrorMessage = "Repository must be in 'owner/repo' format.")]
+  [RegularExpression(GithubWorkflowQueueContractConstants.RepositoryFormatRegex, ErrorMessage = "Repository must be in 'owner/repo' format.")]
   public string Repository { get; set; } = null!;
 
   [Range(1, long.MaxValue)]
@@ -94,5 +99,5 @@ public sealed class GithubWorkflowCompletedMessageData : GithubWorkflowQueueMess
   [Required(AllowEmptyStrings = false)]
   public string Conclusion { get; set; } = null!;
 
-  public bool IsSuccess => string.Equals(Conclusion, "success", StringComparison.OrdinalIgnoreCase);
+  public bool IsSuccess => string.Equals(Conclusion, GithubWorkflowQueueContractConstants.SuccessConclusion, StringComparison.OrdinalIgnoreCase);
 }

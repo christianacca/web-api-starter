@@ -15,6 +15,14 @@ public class TriggerWorkflowActivity(
   IGitHubClientFactory gitHubClientFactory,
   IConfiguration configuration,
   IHostEnvironment hostEnvironment) {
+  private const string LocalVerificationQueueEndpointKey = "Github:LocalVerification:QueueEndpoint";
+  private const string AzureWebJobsStorageKey = "AzureWebJobsStorage";
+  private const string AccountNameKey = "AccountName";
+  private const string AccountKeyKey = "AccountKey";
+  private const string DefaultEndpointsProtocolKey = "DefaultEndpointsProtocol";
+  private const string QueueEndpointKey = "QueueEndpoint";
+  private const string BlobEndpointKey = "BlobEndpoint";
+  private const string TableEndpointKey = "TableEndpoint";
 
   [Function(nameof(TriggerWorkflowActivity))]
   public async Task<string> RunAsync([ActivityTrigger] TriggerInput input) {
@@ -43,14 +51,14 @@ public class TriggerWorkflowActivity(
       return null;
     }
 
-    var queueEndpoint = configuration["Github:LocalVerification:QueueEndpoint"];
+    var queueEndpoint = configuration[LocalVerificationQueueEndpointKey];
     if (string.IsNullOrWhiteSpace(queueEndpoint)) {
       return null;
     }
 
-    var azureWebJobsStorage = configuration.GetValue<string>("AzureWebJobsStorage");
+    var azureWebJobsStorage = configuration.GetValue<string>(AzureWebJobsStorageKey);
     if (string.IsNullOrWhiteSpace(azureWebJobsStorage)) {
-      throw new InvalidOperationException("Github:LocalVerification:QueueEndpoint requires AzureWebJobsStorage to be configured.");
+      throw new InvalidOperationException($"{LocalVerificationQueueEndpointKey} requires {AzureWebJobsStorageKey} to be configured.");
     }
 
     return JsonSerializer.Serialize(new {
@@ -63,25 +71,29 @@ public class TriggerWorkflowActivity(
       ConnectionString = azureWebJobsStorage
     };
 
-    if (!connectionStringBuilder.ContainsKey("AccountName") || string.IsNullOrWhiteSpace(connectionStringBuilder["AccountName"]?.ToString())) {
-      throw new InvalidOperationException("AzureWebJobsStorage must include AccountName for local workflow verification.");
-    }
+    GetRequiredConnectionStringValue(connectionStringBuilder, AccountNameKey);
+    GetRequiredConnectionStringValue(connectionStringBuilder, AccountKeyKey);
 
-    if (!connectionStringBuilder.ContainsKey("AccountKey") || string.IsNullOrWhiteSpace(connectionStringBuilder["AccountKey"]?.ToString())) {
-      throw new InvalidOperationException("AzureWebJobsStorage must include AccountKey for local workflow verification.");
-    }
+    connectionStringBuilder[DefaultEndpointsProtocolKey] = "https";
+    connectionStringBuilder[QueueEndpointKey] = queueEndpoint.TrimEnd('/');
 
-    connectionStringBuilder["DefaultEndpointsProtocol"] = "https";
-    connectionStringBuilder["QueueEndpoint"] = queueEndpoint.TrimEnd('/');
-
-    if (connectionStringBuilder.ContainsKey("BlobEndpoint")) {
-      connectionStringBuilder.Remove("BlobEndpoint");
-    }
-
-    if (connectionStringBuilder.ContainsKey("TableEndpoint")) {
-      connectionStringBuilder.Remove("TableEndpoint");
-    }
+    RemoveConnectionStringValue(connectionStringBuilder, BlobEndpointKey);
+    RemoveConnectionStringValue(connectionStringBuilder, TableEndpointKey);
 
     return connectionStringBuilder.ConnectionString;
+  }
+
+  private static string GetRequiredConnectionStringValue(DbConnectionStringBuilder connectionStringBuilder, string key) {
+    if (!connectionStringBuilder.ContainsKey(key) || string.IsNullOrWhiteSpace(connectionStringBuilder[key]?.ToString())) {
+      throw new InvalidOperationException($"{AzureWebJobsStorageKey} must include {key} for local workflow verification.");
+    }
+
+    return connectionStringBuilder[key].ToString()!;
+  }
+
+  private static void RemoveConnectionStringValue(DbConnectionStringBuilder connectionStringBuilder, string key) {
+    if (connectionStringBuilder.ContainsKey(key)) {
+      connectionStringBuilder.Remove(key);
+    }
   }
 }

@@ -27,64 +27,87 @@ public class GithubWorkflowOrchestrator {
           message: "The orchestration input payload was missing."));
     }
 
-    var currentAttempt = 1;
+    const int initialAttempt = 1;
+    var (_, runId) = await TriggerWorkflowAsync(context, input, initialAttempt);
+    var terminalState = await WaitForWorkflowAttemptResultAsync(context, input, runId, initialAttempt);
 
-    SetProgress(
+    if (terminalState != null) {
+      return Complete(context, terminalState);
+    }
+
+    return Complete(context, await RetryWorkflowUntilTerminalAsync(context, input, runId, initialAttempt));
+  }
+
+  private static async Task<(string WorkflowName, long RunId)> TriggerWorkflowAsync(
+    TaskOrchestrationContext context,
+    OrchestratorInput input,
+    int currentAttempt) {
+    SetProgressState(
       context,
-      CreateState(
-        stage: GithubWorkflowOrchestrationStage.TriggeringWorkflow,
-        currentAttempt: currentAttempt,
-        maxAttempts: input.MaxAttempts,
-        message: "Triggering the GitHub workflow."));
+      stage: GithubWorkflowOrchestrationStage.TriggeringWorkflow,
+      currentAttempt: currentAttempt,
+      maxAttempts: input.MaxAttempts,
+      message: "Triggering the GitHub workflow.");
 
     var triggerInput = new TriggerInput {
       InstanceId = context.InstanceId,
       WorkflowFile = input.WorkflowFile
     };
+
     var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), triggerInput);
 
-    SetProgress(
+    SetProgressState(
       context,
-      CreateState(
-        stage: GithubWorkflowOrchestrationStage.WaitingForRunStart,
-        currentAttempt: currentAttempt,
-        maxAttempts: input.MaxAttempts,
-        message: $"Waiting for workflow '{workflowName}' to report its run id."));
+      stage: GithubWorkflowOrchestrationStage.WaitingForRunStart,
+      currentAttempt: currentAttempt,
+      maxAttempts: input.MaxAttempts,
+      message: $"Waiting for workflow '{workflowName}' to report its run id.");
 
     var runId = await context.WaitForExternalEvent<long>(GithubWorkflowMessageTypes.GithubWorkflowInProgress, input.Timeout, 0);
 
     if (runId == 0) {
       var foundRunId = await CheckWorkflowInProgressAsync(context, workflowName);
       if (!foundRunId.HasValue) {
-        SetProgress(
+        SetProgressState(
           context,
-          CreateState(
-            stage: GithubWorkflowOrchestrationStage.WaitingForRunStart,
-            currentAttempt: currentAttempt,
-            maxAttempts: input.MaxAttempts,
-            finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Unknown,
-            isTerminal: true,
-            message: $"Workflow in-progress event timed out after {input.Timeout} and no workflow run was found for '{workflowName}'."));
+          stage: GithubWorkflowOrchestrationStage.WaitingForRunStart,
+          currentAttempt: currentAttempt,
+          maxAttempts: input.MaxAttempts,
+          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Unknown,
+          isTerminal: true,
+          message: $"Workflow in-progress event timed out after {input.Timeout} and no workflow run was found for '{workflowName}'.");
         throw new TimeoutException($"Workflow in-progress event timed out after {input.Timeout} and no workflow run was found");
       }
+
       runId = foundRunId.Value;
     }
 
-    SetProgress(
+    return (workflowName, runId);
+  }
+
+  private static async Task<GithubWorkflowOrchestrationState?> WaitForWorkflowAttemptResultAsync(
+    TaskOrchestrationContext context,
+    OrchestratorInput input,
+    long runId,
+    int currentAttempt) {
+    SetProgressState(
       context,
-      CreateState(
-        stage: GithubWorkflowOrchestrationStage.WaitingForCompletion,
-        currentAttempt: currentAttempt,
-        maxAttempts: input.MaxAttempts,
-        runId: runId,
-        message: "Waiting for the GitHub workflow completion event."));
+      stage: GithubWorkflowOrchestrationStage.WaitingForCompletion,
+      currentAttempt: currentAttempt,
+      maxAttempts: input.MaxAttempts,
+      runId: runId,
+      message: "Waiting for the GitHub workflow completion event.");
 
     var success = await context.WaitForExternalEvent<bool?>(GithubWorkflowMessageTypes.GithubWorkflowCompleted, input.Timeout, null);
+    return await EvaluateWorkflowAttemptAsync(context, success, runId, currentAttempt, input.MaxAttempts);
+  }
 
-    var terminalState = await EvaluateWorkflowAttemptAsync(context, success, runId, currentAttempt, input.MaxAttempts);
-    if (terminalState != null) {
-      return Complete(context, terminalState);
-    }
+  private static async Task<GithubWorkflowOrchestrationState> RetryWorkflowUntilTerminalAsync(
+    TaskOrchestrationContext context,
+    OrchestratorInput input,
+    long runId,
+    int initialAttempt) {
+    var currentAttempt = initialAttempt;
 
     while (currentAttempt < input.MaxAttempts) {
       currentAttempt++;
@@ -104,51 +127,42 @@ public class GithubWorkflowOrchestrator {
           runId,
           currentAttempt);
 
-        return Complete(
-          context,
-          CreateState(
-            stage: GithubWorkflowOrchestrationStage.Completed,
-            currentAttempt: currentAttempt,
-            maxAttempts: input.MaxAttempts,
-            runId: runId,
-            workflowRunInfo: rerunResult.LastObservedWorkflowStatus,
-            finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
-            isTerminal: true,
-            workflowSucceeded: false,
-            message: "The rerun could not be started after the configured delayed retries, so the known failed workflow outcome was treated as terminal."));
-      }
-
-      SetProgress(
-        context,
-        CreateState(
-          stage: GithubWorkflowOrchestrationStage.WaitingForCompletion,
+        return CreateCompletedState(
           currentAttempt: currentAttempt,
           maxAttempts: input.MaxAttempts,
           runId: runId,
           workflowRunInfo: rerunResult.LastObservedWorkflowStatus,
-          message: "Waiting for the GitHub workflow completion event after the rerun attempt."));
-
-      success = await context.WaitForExternalEvent<bool?>(GithubWorkflowMessageTypes.GithubWorkflowCompleted, input.Timeout, null);
-
-      terminalState = await EvaluateWorkflowAttemptAsync(context, success, runId, currentAttempt, input.MaxAttempts);
-      if (terminalState != null) {
-        return Complete(context, terminalState);
+          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
+          workflowSucceeded: false,
+          message: "The rerun could not be started after the configured delayed retries, so the known failed workflow outcome was treated as terminal.");
       }
-    }
 
-    return Complete(
-      context,
-      CreateState(
-        stage: GithubWorkflowOrchestrationStage.Completed,
+      SetProgressState(
+        context,
+        stage: GithubWorkflowOrchestrationStage.WaitingForCompletion,
         currentAttempt: currentAttempt,
         maxAttempts: input.MaxAttempts,
         runId: runId,
-        finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
-        isTerminal: true,
-        workflowStatus: WorkflowRunStatus.Completed,
-        workflowConclusion: WorkflowRunConclusion.Failure,
-        workflowSucceeded: false,
-        message: "The workflow reported failure on the final configured orchestration attempt."));
+        workflowRunInfo: rerunResult.LastObservedWorkflowStatus,
+        message: "Waiting for the GitHub workflow completion event after the rerun attempt.");
+
+      var success = await context.WaitForExternalEvent<bool?>(GithubWorkflowMessageTypes.GithubWorkflowCompleted, input.Timeout, null);
+      var terminalState = await EvaluateWorkflowAttemptAsync(context, success, runId, currentAttempt, input.MaxAttempts);
+
+      if (terminalState != null) {
+        return terminalState;
+      }
+    }
+
+    return CreateCompletedState(
+      currentAttempt: currentAttempt,
+      maxAttempts: input.MaxAttempts,
+      runId: runId,
+      finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
+      workflowStatus: WorkflowRunStatus.Completed,
+      workflowConclusion: WorkflowRunConclusion.Failure,
+      workflowSucceeded: false,
+      message: "The workflow reported failure on the final configured orchestration attempt.");
   }
 
   private static async Task<GithubWorkflowOrchestrationState?> EvaluateWorkflowAttemptAsync(
@@ -158,95 +172,97 @@ public class GithubWorkflowOrchestrator {
     int currentAttempt,
     int maxAttempts) {
     if (success.HasValue) {
-      if (success.Value) {
-        return CreateState(
-          stage: GithubWorkflowOrchestrationStage.Completed,
-          currentAttempt: currentAttempt,
-          maxAttempts: maxAttempts,
-          runId: runId,
-          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Succeeded,
-          isTerminal: true,
-          workflowStatus: WorkflowRunStatus.Completed,
-          workflowConclusion: WorkflowRunConclusion.Success,
-          workflowSucceeded: true,
-          message: "The GitHub workflow completed successfully.");
-      }
-
-      if (currentAttempt >= maxAttempts) {
-        return CreateState(
-          stage: GithubWorkflowOrchestrationStage.Completed,
-          currentAttempt: currentAttempt,
-          maxAttempts: maxAttempts,
-          runId: runId,
-          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
-          isTerminal: true,
-          workflowStatus: WorkflowRunStatus.Completed,
-          workflowConclusion: WorkflowRunConclusion.Failure,
-          workflowSucceeded: false,
-          message: "The GitHub workflow completed with failure on the final configured orchestration attempt.");
-      }
-
-      return null;
+      return CreateStateFromCompletionSignal(success.Value, runId, currentAttempt, maxAttempts);
     }
 
     var logger = context.CreateReplaySafeLogger<GithubWorkflowOrchestrator>();
     logger.LogWarning("Workflow completion event timed out on attempt {CurrentAttempt} of {MaxAttempts}",
         currentAttempt, maxAttempts);
 
-    SetProgress(
+    SetProgressState(
       context,
-      CreateState(
-        stage: GithubWorkflowOrchestrationStage.CheckingWorkflowStatus,
-        currentAttempt: currentAttempt,
-        maxAttempts: maxAttempts,
-        runId: runId,
-        message: "The workflow completion event timed out, so GitHub workflow status is being checked directly."));
+      stage: GithubWorkflowOrchestrationStage.CheckingWorkflowStatus,
+      currentAttempt: currentAttempt,
+      maxAttempts: maxAttempts,
+      runId: runId,
+      message: "The workflow completion event timed out, so GitHub workflow status is being checked directly.");
 
     var workflowStatus = await context.CallActivityAsync<WorkflowRunInfo>(
       nameof(GetWorkflowRunStatusActivity),
       runId,
       CreateWorkflowStatusRetryOptions());
 
+    return CreateStateFromObservedWorkflowStatus(workflowStatus, runId, currentAttempt, maxAttempts);
+  }
+
+  private static GithubWorkflowOrchestrationState? CreateStateFromCompletionSignal(
+    bool success,
+    long runId,
+    int currentAttempt,
+    int maxAttempts) {
+    if (success) {
+      return CreateCompletedState(
+        currentAttempt: currentAttempt,
+        maxAttempts: maxAttempts,
+        runId: runId,
+        finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Succeeded,
+        workflowStatus: WorkflowRunStatus.Completed,
+        workflowConclusion: WorkflowRunConclusion.Success,
+        workflowSucceeded: true,
+        message: "The GitHub workflow completed successfully.");
+    }
+
+    return currentAttempt >= maxAttempts
+      ? CreateCompletedState(
+          currentAttempt: currentAttempt,
+          maxAttempts: maxAttempts,
+          runId: runId,
+          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
+          workflowStatus: WorkflowRunStatus.Completed,
+          workflowConclusion: WorkflowRunConclusion.Failure,
+          workflowSucceeded: false,
+          message: "The GitHub workflow completed with failure on the final configured orchestration attempt.")
+      : null;
+  }
+
+  private static GithubWorkflowOrchestrationState? CreateStateFromObservedWorkflowStatus(
+    WorkflowRunInfo workflowStatus,
+    long runId,
+    int currentAttempt,
+    int maxAttempts) {
+
     if (workflowStatus.Status != WorkflowRunStatus.Completed) {
       // If the workflow is still incomplete after the completion event timeout, stop retry orchestration to avoid duplicate triggers.
-      return CreateState(
-        stage: GithubWorkflowOrchestrationStage.Completed,
+      return CreateCompletedState(
         currentAttempt: currentAttempt,
         maxAttempts: maxAttempts,
         runId: runId,
         workflowRunInfo: workflowStatus,
         finalOutcome: GithubWorkflowOrchestrationFinalOutcome.InProgress,
-        isTerminal: true,
         message: "The completion event timed out, but GitHub still reports the workflow as in progress, so the orchestration stopped to avoid duplicate triggers.");
     }
 
     if (workflowStatus.Conclusion == WorkflowRunConclusion.Success) {
-      return CreateState(
-        stage: GithubWorkflowOrchestrationStage.Completed,
+      return CreateCompletedState(
         currentAttempt: currentAttempt,
         maxAttempts: maxAttempts,
         runId: runId,
         workflowRunInfo: workflowStatus,
         finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Succeeded,
-        isTerminal: true,
         workflowSucceeded: true,
         message: "The GitHub workflow completed successfully after the completion event timeout was cross-checked against GitHub.");
     }
 
-    if (currentAttempt >= maxAttempts) {
-      return CreateState(
-        stage: GithubWorkflowOrchestrationStage.Completed,
-        currentAttempt: currentAttempt,
-        maxAttempts: maxAttempts,
-        runId: runId,
-        workflowRunInfo: workflowStatus,
-        finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
-        isTerminal: true,
-        workflowSucceeded: false,
-        message: "The GitHub workflow completed with failure on the final configured orchestration attempt.");
-    }
-
-    return null;
+    return currentAttempt >= maxAttempts
+      ? CreateCompletedState(
+          currentAttempt: currentAttempt,
+          maxAttempts: maxAttempts,
+          runId: runId,
+          workflowRunInfo: workflowStatus,
+          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
+          workflowSucceeded: false,
+          message: "The GitHub workflow completed with failure on the final configured orchestration attempt.")
+      : null;
   }
 
   private static async Task<long?> CheckWorkflowInProgressAsync(TaskOrchestrationContext context, string workflowName) {
@@ -281,15 +297,14 @@ public class GithubWorkflowOrchestrator {
     for (var retryIndex = 0; retryIndex < rerunTriggerRetryDelays.Count; retryIndex++) {
       var delay = rerunTriggerRetryDelays[retryIndex];
 
-      SetProgress(
+      SetProgressState(
         context,
-        CreateState(
-          stage: GithubWorkflowOrchestrationStage.WaitingToRetryRerun,
-          currentAttempt: currentAttempt,
-          maxAttempts: maxAttempts,
-          runId: runId,
-          workflowRunInfo: lastWorkflowStatus,
-          message: $"Waiting {delay.TotalSeconds} seconds before rerun trigger attempt {retryIndex + 1} of {rerunTriggerRetryDelays.Count}."));
+        stage: GithubWorkflowOrchestrationStage.WaitingToRetryRerun,
+        currentAttempt: currentAttempt,
+        maxAttempts: maxAttempts,
+        runId: runId,
+        workflowRunInfo: lastWorkflowStatus,
+        message: $"Waiting {delay.TotalSeconds} seconds before rerun trigger attempt {retryIndex + 1} of {rerunTriggerRetryDelays.Count}.");
 
       logger.LogInformation(
         "Waiting {DelaySeconds} seconds before rerun trigger attempt {RetryAttempt} of {RetryCount} for workflow run {RunId} on orchestration attempt {CurrentAttempt}",
@@ -312,15 +327,14 @@ public class GithubWorkflowOrchestrator {
           runId,
           currentAttempt);
 
-        SetProgress(
+        SetProgressState(
           context,
-          CreateState(
-            stage: GithubWorkflowOrchestrationStage.CheckingWorkflowStatus,
-            currentAttempt: currentAttempt,
-            maxAttempts: maxAttempts,
-            runId: runId,
-            workflowRunInfo: lastWorkflowStatus,
-            message: "The rerun trigger failed, so GitHub workflow status is being checked directly before deciding whether another rerun attempt is needed."));
+          stage: GithubWorkflowOrchestrationStage.CheckingWorkflowStatus,
+          currentAttempt: currentAttempt,
+          maxAttempts: maxAttempts,
+          runId: runId,
+          workflowRunInfo: lastWorkflowStatus,
+          message: "The rerun trigger failed, so GitHub workflow status is being checked directly before deciding whether another rerun attempt is needed.");
 
         // A trigger exception does not prove the rerun did not happen, so re-read GitHub state before
         // deciding whether another rerun attempt is still needed.
@@ -394,6 +408,59 @@ public class GithubWorkflowOrchestrator {
       IsTerminal = isTerminal,
       Message = message
     };
+  }
+
+  private static GithubWorkflowOrchestrationState CreateCompletedState(
+    int currentAttempt,
+    int maxAttempts,
+    long? runId = null,
+    WorkflowRunInfo? workflowRunInfo = null,
+    GithubWorkflowOrchestrationFinalOutcome? finalOutcome = null,
+    bool? workflowSucceeded = null,
+    WorkflowRunStatus? workflowStatus = null,
+    WorkflowRunConclusion? workflowConclusion = null,
+    string? message = null) {
+    return CreateState(
+      stage: GithubWorkflowOrchestrationStage.Completed,
+      currentAttempt: currentAttempt,
+      maxAttempts: maxAttempts,
+      runId: runId,
+      workflowRunInfo: workflowRunInfo,
+      finalOutcome: finalOutcome,
+      isTerminal: true,
+      workflowSucceeded: workflowSucceeded,
+      workflowStatus: workflowStatus,
+      workflowConclusion: workflowConclusion,
+      message: message);
+  }
+
+  private static void SetProgressState(
+    TaskOrchestrationContext context,
+    GithubWorkflowOrchestrationStage stage,
+    int currentAttempt,
+    int maxAttempts,
+    long? runId = null,
+    WorkflowRunInfo? workflowRunInfo = null,
+    GithubWorkflowOrchestrationFinalOutcome? finalOutcome = null,
+    bool isTerminal = false,
+    bool? workflowSucceeded = null,
+    WorkflowRunStatus? workflowStatus = null,
+    WorkflowRunConclusion? workflowConclusion = null,
+    string? message = null) {
+    SetProgress(
+      context,
+      CreateState(
+        stage: stage,
+        currentAttempt: currentAttempt,
+        maxAttempts: maxAttempts,
+        runId: runId,
+        workflowRunInfo: workflowRunInfo,
+        finalOutcome: finalOutcome,
+        isTerminal: isTerminal,
+        workflowSucceeded: workflowSucceeded,
+        workflowStatus: workflowStatus,
+        workflowConclusion: workflowConclusion,
+        message: message));
   }
 
   private static void SetProgress(TaskOrchestrationContext context, GithubWorkflowOrchestrationState state) {

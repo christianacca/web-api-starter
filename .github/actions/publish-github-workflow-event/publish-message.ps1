@@ -39,6 +39,55 @@ $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..' '.
 
 Import-Module (Join-Path $PSScriptRoot '..' '_shared' 'GitHubWorkflowQueueSupport.psm1') -Force
 
+function Publish-QueueMessage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [hashtable] $WorkflowQueueContext,
+
+        [Parameter(Mandatory)]
+        [string] $QueueName,
+
+        [Parameter(Mandatory)]
+        [string] $EncodedMessageBody
+    )
+
+    if ($WorkflowQueueContext.ContainsKey('StorageConnectionString')) {
+        $storageConnectionString = [string] $WorkflowQueueContext.StorageConnectionString
+        $publishTarget = "local verification queue '$QueueName'"
+        $publishResponse = az storage message put `
+            --connection-string $storageConnectionString `
+            --queue-name $QueueName `
+            --content $EncodedMessageBody `
+            --only-show-errors 2>&1
+
+        return @{
+            ExitCode = $LASTEXITCODE
+            PublishTarget = $publishTarget
+            PublishResponse = $publishResponse
+        }
+    }
+
+    if ($WorkflowQueueContext.ContainsKey('StorageAccountName')) {
+        $storageAccountName = [string] $WorkflowQueueContext.StorageAccountName
+        $publishTarget = "$storageAccountName/$QueueName"
+        $publishResponse = az storage message put `
+            --account-name $storageAccountName `
+            --queue-name $QueueName `
+            --auth-mode login `
+            --content $EncodedMessageBody `
+            --only-show-errors 2>&1
+
+        return @{
+            ExitCode = $LASTEXITCODE
+            PublishTarget = $publishTarget
+            PublishResponse = $publishResponse
+        }
+    }
+
+    throw "Unable to resolve either StorageAccountName or StorageConnectionString for queue publishing."
+}
+
 $workflowQueueContext = Resolve-WorkflowQueueContext -WorkflowName $WorkflowName -EnvironmentName $GitHubEnvironment -LocalVerificationDirectiveJson $LocalVerificationDirective
 $conclusion = $null
 $payload = [ordered]@{
@@ -81,7 +130,7 @@ if ([string]::IsNullOrWhiteSpace($GitHubAppInstallationId)) {
 }
 
 $payloadJson = $payload | ConvertTo-Json -Compress
-$null = $PayloadJson | ConvertFrom-Json -AsHashtable
+$null = $payloadJson | ConvertFrom-Json -AsHashtable
 
 $userId = (Get-Guid -Value $GitHubAppInstallationId).ToString()
 $userContext = @(
@@ -114,34 +163,13 @@ $messageBody = @{
 } | ConvertTo-Json -Compress -Depth 10
 $encodedMessageBody = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($messageBody))
 
-if ($workflowQueueContext.ContainsKey('StorageConnectionString')) {
-    $storageConnectionString = [string] $workflowQueueContext.StorageConnectionString
-    $publishTarget = "local verification queue '$QueueName'"
-    $publishResponse = az storage message put `
-        --connection-string $storageConnectionString `
-        --queue-name $QueueName `
-        --content $encodedMessageBody `
-        --only-show-errors 2>&1
-}
-elseif ($workflowQueueContext.ContainsKey('StorageAccountName')) {
-    $storageAccountName = [string] $workflowQueueContext.StorageAccountName
-    $publishTarget = "$storageAccountName/$QueueName"
-    $publishResponse = az storage message put `
-        --account-name $storageAccountName `
-        --queue-name $QueueName `
-        --auth-mode login `
-        --content $encodedMessageBody `
-        --only-show-errors 2>&1
-}
-else {
-    throw "Unable to resolve either StorageAccountName or StorageConnectionString for queue publishing."
+$publishResult = Publish-QueueMessage -WorkflowQueueContext $workflowQueueContext -QueueName $QueueName -EncodedMessageBody $encodedMessageBody
+
+if ($publishResult.ExitCode -ne 0) {
+    throw "Failed to publish queue message '$MessageType' to '$($publishResult.PublishTarget)'. $($publishResult.PublishResponse)"
 }
 
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to publish queue message '$MessageType' to '$publishTarget'. $publishResponse"
-}
-
-Write-Host "Published queue message '$MessageType' to '$publishTarget' with MessageBody id '$messageId'."
+Write-Host "Published queue message '$MessageType' to '$($publishResult.PublishTarget)' with MessageBody id '$messageId'."
 
 if ($env:GITHUB_OUTPUT) {
     if ($conclusion) {
