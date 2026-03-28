@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide walks through the process of creating and configuring a GitHub App for use with workflow orchestration systems. The process is divided into responsibilities between three teams:
+This guide walks through the process of creating and configuring a GitHub App for workflow orchestration. The process is divided into responsibilities between three teams:
 
 - **Dev Team**: Generates ServiceNow ticket request with environment-specific details
 - **GitHub Admin Team**: Creates the GitHub App for the specified environment, generates credentials, and provides initial configuration
@@ -67,16 +67,15 @@ Priority:
 
 Description:
 Purpose:
-This GitHub App is required to enable workflow orchestration for the dev environment. 
-The application uses GitHub Apps to securely authenticate with GitHub and receive webhook notifications 
-when workflows complete. This allows the application to monitor and respond to GitHub Actions workflow 
-execution, enabling automated deployment pipelines and CI/CD orchestration.
+This GitHub App is required to enable workflow orchestration for the dev environment for 
+the Web API starter Project
+The application uses GitHub Apps to securely authenticate with GitHub and dispatch GitHub Actions
+workflows for this environment.
 
 Environment Details:
 - Environment Name: dev
 - GitHub App Name: Web API Starter (dev)
 - API Domain: dev-api-was.codingdemo.co.uk
-- Webhook URL: https://dev-api-was.codingdemo.co.uk/api/github/webhooks
 
 Repository Information:
 - Repository: christianacca/web-api-starter
@@ -86,23 +85,19 @@ Required Permissions:
 - Actions: Read & Write
 - Metadata: Read
 
-Webhook Configuration:
-- Subscribe to Events: Workflow run
-- Webhook Active: Yes
-
 Next Steps:
 1. Create GitHub App with the above configuration
 2. Install app to repository: christianacca/web-api-starter
 3. Generate private key (.pem file)
-4. Generate webhook secret
-5. Provide the following to App Admin Team:
+4. Provide the following to App Admin Team:
    - App ID
    - Installation ID
    - Private key .pem file (securely)
-   - Webhook secret (securely)
 
 Please refer to the GitHub App Creation Guide - GitHub Admin Team Responsibilities:
 https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team-responsibilities
+
+✓ Copy the above information and create a ServiceNow ticket
 ```
 
 ### Create ServiceNow Ticket
@@ -151,47 +146,15 @@ For a complete list of available permissions, see: [GitHub App Permissions Refer
 
 ![GitHub App Permissions](assets/creating%20github%20app-%20permissions.png)
 
-### Step 3: Generate and Save Webhook Secret
+### Step 3: Leave Event Delivery Settings Unused
 
-Generate a secure webhook secret that will be used to validate webhook requests from GitHub.
+This app uses GitHub Actions permissions and repository installation only.
 
-**Using PowerShell:**
-```powershell
-$bytes = New-Object Byte[] 32
-[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-$webhookSecret = [Convert]::ToBase64String($bytes)
-Write-Host $webhookSecret
-```
+1. Leave GitHub event subscription settings unused for this app
+2. Do not create additional secret material for callback delivery
+3. Proceed directly to private key generation
 
-**Using OpenSSL (Git Bash or Linux/Mac):**
-```bash
-openssl rand -base64 32
-```
-
-**IMPORTANT**: Save this webhook secret securely - you will need to:
-1. Enter it in the GitHub App webhook configuration (Step 4)
-2. Share it securely with the App Admin Team for Key Vault upload
-
-### Step 4: Configure Webhook
-
-Configure the webhook settings for the GitHub App using the information from the ServiceNow ticket:
-
-1. **Webhook URL**: Use the exact **Webhook URL** from the ServiceNow ticket
-   - Example from ticket: `https://dev-api-was.codingdemo.co.uk/api/github/webhooks`
-
-2. **Webhook secret**: Enter the webhook secret you generated in Step 3
-
-3. **Subscribe to events**: Check the following event:
-   - **Workflow run**
-   - For more information on available events, see: [GitHub App Webhook Events](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
-
-4. **Webhook active**: Ensure this checkbox is checked
-
-![GitHub App Webhook Setup](assets/creating%20github%20app-%20webhooks%20setup.png)
-
-![GitHub App Events](assets/creating%20github%20app-%20events.png)
-
-### Step 5: Generate Private Key
+### Step 4: Generate Private Key
 
 1. Scroll to the bottom of the app settings page
 2. Click **Generate a private key**
@@ -200,13 +163,13 @@ Configure the webhook settings for the GitHub App using the information from the
 
 ![GitHub App Generate Private Key](assets/creating%20github%20app-%20generate%20a%20private%20key.png)
 
-### Step 6: Note App ID
+### Step 5: Note App ID
 
 - The **App ID** is displayed at the top of the app settings page
 - **Note**: This ID is always available in the GitHub App settings and can be retrieved at any time
 - Copy this ID for the handover to the App Admin Team and Dev Team
 
-### Step 7: Install GitHub App to Repository
+### Step 6: Install GitHub App to Repository
 
 The GitHub App must be installed to the `christianacca/web-api-starter` repository for the app to function correctly.
 
@@ -238,7 +201,7 @@ After installation, verify the app is correctly installed:
 3. Confirm your GitHub App appears in the list of installed apps and click **Configure**
 4. Verify the app has the correct permissions (Actions: Read & Write, Metadata: Read)
 
-### Step 8: Get Installation ID
+### Step 7: Get Installation ID
 
 After installation, retrieve the Installation ID:
 
@@ -279,11 +242,6 @@ After completing the GitHub App creation and installation, the GitHub Admin Team
    - **Share securely**: Use encrypted communication or secure file sharing
    - The App Admin Team will upload this to Azure Key Vault
 
-5. **Webhook Secret**
-   - Location: Generated in Step 3
-   - **Share securely**: Use encrypted communication (never commit to source control)
-   - The App Admin Team will upload this to Azure Key Vault
-
 ---
 
 ## Part 4: App Admin Team Responsibilities
@@ -322,7 +280,6 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
    The script `tools/infrastructure/upload-github-app-secrets.ps1` will:
    - Auto-detect the Key Vault name for the environment
    - Upload the private key as `Github--PrivateKeyPem`
-   - Upload the webhook secret as `Github--WebhookSecret`
    - Verify successful upload
 
    **Example for dev environment:**
@@ -330,8 +287,7 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
    cd tools/infrastructure
    ./upload-github-app-secrets.ps1 `
      -EnvironmentName dev `
-     -PemFilePath "C:/temp/github-app-private-key.pem" `
-     -WebhookSecret "the-webhook-secret-from-github-admin"
+       -PemFilePath "C:/temp/github-app-private-key.pem"
    ```
 
    **Note**: Use the environment name that matches the one specified in the ServiceNow ticket (see Part 1 for available environment names).
@@ -343,8 +299,8 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
    Upload completed successfully
 
    Configuration Details:
-   Key Vault Name    GitHub App Name       GitHub App Slug    GitHub Webhook URL                                      Webhook Secret
-   kv-was-dev        Web API Starter - Dev was-dev            https://dev-api-was.codingdemo.co.uk/api/github/webhooks <secret-value>
+   Key Vault Name    GitHub App Name       GitHub App Slug     Private Key
+   kv-was-dev        Web API Starter (dev) web-api-starter-dev (uploading)
    ```
 
 #### Security Cleanup
@@ -353,7 +309,7 @@ After successfully uploading to the environment:
 
 1. **Delete the .pem file** from your local machine
 
-2. **Clear the webhook secret** from your terminal/clipboard history
+2. **Clear any temporary local copies** or clipboard history containing the private key path or file contents
 
 3. **Verify secrets are accessible** in the Key Vault before proceeding
 
@@ -527,19 +483,18 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
      cd web-api-starter
      ```
 
-   Use the upload script for the environment specified in the ServiceNow ticket. When rotating the private key, provide only the `-PemFilePath` parameter to upload just the private key without modifying the existing webhook secret:
+   Use the upload script for the environment specified in the ServiceNow ticket. The script updates only the private key secret for the selected environment:
 
    ```powershell
    cd tools/infrastructure
    
-   # Example: Upload to dev (only private key, preserves existing webhook secret)
+   # Example: Upload to dev
    ./upload-github-app-secrets.ps1 -EnvironmentName dev -PemFilePath "C:/temp/new-github-app-key.pem"
    ```
 
    **Note**: The script will:
    - Update the `Github--PrivateKeyPem` secret with the new private key
-   - Skip webhook secret (since `-WebhookSecret` parameter is not provided)
-   - Display a message "Skipping webhook secret upload (not provided)"
+   - Display a dry-run or success summary for the environment-specific Key Vault
 
 3. **Verify Upload Success**
 
@@ -580,7 +535,7 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
 
    - Run the **Trigger Workflow** request in the Postman collection (`tests/postman/api.postman_collection.json`)
    - Verify the workflow runs successfully in GitHub Actions
-   - Confirm the GitHub App authenticates with the new private key and webhooks are processed correctly
+   - Confirm the GitHub App authenticates with the new private key and the workflow runs successfully
 
 ### Rotation Schedule Recommendations
 
@@ -602,47 +557,6 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
 - Store the private key only in Azure Key Vault (uploaded by App Admin Team)
 - Restrict Key Vault access to only necessary personnel and services
 - Use managed identities when accessing the private key from applications
-
-### Webhook Secret
-
-- **GitHub Admin Team**: Generate a strong, cryptographically random webhook secret
-- **App Admin Team**: Upload the secret to Key Vault and then delete from local storage
-- Never commit the secret to source control
-- Rotate the secret regularly (recommended: every 90 days)
-
-#### Webhook Secret Rotation
-
-**IMPORTANT**: Unlike private keys, webhook secrets do NOT have a sunset period. GitHub only allows one active webhook secret at a time per app. This means rotation must be carefully coordinated between the GitHub Admin Team and App Admin Team to minimize downtime.
-
-**Rotation Process:**
-
-1. **Plan a maintenance window**: Choose a time when webhook processing downtime is acceptable (typically during off-hours)
-
-2. **GitHub Admin Team**:
-   - Generate a new webhook secret using the same method as initial creation (Step 3)
-   - **DO NOT update GitHub App settings yet**
-   - Securely share the new webhook secret with App Admin Team
-
-3. **App Admin Team**:
-   - Upload the new webhook secret to the environment's Key Vault:
-     ```powershell
-     cd tools/infrastructure
-     ./upload-github-app-secrets.ps1 -EnvironmentName <env> -WebhookSecret "<new-secret>"
-     ```
-   - Replace `<env>` with the environment name (e.g., `dev`, `prod-na`)
-   - Replace `<new-secret>` with the actual webhook secret from GitHub Admin Team
-   - Verify successful upload
-   - Confirm completion to GitHub Admin Team
-
-4. **GitHub Admin Team** (after App Admin confirmation):
-   - Update the webhook secret in GitHub App settings immediately
-   - Navigate to GitHub App → General → Webhook secret
-   - Enter the new webhook secret
-   - Save changes
-
-**Note**: There will be a brief period between when the App Admin Team uploads the new secret and when the GitHub Admin Team updates it in GitHub settings. During this time, webhooks will continue to work with the old secret. After GitHub Admin updates the secret, any delay in Key Vault cache refresh may cause a brief period of webhook validation failures until the application picks up the new secret from Key Vault.
-
----
 
 ## Additional Resources
 

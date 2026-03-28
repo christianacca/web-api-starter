@@ -3,10 +3,9 @@
       Generate ServiceNow ticket request for GitHub App creation
       
       .DESCRIPTION
-      Generates a ServiceNow ticket subject and body with all required information for the 
-      GitHub Admin Team to create a GitHub App for the specified environment. The output 
-      includes environment-specific details such as webhook URL, app name, repository, and 
-      required permissions.
+    Generates a ServiceNow ticket subject and body with all required information for the
+    GitHub Admin Team to create a GitHub App for the specified environment. The output
+    requests an Actions-permissions app for workflow dispatch.
       
       .PARAMETER EnvironmentName
       Environment name (dev, qa, rel, demo, staging, prod-*, etc.)
@@ -36,11 +35,9 @@
 
             $convention = & "$PSScriptRoot/get-product-conventions.ps1" -EnvironmentName $EnvironmentName -AsHashtable
             $apiDomain = $convention.SubProducts.Api.HostName
-            $webhookUrl = $convention.SubProducts.Github.WebhookUrl
             $githubAppName = $convention.SubProducts.Github.AppName
             $githubOwner = $convention.SubProducts.Github.Owner
             $githubRepo = $convention.SubProducts.Github.Repo
-            
             $repository = "$githubOwner/$githubRepo"
             $branch = "master"
             
@@ -54,15 +51,13 @@
 Purpose:
 This GitHub App is required to enable workflow orchestration for the $EnvironmentName environment for 
 the Web API starter Project
-The application uses GitHub Apps to securely authenticate with GitHub and receive webhook notifications 
-when workflows complete. This allows the application to monitor and respond to GitHub Actions workflow 
-execution, enabling us to automate various tasks by using github workflows.
+The application uses GitHub Apps to securely authenticate with GitHub and dispatch GitHub Actions
+workflows for this environment.
 
 Environment Details:
 - Environment Name: $EnvironmentName
 - GitHub App Name: $githubAppName
 - API Domain: $apiDomain
-- Webhook URL: $webhookUrl
 
 Repository Information:
 - Repository: $repository
@@ -72,20 +67,14 @@ Required Permissions:
 - Actions: Read & Write
 - Metadata: Read
 
-Webhook Configuration:
-- Subscribe to Events: Workflow run
-- Webhook Active: Yes
-
 Next Steps:
 1. Create GitHub App with the above configuration
 2. Install app to repository: $repository
 3. Generate private key (.pem file)
-4. Generate webhook secret
-5. Provide the following to App Admin Team:
+4. Provide the following to App Admin Team:
    - App ID
    - Installation ID
    - Private key .pem file (securely)
-   - Webhook secret (securely)
 
 Please refer to the GitHub App Creation Guide - GitHub Admin Team Responsibilities:
 https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team-responsibilities

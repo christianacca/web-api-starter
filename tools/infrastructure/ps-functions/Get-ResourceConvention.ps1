@@ -661,9 +661,6 @@ function Get-ResourceConvention {
                     Pipeline = $spInput.Pipeline ?? @($EnvironmentName)
                 }
                 
-                $targetSubProduct = $subProductsConventions[$spInput.Target]
-                $webhookUrl = 'https://{0}{1}' -f $targetSubProduct.HostName, ($spInput.WebhookPath ?? '/api/github/webhooks')
-                
                 @{
                     Owner               =   $spInput.Owner
                     Repo                =   $spInput.Repo
@@ -672,7 +669,6 @@ function Get-ResourceConvention {
                     AppId               =   $spInput.AppId 
                     InstallationId      =   $spInput.InstallationId
                     AuthorizedEnvironment = $authorizedEnv
-                    WebhookUrl          =   $webhookUrl
                     Type                =   $spInput.Type
                 }
             }            

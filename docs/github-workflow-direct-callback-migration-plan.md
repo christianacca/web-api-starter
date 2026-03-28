@@ -825,17 +825,17 @@ Stop scripts, conventions, and GitHub App operational steps from requiring webho
 
 ### Steps
 
-- [ ] Update [tools/infrastructure/ps-functions/Get-ResourceConvention.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/ps-functions/Get-ResourceConvention.ps1) so GitHub conventions no longer expose a webhook URL as a required output.
-- [ ] Update [tools/infrastructure/upload-github-app-secrets.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/upload-github-app-secrets.ps1) to stop accepting, displaying, or uploading webhook secrets.
-- [ ] Update [tools/infrastructure/generate-github-app-servicenow-ticket.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/generate-github-app-servicenow-ticket.ps1) so it requests an Actions-permissions app only.
-- [ ] Update conventions, deployment docs, or infra helpers as needed so the workflow can discover the Function App storage account and `default-queue` without relying on ad hoc secrets.
-- [ ] Remove or disable the remaining webhook behavior from all GitHub Apps after the queue-path deployment and Phase 4 application cleanup are complete.
-- [ ] Search `tools/infrastructure/` for webhook-era terminology and remove or rewrite it.
-- [ ] If any scripts are intended to be run in dry-run mode, execute those dry runs and inspect the output.
-- [ ] Build the solution if any shared code or settings are touched.
-- [ ] Update the checklist for this phase.
-- [ ] If this phase produced file changes, create one commit on the current branch after verification passed.
-- [ ] Feed forward tooling and wording findings into Phase 6.
+- [x] Update [tools/infrastructure/ps-functions/Get-ResourceConvention.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/ps-functions/Get-ResourceConvention.ps1) so GitHub conventions no longer expose a webhook URL as a required output.
+- [x] Update [tools/infrastructure/upload-github-app-secrets.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/upload-github-app-secrets.ps1) to stop accepting, displaying, or uploading webhook secrets.
+- [x] Update [tools/infrastructure/generate-github-app-servicenow-ticket.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/generate-github-app-servicenow-ticket.ps1) so it requests an Actions-permissions app only.
+- [x] Update conventions, deployment docs, or infra helpers as needed so the workflow can discover the Function App storage account and `default-queue` without relying on ad hoc secrets.
+- [x] Remove or disable the remaining webhook behavior from all GitHub Apps after the queue-path deployment and Phase 4 application cleanup are complete.
+- [x] Search `tools/infrastructure/` for webhook-era terminology and remove or rewrite it.
+- [x] If any scripts are intended to be run in dry-run mode, execute those dry runs and inspect the output.
+- [x] Build the solution if any shared code or settings are touched.
+- [x] Update the checklist for this phase.
+- [x] If this phase produced file changes, create one commit on the current branch after verification passed.
+- [x] Feed forward tooling and wording findings into Phase 6.
 
 ### Verification
 
@@ -859,7 +859,19 @@ Stop scripts, conventions, and GitHub App operational steps from requiring webho
 - Phase 4 should complete before webhook-era infra cleanup begins. Phase 5 should assume the validated steady-state workflow shape is: authz-only [github-app-authz-envs/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/github-app-authz-envs/action.yml), environment-scoped publish jobs, and the shared [publish-github-workflow-event/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/publish-github-workflow-event/action.yml) publisher.
 - Infrastructure and GitHub App operational guidance should not suggest that a composite action can change the Azure OIDC subject. If any infra or runbook wording discusses queue-publication auth, it should describe the environment-scoped caller-job requirement instead.
 - GitHub App cleanup work should preserve the existing environment-scoped federated credential model and should not introduce new branch-scoped credentials as a workaround for workflow publication.
-- Any remaining webhook-era support scripts or operational instructions should be rewritten to reflect that deployed verification is now performed by correlating orchestration `instanceId`, GitHub Actions run id, and Application Insights telemetry, rather than assuming direct webhook callbacks or direct storage-table reads are the primary operational signal.
+- Any remaining support scripts or operational instructions should be rewritten to reflect that deployed verification is performed by correlating orchestration `instanceId`, GitHub Actions run id, and Application Insights telemetry, rather than assuming direct storage-table reads are the primary operational signal.
+- Phase 5 also made [tools/infrastructure/upload-github-app-secrets.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/upload-github-app-secrets.ps1) a true dry-run script by skipping Azure module import and account-context setup when `-Dry` is used. Later operator guidance should keep dry-run validation credential-light unless a script is intentionally validating live Azure state.
+
+### Phase 5 Execution Log
+
+- Date: 2026-03-28
+- Agent: GitHub Copilot (GPT-5.4)
+- Summary of completed work: Removed queue implementation details from the GitHub app infrastructure convention so it contains only GitHub App concerns, refactored [tools/infrastructure/upload-github-app-secrets.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/upload-github-app-secrets.ps1) to be private-key-only and to support credential-free dry runs, and rewrote [tools/infrastructure/generate-github-app-servicenow-ticket.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/generate-github-app-servicenow-ticket.ps1) so it requests an Actions-permissions GitHub App without exposing technical implementation details in the operator-facing request.
+- Verification run: `pwsh -NoProfile -Command '$c = ./tools/infrastructure/get-product-conventions.ps1 -EnvironmentName dev -AsHashtable; $c.SubProducts.Github | ConvertTo-Json -Depth 10'`; `pwsh -NoProfile -File ./tools/infrastructure/generate-github-app-servicenow-ticket.ps1 -EnvironmentName dev`; `pwsh -NoProfile -File ./tools/infrastructure/upload-github-app-secrets.ps1 -EnvironmentName dev -PemFilePath /tmp/fake-github-app.pem -Dry`; repo search under `tools/infrastructure/**` for `webhook|WebhookSecret|WebhookUrl|api/github/webhooks|workflow_run`
+- Files changed: `tools/infrastructure/get-product-conventions.ps1`; `tools/infrastructure/ps-functions/Get-ResourceConvention.ps1`; `tools/infrastructure/upload-github-app-secrets.ps1`; `tools/infrastructure/generate-github-app-servicenow-ticket.ps1`; `docs/github-workflow-direct-callback-migration-plan.md`
+- Findings: The earlier Phase 5 convention refactor exposed that queue publication had been incorrectly coupled to the GitHub app convention by inheriting `Target = Api`. After re-evaluating the boundary, Phase 5 removed those queue fields from the GitHub app model entirely because queue resolution belongs to the workflow dispatcher and publisher path, not to GitHub App metadata. The updated dry-run validation also showed that the secret-upload support script should not require Azure modules or a signed-in Azure account when it is only printing planned operations; later operator-facing dry-run tooling should preserve that pattern. After the cleanup, the only `tools/infrastructure/**` search hits containing `webhook` are intentional references in Azure Monitor ARM schema properties.
+- Feed-forward updates applied to later phases: Phase 6 docs should keep the GitHub App creation/request flow focused on Actions-only setup and should document queue resolution only in the workflow implementation guidance where that behavior is actually owned. Phase 6 should also preserve the new dry-run behavior in any operator guidance for [tools/infrastructure/upload-github-app-secrets.ps1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/tools/infrastructure/upload-github-app-secrets.ps1).
+- Remaining risks: The repo-side Phase 5 work is complete, but the operational step to remove or disable webhook behavior on the live GitHub Apps remains outstanding and still requires action outside this repository. No solution build was run in this phase because the changes were limited to infrastructure PowerShell scripts and the migration plan document.
 
 ---
 
