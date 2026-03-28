@@ -10,6 +10,11 @@ See: <https://docs.microsoft.com/en-us/azure/storage/common/storage-use-azurite>
 
 This version is required to support Azure Storage API version 2025-07-05 used by .NET 10 Azure Storage SDKs.
 
+> [!IMPORTANT]
+> Current local Azure Functions startup may issue storage requests using a newer API version than Azurite recognizes.
+> The local startup script in this repo uses `--skipApiVersionCheck` for that reason.
+> Keep Azurite updated, but do not expect upgrading alone to remove this specific startup failure.
+
 ## Install and run (for command-line)
 
 ### Install
@@ -42,32 +47,52 @@ azurite --version
 ./tools/azurite/azurite-run.ps1
 ```
 
+The script starts Azurite with `--skipApiVersionCheck` to avoid local Azure Functions host startup failures such as:
+
+```text
+The API version 2026-02-06 is not supported by Azurite.
+```
+
+If you start Azurite manually instead of using the script, include that flag yourself.
+
 > [!NOTE] if you have only just installed Azurite then you might need to re-open the powershell command prompt before the term `azurite` is recognised.
-
-> [!NOTE] if after re-opening the powershell prompt the term `azurite` is still not recognised then it might be that the global folder into which
-npm installs global modules is not included in your PATH environment variable. For example, on a windows VM created in Azure, I had to add to my PATH
-environment variable (for me C:\Users\ccrowhurst\AppData\Roaming\npm)
-
+>
+> If after re-opening the powershell prompt the term `azurite` is still not recognised then it might be that the global folder into which
+> npm installs global modules is not included in your PATH environment variable. For example, on a windows VM created in Azure, I had to add to my PATH
+> environment variable (for me C:\Users\ccrowhurst\AppData\Roaming\npm)
 
 ## Install and run (for Visual Studio)
 
 Currently there is no (obvious) way to configure VS2022 to run its own managed version of Azurite to use https. The workaround is to run Azurite
 from command-line first BEFORE starting the function app in VS2022. See instructions above
 
-
 ## Install and run (for Visual Studio Code)
 
 Complete the prerequisites in the command-line section above, then:
 
-Azurite starts automatically as a pre-launch task when you:
-- Press **F5** and select **"Debug Functions (Template.Functions)"** from the debug dropdown
-- Or use the debug panel and launch the Functions configuration
+Azurite starts automatically through the VS Code task chain when you debug the Functions app.
+
+Current recommended flow:
+
+1. Go to **Run and Debug**
+2. Select **"Attach to .NET Functions"** from the debug dropdown
+3. Start debugging
+
+The Functions tooling will start the local Functions host, and that host task depends on the `start azurite` task defined in `.vscode/tasks.json`.
+
+> [!NOTE]
+> VS Code may first show a dialog like:
+>
+> `Failed to verify "AzureWebJobsStorage" connection specified in "local.settings.json". Is the local emulator installed and running?`
+>
+> In this repo, selecting **Debug anyway** is expected. The `start azurite` task then starts Azurite using `./tools/azurite/azurite-run.ps1`, after which debugging continues normally.
+
+Once the Functions host is already running, you can stop and re-run **"Attach to .NET Functions"** without needing Azurite to be started again just for the re-attach.
 
 The Azurite process runs in a dedicated terminal panel and will remain running until you stop it manually or close VS Code.
 
 > [!TIP]
 > You can also manually start Azurite by running the task "start azurite" from the Command Palette (Cmd+Shift+P > Tasks: Run Task > start azurite)
-
 
 ## Install and use Azure Storage Explorer
 

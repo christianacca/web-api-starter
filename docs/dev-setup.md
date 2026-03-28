@@ -52,6 +52,9 @@ Once up and running, feel free to then switch to running the projects via an IDE
     * windows: `iex "& { $(irm https://aka.ms/install-artifacts-credprovider.ps1) }"`
     * mac: `sh -c "$(curl -fsSL https://aka.ms/install-artifacts-credprovider.sh)"`
     * for more details on installation see: <https://github.com/microsoft/artifacts-credprovider#setup>
+11. If you need GitHub or another external service to call one of your local services, install Microsoft dev tunnels CLI:
+    * Follow the install instructions here: [Microsoft Dev Tunnels / Install](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=windows#install)
+    * For repo-specific tunnel usage, see [Microsoft dev tunnels for local services](./dev-tunnels.md)
 
 ## API
 
@@ -78,6 +81,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
         But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
 6. Start/Run the API project: `dotnet run --project ./src/Template.Api`
 7. Check that the basics are running by browsing to: <https://localhost:5000/health>
+8. If you need to expose the local API externally, see [API tunnel guidance](./dev-tunnels.md#api-on-port-5000).
 
 ## App
 
@@ -97,6 +101,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
         But note that any forward slash will need to be escaped by adding another forward slash eg `\\`
 3. Start/Run the API project: `dotnet run --project ./src/Template.App`
 4. Check that the basics are running by browsing to: <https://localhost:5001/health>
+5. If you need to expose the local App externally, see [App tunnel guidance](./dev-tunnels.md#app-on-port-5001).
 
 ## Functions App
 
@@ -127,6 +132,8 @@ Once up and running, feel free to then switch to running the projects via an IDE
     2. Import the postman environment [api-local.postman_environment.json](../tests/postman/api-local.postman_environment.json)
     3. Run the requests "GetUser Function" in the collection "MRI Web API Starter>Proxied"
        **Note**: assumes you're already running the Api project (see above section)
+9. If you need to expose the local Functions HTTP endpoints externally, see [Functions tunnel guidance](./dev-tunnels.md#functions-http-endpoints-on-port-7071).
+10. If you need to expose the local Azurite queue for temporary workflow queue verification, see [Azurite queue tunnel guidance](./dev-tunnels.md#azurite-queue-on-port-10001).
 
 
 ## Running the API and Functions app from VS2022

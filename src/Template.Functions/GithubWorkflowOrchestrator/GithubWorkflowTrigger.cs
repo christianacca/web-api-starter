@@ -19,6 +19,7 @@ public class GithubWorkflowTrigger(IOptionsMonitor<GithubAppOptions> optionsMoni
     var options = optionsMonitor.CurrentValue;
     var input = new OrchestratorInput {
       MaxAttempts = options.MaxAttempts,
+      RerunTriggerRetryDelays = options.GetRerunTriggerRetryDelayValues(),
       Timeout = options.WorkflowTimeout,
       RerunEntireWorkflow = workflowRequest.RerunEntireWorkflow,
       WorkflowFile = workflowRequest.WorkflowFile

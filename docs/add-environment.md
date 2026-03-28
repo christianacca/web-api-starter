@@ -73,7 +73,7 @@ If this is the first time setting up a new environment and the GitHub App has no
 
 If the GitHub App already exists, ensure the App ID and Installation ID are configured in 
 [get-product-github-app-config.ps1](../tools/infrastructure/get-product-github-app-config.ps1) for the new environment,
-and that the private key and webhook secret have been uploaded to the Azure Key Vault for the new environment.
+and that the private key has been uploaded to the Azure Key Vault for the new environment.
 
 ## 4. Initial setup of deployment scripts and github workflows
 

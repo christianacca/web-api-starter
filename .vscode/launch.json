@@ -45,25 +45,6 @@
             }
         },
         {
-            "name": "Debug Functions (Template.Functions)",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build functions and start azurite",
-            "program": "/usr/local/bin/func",
-            "args": [
-                "start",
-                "--port",
-                "7071"
-            ],
-            "cwd": "${workspaceFolder}/src/Template.Functions/bin/Debug/net10.0",
-            "stopAtEntry": false,
-            "console": "integratedTerminal",
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=https://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=https://127.0.0.1:10001/devstoreaccount1;TableEndpoint=https://127.0.0.1:10002/devstoreaccount1;"
-            }
-        },
-        {
             "name": "Attach to .NET Functions",
             "type": "coreclr",
             "request": "attach",
