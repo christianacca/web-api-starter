@@ -16,6 +16,9 @@ outputs:
   authorized-target-envs:
     description: 'JSON array of workflow-gated environments authorized for the dispatching GitHub App'
     value: ${{ steps.envs.outputs.authorized-target-envs }}
+  installation-id:
+    description: 'GitHub App installation id for the dispatching actor'
+    value: ${{ steps.envs.outputs.installation-id }}
 
 runs:
   using: composite

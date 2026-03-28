@@ -5,6 +5,9 @@ inputs:
   github-environment:
     description: Primary GitHub environment used for Azure login and storage-account resolution
     required: true
+  github-app-installation-id:
+    description: GitHub App installation id used to populate queue message user-context claims
+    required: true
   message-type:
     description: Queue message type to publish
     required: true
@@ -55,6 +58,7 @@ runs:
       shell: pwsh
       env:
         GITHUB_ENVIRONMENT: ${{ inputs.github-environment }}
+        GITHUB_APP_INSTALLATION_ID: ${{ inputs.github-app-installation-id }}
         MESSAGE_TYPE: ${{ inputs.message-type }}
         NEEDS_JSON: ${{ inputs.needs-json }}
         QUEUE_NAME: ${{ inputs.queue-name }}
@@ -66,6 +70,7 @@ runs:
       run: |
         ${{ github.action_path }}/publish-message.ps1 `
           -GitHubEnvironment $env:GITHUB_ENVIRONMENT `
+          -GitHubAppInstallationId $env:GITHUB_APP_INSTALLATION_ID `
           -LocalVerificationDirective $env:LOCAL_VERIFICATION `
           -MessageType $env:MESSAGE_TYPE `
           -NeedsJson $env:NEEDS_JSON `

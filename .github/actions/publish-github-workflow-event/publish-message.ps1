@@ -7,6 +7,9 @@ param(
     [string] $GitHubEnvironment,
 
     [Parameter(Mandatory)]
+    [string] $GitHubAppInstallationId,
+
+    [Parameter(Mandatory)]
     [string] $MessageType,
 
     [Parameter()]
@@ -30,6 +33,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..' '..' '..'))
+. (Join-Path $repositoryRoot 'tools/infrastructure/ps-functions/Get-Guid.ps1')
 
 Import-Module (Join-Path $PSScriptRoot '..' '_shared' 'GitHubWorkflowQueueSupport.psm1') -Force
 
@@ -70,8 +76,32 @@ if ([string]::IsNullOrWhiteSpace($QueueName)) {
     throw "QueueName is required."
 }
 
+if ([string]::IsNullOrWhiteSpace($GitHubAppInstallationId)) {
+    throw "GitHubAppInstallationId is required."
+}
+
 $payloadJson = $payload | ConvertTo-Json -Compress
 $null = $PayloadJson | ConvertFrom-Json -AsHashtable
+
+$userId = (Get-Guid -Value $GitHubAppInstallationId).ToString()
+$userContext = @(
+    @{
+        type = 'iss'
+        value = 'https://github.com/'
+    }
+    @{
+        type = 'cid'
+        value = $GitHubAppInstallationId
+    }
+    @{
+        type = 'sub'
+        value = $GitHubAppInstallationId
+    }
+    @{
+        type = 'UserId'
+        value = $userId
+    }
+)
 
 $messageId = [guid]::NewGuid().ToString()
 $messageBody = @{
@@ -79,6 +109,7 @@ $messageBody = @{
     data = $PayloadJson
     metadata = @{
         messageType = $MessageType
+        userContext = $userContext
     }
 } | ConvertTo-Json -Compress -Depth 10
 $encodedMessageBody = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($messageBody))

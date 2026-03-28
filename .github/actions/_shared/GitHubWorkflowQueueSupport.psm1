@@ -26,6 +26,7 @@ function Resolve-GitHubAppAuthorizationContext {
 
     $primaryEnv = ""
     $pipelineEnvironments = @()
+    $installationId = ""
     $environments = & $script:GetProductEnvironmentNamesScript
 
     foreach ($environmentName in $environments) {
@@ -36,12 +37,17 @@ function Resolve-GitHubAppAuthorizationContext {
         if ($expectedAppSlug -and ($TriggeringActor -eq "$expectedAppSlug[bot]")) {
             $primaryEnv = $githubConfig.AuthorizedEnvironment.Primary
             $pipelineEnvironments = @($githubConfig.AuthorizedEnvironment.Pipeline)
+            $installationId = [string] $githubConfig.InstallationId
             break
         }
     }
 
     if ([string]::IsNullOrWhiteSpace($primaryEnv)) {
         throw "Unable to resolve dispatching actor '$TriggeringActor' to a supported GitHub App."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($installationId)) {
+        throw "GitHub App installation id is not configured for dispatching actor '$TriggeringActor'."
     }
 
     $authorizedTargetEnvs = @(
@@ -57,6 +63,7 @@ function Resolve-GitHubAppAuthorizationContext {
         Primary = $primaryEnv
         Pipeline = @($pipelineEnvironments)
         AuthorizedTargetEnvs = @($authorizedTargetEnvs)
+        InstallationId = $installationId
     }
 }
 

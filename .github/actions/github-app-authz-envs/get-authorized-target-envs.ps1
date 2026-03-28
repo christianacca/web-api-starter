@@ -18,4 +18,5 @@ if ($env:GITHUB_OUTPUT) {
     "primary=$($authorizationContext.Primary)" >> $env:GITHUB_OUTPUT
     "pipeline=$(@($authorizationContext.Pipeline) | ConvertTo-Json -Compress)" >> $env:GITHUB_OUTPUT
     "authorized-target-envs=$(@($authorizationContext.AuthorizedTargetEnvs) | ConvertTo-Json -Compress)" >> $env:GITHUB_OUTPUT
+    "installation-id=$($authorizationContext.InstallationId)" >> $env:GITHUB_OUTPUT
 }
