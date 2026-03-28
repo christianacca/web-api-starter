@@ -48,11 +48,6 @@ on:
     
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-    inputs:
-      github-branch-override:
-        description: Optional dev-only Github:Branch override for dark-launch validation deployments
-        required: false
-        type: string
 
     
 permissions:
@@ -122,7 +117,6 @@ jobs:
       docker-image-tag: ${{ needs.globalvars.outputs.buildTag }}
       docker-registry: ${{ needs.globalvars.outputs.acrName }}
       environment-name: dev
-      github-branch: ${{ github.event.inputs.github-branch-override || '' }}
       git-tag: ${{ needs.globalvars.outputs.gitTag }}
     secrets: inherit
     permissions:

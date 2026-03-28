@@ -21,10 +21,6 @@ on:
       environment-name:
         required: true
         type: string
-      github-branch:
-        required: false
-        type: string
-        default: ''
       git-tag:
         required: true
         type: string
@@ -83,14 +79,14 @@ jobs:
       - name: Resolve Github branch setting
         shell: pwsh
         env:
-          ENVIRONMENT_NAME: ${{ inputs.environment-name }}
-          GITHUB_BRANCH_INPUT: ${{ inputs.github-branch }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          $resolvedBranch = if ($env:ENVIRONMENT_NAME -eq 'dev' -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_BRANCH_INPUT)) {
-            $env:GITHUB_BRANCH_INPUT
+          $resolvedBranch = if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_HEAD_REF)) {
+            $env:GITHUB_HEAD_REF
           }
           else {
-            'master'
+            $env:GITHUB_REF_NAME
           }
 
           "GITHUB_BRANCH_VALUE=$resolvedBranch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
