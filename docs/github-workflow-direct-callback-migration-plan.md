@@ -644,6 +644,8 @@ Rules:
 - [x] Support local branch selection through `.NET user-secrets` on `Github:Branch` rather than checked-in local appsettings changes.
 - [x] Support local queue publication through a public Azurite queue endpoint configured locally, with the workflow publisher using a connection-string-based path only when the development-only override is present.
 - [x] Define the local verification procedure for this phase so it runs through the real local orchestrator start path, the real GitHub Actions workflow on a feature branch, and the real `GithubWorkflowInProgress` plus `GithubWorkflowCompleted` queue messages delivered back into local Azurite.
+- [ ] Run one dark-launch deployment of the Phase 3 infrastructure and application changes to the dev Azure environment from the feature branch while keeping queue-based completion delivery non-default and limited to the showcase workflow.
+- [ ] Verify in the deployed dev environment that the dark-launched Phase 3 changes preserve the existing default webhook-driven behavior for normal application flows while the showcase workflow remains able to exercise the queue-publication path.
 - [x] Keep queue-based completion delivery contained to the showcase workflow until the global rollout and cleanup phases are ready.
 - [x] Build the solution.
 - [x] Update the checklist for this phase.
@@ -663,6 +665,7 @@ Rules:
 9. For local Phase 3 verification, use the canonical runbook in [docs/workflow-orchestration-setup.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/workflow-orchestration-setup.md) under `Exact Local E2E Validation Procedure` rather than restating the operator steps in this plan.
 10. That runbook is the source of truth for the local-only configuration needed by the `localVerification` seam, including `Github:Branch`, `Github:LocalVerification:QueueEndpoint`, tunnel hosting, Functions startup, and durable-state inspection.
 11. If direct local Azure CLI diagnostics against `https://127.0.0.1` Azurite are needed during troubleshooting, follow the same runbook notes and treat `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` as a separate operator-side diagnostic prerequisite rather than part of the queue-publication seam itself.
+12. If feature-branch deployment to dev is available, run one dark-launch validation of the Phase 3 branch state in the real dev Azure environment before Phase 4. That deployed validation should confirm only the intended dev environment changes land, queue publication remains dark and limited to the showcase workflow, and no default application path has been switched away from webhook delivery yet.
 
 ### Human Intervention
 
@@ -673,6 +676,7 @@ Rules:
 
 - Treat this phase as autonomous by default.
 - Only introduce an approval gate if applying or validating the infrastructure changes requires an environment deployment approval or a human-triggered deployment workflow run.
+- A dark-launch validation deployment to dev is recommended when feature-branch deployment is available, but it does not replace the mandatory Phase 4 rollout and deployed end-to-end verification gates.
 
 ### Feed Forward
 
@@ -686,6 +690,7 @@ Rules:
 - Phase 3 now keeps the higher-level workflow authorization, workflow-name parsing, storage-account resolution, and payload-building logic in a focused PowerShell module at [.github/actions/_shared/GitHubWorkflowQueueSupport.psm1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared/GitHubWorkflowQueueSupport.psm1), with thin action-local entry scripts. Later phases should extend that module or its entry points rather than pushing logic back into inline YAML.
 - The shared module now resolves infrastructure scripts relative to `$PSScriptRoot` instead of assuming the current working directory is the repository root. Later phases should keep action-support PowerShell path resolution module-relative or script-relative rather than depending on runner cwd.
 - The current action pattern passes GitHub expression values through `env:` and then into typed PowerShell parameters. Later phases should preserve that boundary as a hardening measure instead of interpolating untrusted workflow values directly into inline script text.
+- A Phase 3 dev dark-launch deployment is useful as an operational smoke test for RBAC, infrastructure drift, and branch-built artifacts, but it should stay non-default and must not be treated as the global rollout gate. Phase 4 remains the point where queue publication becomes the default on `master` and where deployed end-to-end verification becomes mandatory.
 - Phase 3 local verification now uses one development-only workflow input named `localVerification`. Later phases should keep local E2E verification on that single seam rather than introducing separate ad hoc action flags or conventions overrides for local-only queue publication.
 - The canonical local-only operator procedure now lives in [docs/workflow-orchestration-setup.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/workflow-orchestration-setup.md) under `Exact Local E2E Validation Procedure`. Later phases should update that section rather than duplicating or drifting from it here. If you step outside that seam and run direct local Azure CLI diagnostics against the self-signed `https://127.0.0.1` Azurite endpoints, handle `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` as a separate troubleshooting prerequisite.
 - Local E2E validation showed that the workflow callback publisher must align with the function app's queue-trigger encoding contract. If the app keeps the default queue-trigger encoding semantics, the workflow publisher must emit a base64-encoded `MessageBody` envelope rather than relying on a host-wide `messageEncoding` override.

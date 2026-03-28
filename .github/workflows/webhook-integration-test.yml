@@ -20,38 +20,15 @@ permissions:
   contents: read
 
 jobs:
-  github-app-authz-context:
-    runs-on: ubuntu-latest
-    outputs:
-      primary: ${{ steps.envs.outputs.primary }}
-      pipeline: ${{ steps.envs.outputs.pipeline }}
-      authorized-target-envs: ${{ steps.envs.outputs.authorized-target-envs }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: envs
-        shell: pwsh
-        env:
-          GATED_ENVIRONMENTS: |
-            dev
-            qa
-          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
-        run: |
-          ./.github/actions/github-app-authz-envs/get-authorized-target-envs.ps1 `
-            -GatedEnvironments $env:GATED_ENVIRONMENTS `
-            -TriggeringActor $env:TRIGGERING_ACTOR
-
   github-app-authz:
     runs-on: ubuntu-latest
-    needs: github-app-authz-context
-    environment:
-      name: ${{ needs.github-app-authz-context.outputs.primary }}
     permissions:
       contents: read
       id-token: write
     outputs:
-      authz-pipeline-envs: ${{ needs.github-app-authz-context.outputs.pipeline }}
-      authz-primary-env: ${{ needs.github-app-authz-context.outputs.primary }}
-      authz-authorized-target-envs: ${{ needs.github-app-authz-context.outputs.authorized-target-envs }}
+      authz-pipeline-envs: ${{ steps.authz.outputs.pipeline }}
+      authz-primary-env: ${{ steps.authz.outputs.primary }}
+      authz-authorized-target-envs: ${{ steps.authz.outputs.authorized-target-envs }}
       published-in-progress: ${{ steps.authz.outputs.published-in-progress }}
     steps:
       - uses: actions/checkout@v4
@@ -106,8 +83,6 @@ jobs:
       - qa-auto-approve
       - qa-task
     if: ${{ always() && needs.github-app-authz.outputs.published-in-progress == 'true' }}
-    environment:
-      name: ${{ needs.github-app-authz.outputs.authz-primary-env }}
     permissions:
       contents: read
       id-token: write
