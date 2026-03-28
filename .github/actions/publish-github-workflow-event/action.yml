@@ -40,7 +40,7 @@ outputs:
     value: ${{ steps.publish.outputs.message-id }}
   conclusion:
     description: Derived workflow conclusion written into the completed payload when applicable
-    value: ${{ steps.payload.outputs.conclusion }}
+    value: ${{ steps.publish.outputs.conclusion }}
 
 runs:
   using: composite
@@ -51,19 +51,20 @@ runs:
       with:
         github-environment: ${{ inputs.github-environment }}
 
-    - id: payload
+    - id: publish
       shell: pwsh
       env:
         GITHUB_ENVIRONMENT: ${{ inputs.github-environment }}
         MESSAGE_TYPE: ${{ inputs.message-type }}
         NEEDS_JSON: ${{ inputs.needs-json }}
+        QUEUE_NAME: ${{ inputs.queue-name }}
         REPOSITORY: ${{ inputs.repository }}
         RUN_ATTEMPT: ${{ inputs.run-attempt }}
         RUN_ID: ${{ inputs.run-id }}
         WORKFLOW_NAME: ${{ inputs.workflow-name }}
         LOCAL_VERIFICATION: ${{ inputs.local-verification }}
       run: |
-        ${{ github.action_path }}/new-payload.ps1 `
+        ${{ github.action_path }}/publish-message.ps1 `
           -GitHubEnvironment $env:GITHUB_ENVIRONMENT `
           -LocalVerificationDirective $env:LOCAL_VERIFICATION `
           -MessageType $env:MESSAGE_TYPE `
@@ -71,20 +72,5 @@ runs:
           -Repository $env:REPOSITORY `
           -RunAttempt ([int]$env:RUN_ATTEMPT) `
           -RunId ([long]$env:RUN_ID) `
-          -WorkflowName $env:WORKFLOW_NAME
-
-    - id: publish
-      shell: pwsh
-      env:
-        MESSAGE_TYPE: ${{ inputs.message-type }}
-        PAYLOAD_JSON: ${{ steps.payload.outputs.payload-json }}
-        QUEUE_NAME: ${{ inputs.queue-name }}
-        STORAGE_ACCOUNT: ${{ steps.payload.outputs.storage-account }}
-        STORAGE_CONNECTION_STRING: ${{ steps.payload.outputs.storage-connection-string }}
-      run: |
-        ${{ github.action_path }}/publish-message.ps1 `
-          -MessageType $env:MESSAGE_TYPE `
-          -PayloadJson $env:PAYLOAD_JSON `
-          -QueueName $env:QUEUE_NAME `
-          -StorageAccountName $env:STORAGE_ACCOUNT `
-          -StorageConnectionString $env:STORAGE_CONNECTION_STRING
+          -WorkflowName $env:WORKFLOW_NAME `
+          -QueueName $env:QUEUE_NAME
