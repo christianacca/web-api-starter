@@ -5,9 +5,6 @@ inputs:
   gated-environments:
     description: Multi-line list of workflow environments eligible for this workflow
     required: true
-  local-verification:
-    description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
-    required: false
 
 outputs:
   primary:
@@ -19,9 +16,6 @@ outputs:
   authorized-target-envs:
     description: 'JSON array of workflow-gated environments authorized for the dispatching GitHub App'
     value: ${{ steps.envs.outputs.authorized-target-envs }}
-  published-in-progress:
-    description: 'Whether the bootstrap in-progress queue message was published successfully'
-    value: ${{ steps.publish.outputs.published }}
 
 runs:
   using: composite
@@ -35,36 +29,3 @@ runs:
         ${{ github.action_path }}/get-authorized-target-envs.ps1 `
           -GatedEnvironments $env:GATED_ENVIRONMENTS `
           -TriggeringActor $env:TRIGGERING_ACTOR
-
-    - name: Azure login
-      if: ${{ inputs.local-verification == '' }}
-      uses: ./.github/actions/azure-login
-      with:
-        github-environment: ${{ steps.envs.outputs.primary }}
-
-    - id: bootstrap
-      shell: pwsh
-      env:
-        PRIMARY_ENV: ${{ steps.envs.outputs.primary }}
-        REPOSITORY: ${{ github.repository }}
-        RUN_ATTEMPT: ${{ github.run_attempt }}
-        RUN_ID: ${{ github.run_id }}
-        WORKFLOW_NAME: ${{ github.event.inputs.workflowName }}
-        LOCAL_VERIFICATION: ${{ inputs.local-verification }}
-      run: |
-        ${{ github.action_path }}/new-bootstrap-payload.ps1 `
-          -LocalVerificationDirective $env:LOCAL_VERIFICATION `
-          -PrimaryEnvironment $env:PRIMARY_ENV `
-          -Repository $env:REPOSITORY `
-          -RunAttempt ([int]$env:RUN_ATTEMPT) `
-          -RunId ([long]$env:RUN_ID) `
-          -WorkflowName $env:WORKFLOW_NAME
-
-    - id: publish
-      uses: ./.github/actions/publish-workflow-queue-message
-      with:
-        message-type: GithubWorkflowInProgress
-        payload-json: ${{ steps.bootstrap.outputs.payload-json }}
-        queue-name: default-queue
-        storage-connection-string: ${{ steps.bootstrap.outputs.storage-connection-string }}
-        storage-account: ${{ steps.bootstrap.outputs.storage-account }}

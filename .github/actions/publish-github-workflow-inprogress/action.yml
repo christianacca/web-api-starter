@@ -1,0 +1,70 @@
+name: publish-github-workflow-inprogress
+description: Log into Azure, build a GithubWorkflowInProgress payload, and publish it to the workflow queue
+
+inputs:
+  github-environment:
+    description: Primary GitHub environment used for Azure login and storage-account resolution
+    required: true
+  local-verification:
+    description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
+    required: false
+  workflow-name:
+    description: Dispatcher-prefixed workflow name used for instance correlation and queue routing
+    required: true
+  repository:
+    description: Repository name in owner/repo format
+    required: true
+  run-attempt:
+    description: GitHub workflow run attempt number
+    required: true
+  run-id:
+    description: GitHub workflow run id
+    required: true
+  queue-name:
+    description: Queue name to publish to
+    required: false
+    default: default-queue
+
+outputs:
+  published:
+    description: Whether the in-progress queue message was published successfully
+    value: ${{ steps.publish.outputs.published }}
+  message-id:
+    description: Published MessageBody id
+    value: ${{ steps.publish.outputs.message-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Azure login
+      if: ${{ inputs.local-verification == '' }}
+      uses: ./.github/actions/azure-login
+      with:
+        github-environment: ${{ inputs.github-environment }}
+
+    - id: payload
+      shell: pwsh
+      env:
+        GITHUB_ENVIRONMENT: ${{ inputs.github-environment }}
+        REPOSITORY: ${{ inputs.repository }}
+        RUN_ATTEMPT: ${{ inputs.run-attempt }}
+        RUN_ID: ${{ inputs.run-id }}
+        WORKFLOW_NAME: ${{ inputs.workflow-name }}
+        LOCAL_VERIFICATION: ${{ inputs.local-verification }}
+      run: |
+        ${{ github.action_path }}/new-inprogress-payload.ps1 `
+          -GitHubEnvironment $env:GITHUB_ENVIRONMENT `
+          -LocalVerificationDirective $env:LOCAL_VERIFICATION `
+          -Repository $env:REPOSITORY `
+          -RunAttempt ([int]$env:RUN_ATTEMPT) `
+          -RunId ([long]$env:RUN_ID) `
+          -WorkflowName $env:WORKFLOW_NAME
+
+    - id: publish
+      uses: ./.github/actions/publish-workflow-queue-message
+      with:
+        message-type: GithubWorkflowInProgress
+        payload-json: ${{ steps.payload.outputs.payload-json }}
+        queue-name: ${{ inputs.queue-name }}
+        storage-connection-string: ${{ steps.payload.outputs.storage-connection-string }}
+        storage-account: ${{ steps.payload.outputs.storage-account }}
