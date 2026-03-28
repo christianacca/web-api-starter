@@ -6,7 +6,7 @@ This guide walks through the process of creating and configuring a GitHub App fo
 
 The process is divided into responsibilities between three teams:
 
-- **Dev Team**: Generates ServiceNow ticket request with environment-specific details
+- **Dev Team**: Generates Product Ops Portal request details with environment-specific details
 - **GitHub Admin Team**: Creates the GitHub App for the specified environment, generates credentials, and provides initial configuration
 - **App Admin Team**: Uploads credentials to Azure Key Vault for the specified environment
 - **Dev Team**: Configures App ID and Installation ID for the environment in the application code
@@ -15,7 +15,7 @@ The process is divided into responsibilities between three teams:
 
 ---
 
-## Part 1: Dev Team - Generate ServiceNow Ticket Request
+## Part 1: Dev Team - Generate Product Ops Portal Request Details
 
 ### Prerequisites
 
@@ -25,17 +25,17 @@ Before requesting GitHub App creation, the Dev Team must:
   git clone https://github.com/christianacca/web-api-starter.git
   cd web-api-starter
   ```
-- Generate a ServiceNow ticket with all required information for the GitHub Admin Team
+- Generate a Product Ops Portal request with all required information for the GitHub Admin Team
 
-### Run the ServiceNow Ticket Generator Script
+### Run the Product Ops Portal Request Generator Script
 
-Run the script `tools/infrastructure/generate-github-app-servicenow-ticket.ps1` to generate the ServiceNow ticket subject and body with environment-specific details.
+Run the script `tools/infrastructure/print-github-app-product-ops-portal-request.ps1` to generate the Product Ops Portal request title and body with environment-specific details.
 
 **Script Usage:**
 
 ```powershell
 cd tools/infrastructure
-./generate-github-app-servicenow-ticket.ps1 -EnvironmentName <environment>
+./print-github-app-product-ops-portal-request.ps1 -EnvironmentName <environment>
 ```
 
 **Available Environment Names:**
@@ -45,27 +45,21 @@ cd tools/infrastructure
 - `staging`
 - `prod-na`, `prod-emea`, `prod-apac`
 
-**Example: Generate ticket for Dev environment**
+**Example: Generate request for Dev environment**
 ```powershell
-./generate-github-app-servicenow-ticket.ps1 -EnvironmentName dev
+./print-github-app-product-ops-portal-request.ps1 -EnvironmentName dev
 ```
 
 **Example Output:**
 
-The script will output ServiceNow ticket fields:
+The script will output Product Ops Portal request fields:
 
 ```
-ServiceNow Ticket Details:
+Product Ops Portal Request Details:
 ─────────────────────────────────────────────────────────────
 
 Request Title:
 GitHub App Creation Request - Web API Starter (dev)
-
-Request Type:
-General IT Request
-
-Priority:
-3 - Moderate
 
 Description:
 Purpose:
@@ -98,15 +92,13 @@ Next Steps:
 
 Please refer to the GitHub App Creation Guide - GitHub Admin Team Responsibilities:
 https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team-responsibilities
-
-✓ Copy the above information and create a ServiceNow ticket
 ```
 
-### Create ServiceNow Ticket
+### Create Product Ops Portal Request
 
-1. **Copy the generated Request Title and Description** from the script output and create a ticket of the specified **Request Type** and **Priority**
-2. **Create a new ServiceNow ticket** and fill in the corresponding fields
-3. **Submit the ticket** to the GitHub Admin Team
+1. **Copy the generated Request Title and Description** from the script output and create a request with those values
+2. **Create a new [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141) request** and fill in the corresponding fields
+3. **Submit the request** to the GitHub Admin Team through the [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141)
 
 ---
 
@@ -128,10 +120,10 @@ Before creating a GitHub App, ensure you have the necessary permissions:
 ![Organization GitHub Apps Page](assets/organisation-github-app-page.png)
 
 2. Configure basic information:
-   - **GitHub App name**: Use the exact name from the ServiceNow ticket
+   - **GitHub App name**: Use the exact name from the Product Ops Portal request
    - Example: `Web API Starter (dev)`, `Web API Starter (prod-na)`
    - **Description**: Brief description of the app's purpose
-   - **Homepage URL**: Use the **API Domain** from the ServiceNow ticket (e.g., `https://dev-api-was.codingdemo.co.uk`)
+   - **Homepage URL**: Use `https://` plus the **API Domain** from the Product Ops Portal request (for example, if the request shows `dev-api-was.codingdemo.co.uk`, enter `https://dev-api-was.codingdemo.co.uk`)
 
 ![GitHub App Name and Description](assets/creating%20github%20app-%20name%20and%20description.png)
 
@@ -222,9 +214,9 @@ After completing the GitHub App creation and installation, the GitHub Admin Team
 
 #### Required Information to Share
 
-1. **ServiceNow Ticket Number**
-   - The ticket number from the initial GitHub App creation request
-   - This helps the App Admin Team track and reference the request
+1. **Product Ops Portal Request URL**
+   - The URL from the initial GitHub App creation request
+   - This helps the App Admin Team open, track, and reference the request
 
 2. **Environment Name**
    - The environment for which this GitHub App was created
@@ -269,7 +261,7 @@ After completing the GitHub App creation and installation, the GitHub Admin Team
 
 ### Upload Credentials to Azure Key Vault
 
-The App Admin Team is responsible for uploading the GitHub App credentials to Azure Key Vault for the environment specified in the ServiceNow ticket using the provided PowerShell script.
+The App Admin Team is responsible for uploading the GitHub App credentials to Azure Key Vault for the environment specified in the Product Ops Portal request using the provided PowerShell script.
 
 #### Upload Process
 
@@ -292,7 +284,7 @@ The App Admin Team is responsible for uploading the GitHub App credentials to Az
        -PemFilePath "C:/temp/github-app-private-key.pem"
    ```
 
-   **Note**: Use the environment name that matches the one specified in the ServiceNow ticket (see Part 1 for available environment names).
+   **Note**: Use the environment name that matches the one specified in the Product Ops Portal request (see Part 1 for available environment names).
 
 3. **Verify Upload Success**
 
@@ -379,7 +371,7 @@ For security best practices, the GitHub App private key should be rotated regula
 
 ### Part 1: Dev Team - Generate Private Key Rotation Request
 
-When private key rotation is needed, the Dev Team initiates the process by generating a ServiceNow ticket.
+When private key rotation is needed, the Dev Team initiates the process by generating a Product Ops Portal request.
 
 **Prerequisites:**
 - Ensure the repository is cloned locally (if not already done):
@@ -388,31 +380,28 @@ When private key rotation is needed, the Dev Team initiates the process by gener
   cd web-api-starter
   ```
 
-**Run the ServiceNow Ticket Generator Script:**
+**Run the Product Ops Portal Request Generator Script:**
 
 ```powershell
 cd tools/infrastructure
-./generate-github-app-key-rotation-ticket.ps1 -EnvironmentName dev
+./print-github-app-key-rotation-product-ops-portal-request.ps1 -EnvironmentName dev
 ```
 
-**Note**: This generates a rotation ticket for one environment. If multiple environments need rotation, generate separate tickets for each.
+**Note**: This generates a rotation request for one environment. If multiple environments need rotation, generate separate requests for each.
 
 **Example Output:**
 
 ```
-ServiceNow Ticket Details:
+Product Ops Portal Request Details:
 ─────────────────────────────────────────────────────────────
 
 Request Title:
 GitHub App Private Key Rotation Request - Web API Starter (dev)
 
-Request Type:
-General IT Request
-
-Priority:
-3 - Moderate
-
 Description:
+Purpose:
+This request is to rotate the GitHub App private key for the dev environment as part of regular security maintenance and compliance with industry best practices.
+
 GitHub App Information:
 - GitHub App Name: Web API Starter (dev)
 - Environment: dev
@@ -442,11 +431,11 @@ Please refer to the GitHub App Creation Guide - Private Key Rotation section:
 https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-creation.md#part-2-github-admin-team---generate-new-private-key
 ```
 
-**Create ServiceNow Ticket:**
+**Create Product Ops Portal Request:**
 
-1. **Copy the generated Request Title, Request Type, Priority, and Description** from the script output
-2. **Create a new ServiceNow ticket** and fill in the corresponding fields
-3. **Submit to GitHub Admin Team and App Admin Team**
+1. **Copy the generated Request Title and Description** from the script output and create a request with those values
+2. **Create a new [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141) request** and fill in the corresponding fields
+3. **Submit to GitHub Admin Team and App Admin Team through the [Product Ops Portal](https://mripride.atlassian.net/servicedesk/customer/portal/1141)**
 4. **Track the rotation process through completion**
 
 ### Part 2: GitHub Admin Team - Generate New Private Key
@@ -464,7 +453,7 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
 3. **Securely Share with App Admin Team**
    - Use encrypted communication (e.g., Azure Key Vault, 1Password, secure file sharing)
    - Share the new `.pem` file with App Admin Team
-   - Include the ServiceNow ticket number and environment name in communication
+   - Include the Product Ops Portal request URL and environment name in communication
 
 4. **Wait for Confirmation**
    - Wait for App Admin Team to confirm successful upload to the environment
@@ -485,7 +474,7 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
      cd web-api-starter
      ```
 
-   Use the upload script for the environment specified in the ServiceNow ticket. The script updates only the private key secret for the selected environment:
+   Use the upload script for the environment specified in the Product Ops Portal request. The script updates only the private key secret for the selected environment:
 
    ```powershell
    cd tools/infrastructure
@@ -527,10 +516,10 @@ https://github.com/christianacca/web-api-starter/blob/master/docs/github-app-cre
    - Click **Delete** next to the old key
    - Confirm deletion
 
-3. **Update ServiceNow Ticket**
+3. **Update Product Ops Portal Request**
    - Mark the rotation as complete
    - Document the completion date
-   - Close the ticket
+   - Close the request
 
 4. **Test Workflow Integration** (Optional but Recommended)
    After completing the private key rotation, verify the GitHub App is working correctly by testing the workflow orchestration:
