@@ -752,8 +752,8 @@ Remove the remaining API-side webhook code, prove the queue-only path locally en
 - [ ] Search the repo for obsolete runtime references to webhook code paths.
 - [ ] Run a local end-to-end verification of the Phase 4 cleanup on the `master`-equivalent code path.
 - [ ] Confirm locally that queue-driven workflow completion still succeeds after API-side webhook handling has been removed.
-- [ ] Merge the Phase 4 cleanup and queue-default workflow path to `master`.
-- [ ] Deploy that application and workflow state to the real Azure environments that will receive the webhook cleanup.
+- [ ] commit and push the changes to current feature branch
+- [ ] Deploy that application and workflow state, using the current feature branch, to the real Azure environments that will receive the webhook cleanup
 - [ ] Run an end-to-end verification against at least one real deployed environment after rollout.
 - [ ] Confirm the deployed environment completes the orchestration through the queue-only path.
 - [ ] Update the checklist for this phase.
@@ -788,10 +788,14 @@ Remove the remaining API-side webhook code, prove the queue-only path locally en
 
 - Phase 3 kept queue publication dark by limiting it to [webhook-integration-test.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/workflows/webhook-integration-test.yml). Phase 4 should first remove the remaining API webhook code, then prove the queue-only path locally, and only then roll that state out through `master`.
 - Phase 4 should preserve both gates: local end-to-end verification before any real Azure deployment, and real deployed-environment end-to-end verification immediately after rollout.
-- Phase 3 now treats `github-app-authz-envs` as the single fail-closed bootstrap publisher for `GithubWorkflowInProgress`. Phase 4 should keep that centralization and must not add any second bootstrap publisher during the default-rollout work.
+- The final Phase 3 design keeps `github-app-authz-envs` authz-only and publishes workflow queue events from separate environment-scoped jobs. Phase 4 should preserve that split and must not move Azure login or queue publication back into `github-app-authz-envs`.
+- The final Phase 3 design also consolidated both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` publication into [publish-github-workflow-event/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/publish-github-workflow-event/action.yml) backed by one checked-in PowerShell script. Phase 4 should extend that shared publisher rather than reintroducing specialized publisher actions or multi-step payload builders.
+- The deployed dev validation proved that the Azure OIDC subject used for queue publication is controlled by the caller job's declared GitHub environment, not by a composite action. Phase 4 should therefore keep queue-publication jobs environment-scoped and should treat that job boundary as part of the production design, not as temporary scaffolding.
 - Phase 3 restored the `workflowName` contract to `<dispatcher>-<instanceId>` and made dispatcher parsing generic rather than hard-coded to `InternalApi`. Phase 4 should preserve that generic parsing during the global rollout and cleanup.
 - Phase 3 refactored the higher-level action logic into [.github/actions/_shared/GitHubWorkflowQueueSupport.psm1](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/_shared/GitHubWorkflowQueueSupport.psm1) plus thin entry scripts. Phase 4 should extend that module/entry-point structure rather than reintroducing inline PowerShell into workflow YAML.
 - Phase 3 hardened action-support path resolution to be module-relative and currently passes GitHub expression values through `env:` before invoking typed PowerShell parameters. Phase 4 should preserve those patterns in any final default-rollout workflow changes.
+- The final Phase 3 app dark-launch validation removed the manual branch-override input and now derives `Github_Branch` from the running workflow context by preferring `github.head_ref` and falling back to `github.ref_name`. Phase 4 should preserve that branch-resolution pattern rather than reintroducing dispatch-only override inputs.
+- The deployed dev dark launch also showed that direct storage-table inspection may be blocked by RBAC even when the end-to-end flow is healthy. Phase 4 rollout verification should therefore continue to correlate API-triggered `instanceId` values with the GitHub Actions run id and Application Insights traces when validating the real deployed queue-only path.
 - The 2026-03-27 success-path validation confirmed the current observability contract: during in-flight execution, durable `CustomStatus` carries the progress state while durable `Output` remains `null`; at terminal completion, `CustomStatus` and `Output` serialize to the same final `GithubWorkflowOrchestrationState` payload. Phase 4 should preserve that behavior unless the product intentionally changes the external contract.
 - The same validation confirmed the current terminal success payload shape is `stage=Completed`, `finalOutcome=Succeeded`, `currentAttempt=1`, `maxAttempts=2`, `runId=<github-run-id>`, `workflowStatus=Completed`, `workflowConclusion=Success`, `workflowSucceeded=true`, and `isTerminal=true`. Later phases should treat changes to that shape as deliberate contract changes rather than incidental refactors.
 
@@ -836,7 +840,10 @@ Stop scripts, conventions, and GitHub App operational steps from requiring webho
 
 ### Feed Forward
 
-- Pending.
+- Phase 4 should complete before webhook-era infra cleanup begins. Phase 5 should assume the validated steady-state workflow shape is: authz-only [github-app-authz-envs/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/github-app-authz-envs/action.yml), environment-scoped publish jobs, and the shared [publish-github-workflow-event/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/publish-github-workflow-event/action.yml) publisher.
+- Infrastructure and GitHub App operational guidance should not suggest that a composite action can change the Azure OIDC subject. If any infra or runbook wording discusses queue-publication auth, it should describe the environment-scoped caller-job requirement instead.
+- GitHub App cleanup work should preserve the existing environment-scoped federated credential model and should not introduce new branch-scoped credentials as a workaround for workflow publication.
+- Any remaining webhook-era support scripts or operational instructions should be rewritten to reflect that deployed verification is now performed by correlating orchestration `instanceId`, GitHub Actions run id, and Application Insights telemetry, rather than assuming direct webhook callbacks or direct storage-table reads are the primary operational signal.
 
 ---
 
@@ -849,7 +856,7 @@ Align all repository documentation with the new design so contributors no longer
 ### Steps
 
 - [ ] Rewrite [docs/workflow-orchestration-setup.md](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/docs/workflow-orchestration-setup.md) around the queue-based completion flow, workflow auth to Azure Storage, queue message shape, queue-trigger processing, and fallback polling behavior.
-- [ ] Document the revised role of [github-app-authz-envs/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/github-app-authz-envs/action.yml) as the fail-closed workflow authorization and `in progress` bootstrap publisher.
+- [ ] Document the revised role of [github-app-authz-envs/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/github-app-authz-envs/action.yml) as the fail-closed workflow authorization step, and document the separate environment-scoped jobs that publish `GithubWorkflowInProgress` and `GithubWorkflowCompleted` through the shared workflow event publisher.
 - [ ] Document the `gated-environments` multi-line input contract and the `authorized-target-envs` output contract for [github-app-authz-envs/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/github-app-authz-envs/action.yml).
 - [ ] Document the reusable workflow queue publisher composite action and its local PowerShell helper, including how it is used for both `GithubWorkflowInProgress` and `GithubWorkflowCompleted`.
 - [ ] Document that queue publication uses `az storage message put --auth-mode login` with the built-in `Storage Queue Data Message Sender` role and no shared-key fallback.
@@ -880,7 +887,10 @@ Align all repository documentation with the new design so contributors no longer
 
 ### Feed Forward
 
-- Pending.
+- Phase 6 documentation should describe the implemented workflow shape, not the earlier Phase 3 draft: `github-app-authz-envs` is authz-only, `GithubWorkflowInProgress` and `GithubWorkflowCompleted` are published from separate environment-scoped jobs, and both use the shared [publish-github-workflow-event/action.yml](/Users/christian.crowhurst/Documents/git/mri-web-api-starter-template/.github/actions/publish-github-workflow-event/action.yml) action.
+- The docs rewrite should explicitly capture the Azure OIDC constraint that the queue-publication job must declare the target GitHub environment to obtain the correct `repo:<owner>/<repo>:environment:<env>` subject; this is a workflow-shape requirement, not an implementation detail inside a composite action.
+- The docs rewrite should record the verified branch-resolution rule for app deployment: prefer `github.head_ref` for PR-originated runs and fall back to `github.ref_name` for branch and manual runs.
+- Operational verification docs should reflect the deployed validation method proven in dev: trigger through the supported API path, capture the orchestration `instanceId`, correlate to the GitHub Actions run, and use Application Insights to confirm both queue events and terminal durable completion.
 
 ---
 
