@@ -12,7 +12,7 @@ Use the table below to decide which local port to expose.
 
 | Local service | Local endpoint | Port | Protocol | Typical use |
 | --- | --- | --- | --- | --- |
-| API | `https://localhost:5000` | `5000` | `https` | GitHub App webhook callback, browser access, external API callers |
+| API | `https://localhost:5000` | `5000` | `https` | Browser access, external API callers, local verification through the supported API route |
 | App | `https://localhost:5001` | `5001` | `https` | Browser access to the local app |
 | Functions HTTP | `http://localhost:7071` | `7071` | `http` | Direct access to HTTP-triggered local Azure Functions |
 | Azurite queue | `https://127.0.0.1:10001/devstoreaccount1` | `10001` | `https` | Temporary local verification of GitHub Actions queue publication |
@@ -30,7 +30,7 @@ If a developer creates a different tunnel, that developer gets a different publi
 If the original tunnel expires and is deleted, recreating it later should be treated as a new tunnel and you should not rely on getting the same public URL back.
 
 > [!INFO]
-> The first time you open a dev tunnel URL in a browser with a normal `GET` request, Microsoft may show an anti-phishing interstitial page before forwarding to the local service. This does not block webhook or API clients that call the URL directly.
+> The first time you open a dev tunnel URL in a browser with a normal `GET` request, Microsoft may show an anti-phishing interstitial page before forwarding to the local service. This does not block queue publishers or API clients that call the URL directly.
 
 ## Task: create your own persistent tunnel
 
@@ -113,9 +113,9 @@ devtunnel port list web-api-starter-christian
 
 Use the public URL printed for port `5000` as the API base URL.
 
-For GitHub App webhook delivery, append `/api/github/webhooks`.
-
 For a health check, append `/health`.
+
+For the supported workflow start path, append `/api/workflow/start`.
 
 ### App on port 5001
 

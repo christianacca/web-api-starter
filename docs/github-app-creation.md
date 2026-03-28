@@ -2,7 +2,9 @@
 
 ## Overview
 
-This guide walks through the process of creating and configuring a GitHub App for workflow orchestration. The process is divided into responsibilities between three teams:
+This guide walks through the process of creating and configuring a GitHub App for workflow orchestration.
+
+The process is divided into responsibilities between three teams:
 
 - **Dev Team**: Generates ServiceNow ticket request with environment-specific details
 - **GitHub Admin Team**: Creates the GitHub App for the specified environment, generates credentials, and provides initial configuration

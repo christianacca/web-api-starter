@@ -2,226 +2,121 @@
 
 ## Overview
 
-This document provides setup instructions for integrating a GitHub App with the Azure-hosted API and Functions applications to enable automated GitHub workflow orchestration with retry logic.
+This document describes the current queue-based orchestration design used by this repository.
 
-For instructions on creating the GitHub App itself, see the [GitHub App Creation Guide](github-app-creation.md).
+The supported completion path is:
+
+1. A caller starts an orchestration through the API or directly through the local Functions trigger.
+2. The Functions app dispatches a GitHub Actions workflow whose run name is `<dispatcher>-<instanceId>`.
+3. GitHub Actions publishes `GithubWorkflowInProgress` and `GithubWorkflowCompleted` messages to the dispatcher storage account's `default-queue`.
+4. `ExampleQueue` remains the sole owner of `default-queue`, validates the outer `MessageBody` envelope, and forwards GitHub workflow messages into the dedicated workflow queue processor.
+5. The workflow queue processor raises Durable external events for the target orchestration instance and suppresses duplicate side effects for repeated deliveries.
+6. If a queue callback is delayed or missing, the orchestrator falls back to direct GitHub API polling.
+
+Webhook delivery is no longer part of the supported runtime design. The API project is not a GitHub webhook receiver, and the GitHub App does not need a webhook URL or webhook secret for orchestration.
+
+For GitHub App provisioning, see the [GitHub App Creation Guide](./github-app-creation.md).
 
 ---
 
 ## Architecture
 
-The following sequence diagram illustrates the complete workflow orchestration flow:
-
 ```mermaid
 sequenceDiagram
-    participant User as User/System
+    participant User as User or Caller
     participant API as API App
-    participant Processor as Webhook Processor
-    participant FunctionsAPI as Functions Webhook
-    participant Trigger as Workflow Trigger
+    participant Trigger as Functions Trigger
     participant Orchestrator as Durable Orchestrator
-    participant GitHub as GitHub API/Actions
+    participant GitHub as GitHub Actions
+    participant Authz as github-app-authz-envs
+    participant Publish as publish-github-workflow-event
+    participant Queue as default-queue
+    participant ExampleQueue as ExampleQueue
+    participant Processor as GithubWorkflowQueueMessageProcessor
 
-    User->>API: POST /api/workflow/start 
-    API->>Trigger: Forward request (reverse proxy + Azure MI auth)
-    Trigger->>Orchestrator: ScheduleNewOrchestrationInstanceAsync()
-    Orchestrator->>Orchestrator: Generate instance ID
-    Trigger-->>API: Return instance ID
-    API-->>User: 200 OK {Id: "instanceId"}
-    
-    Orchestrator->>GitHub: CreateDispatch(workflowFile, workflowName: {functionappidentifier}-{instanceId})
-    Note over GitHub: Workflow dispatched with format: functionappidentifier-instanceid
-    
-    Orchestrator->>Orchestrator: WaitForExternalEvent(WorkflowInProgress, timeout)
-    
-    GitHub->>API: Webhook: workflow_run (action: in_progress, status: in_progress)
-    API->>Processor: Octokit.Webhooks validates HMAC-SHA256
-    Processor->>Processor: Deserialize WorkflowRunEvent
-    Processor->>Processor: Validate repo, extract instanceId from name
-    Processor->>Processor: Filter prefix (InternalApi)
-    Processor->>FunctionsAPI: POST /api/github/webhooks (with Azure MI token)
-    FunctionsAPI->>FunctionsAPI: Parse event, extract instanceId
-    FunctionsAPI->>Orchestrator: RaiseEventAsync(instanceId, WorkflowInProgress, runId)
-    Orchestrator->>Orchestrator: Capture runId, wait for completion
-    
-    alt Webhook Timeout (In-Progress)
-        Note over Orchestrator: Event timeout reached
-        Orchestrator->>GitHub: Query recent workflow runs (GetRecentWorkflowRunActivity)
-        GitHub-->>Orchestrator: Return matching workflow runId
-        Orchestrator->>Orchestrator: Continue with runId or throw timeout
-    end
-    
-    Orchestrator->>Orchestrator: WaitForExternalEvent(WorkflowCompleted, timeout)
-    
-    GitHub->>API: Webhook: workflow_run (action: completed, conclusion: success/failure)
-    API->>Processor: Validate & process webhook
-    Processor->>FunctionsAPI: Forward to Functions
-    FunctionsAPI->>Orchestrator: RaiseEventAsync(instanceId, WorkflowCompleted, success: bool)
-    
-    alt Webhook Timeout (Completion)
-        Note over Orchestrator: Event timeout reached
-        Orchestrator->>GitHub: Query workflow run status (GetWorkflowRunStatusActivity)
-        GitHub-->>Orchestrator: Return status & conclusion
-        Orchestrator->>Orchestrator: Determine success based on conclusion
-    end
-    
-    alt Workflow Failed & Attempts < MaxAttempts
-        loop Retry Loop (up to MaxAttempts)
-            Orchestrator->>Orchestrator: Increment attempt counter
-            alt RerunEntireWorkflow = true
-                Orchestrator->>GitHub: Rerun(runId) - entire workflow
-            else RerunEntireWorkflow = false
-                Orchestrator->>GitHub: RerunFailedJobs(runId) - failed jobs only
-            end
-            
-            alt Rerun Failed
-                Note over Orchestrator: RerunFailedJobActivity threw exception
-                Orchestrator->>GitHub: Query workflow run status (GetWorkflowRunStatusActivity)
-                GitHub-->>Orchestrator: Return status & RunAttempt
-                Orchestrator->>Orchestrator: Verify RunAttempt matches expected attempt
-                alt RunAttempt mismatch
-                    Orchestrator->>Orchestrator: Throw exception - rerun verification failed
-                end
-            end
-            
-            GitHub->>API: Webhook: workflow_run (completed)
-            API->>Processor: Validate & forward
-            Processor->>FunctionsAPI: Forward webhook
-            FunctionsAPI->>Orchestrator: RaiseEventAsync(WorkflowCompleted, success: bool)
-            
-            alt Workflow Succeeded
-                Orchestrator->>Orchestrator: Exit retry loop, complete orchestration
-            else Still Failed
-                Note over Orchestrator: Continue retry loop or fail if MaxAttempts reached
-            end
-        end
-    else Workflow Succeeded
-        Orchestrator->>Orchestrator: Complete orchestration
+    User->>API: POST /api/workflow/start
+    API->>Trigger: Forward request with app-to-app auth
+    Trigger->>Orchestrator: Schedule new orchestration instance
+    Trigger-->>API: Return instanceId
+    API-->>User: 200 OK { id }
+
+    Orchestrator->>GitHub: Dispatch workflow with run name <dispatcher>-<instanceId>
+
+    GitHub->>Authz: Start workflow
+    Authz->>Authz: Resolve triggering app and authorized environments
+    Authz-->>GitHub: primary, pipeline, authorized-target-envs
+
+    GitHub->>Publish: Publish GithubWorkflowInProgress from environment-scoped job
+    Publish->>Queue: az storage message put
+    Queue->>ExampleQueue: Queue-trigger delivery
+    ExampleQueue->>Processor: Parse validated MessageBody envelope
+    Processor->>Orchestrator: RaiseEventAsync(instanceId, GithubWorkflowInProgress, runId)
+
+    Orchestrator->>Orchestrator: Wait for completion event
+
+    GitHub->>Publish: Publish GithubWorkflowCompleted from final environment-scoped job
+    Publish->>Queue: az storage message put
+    Queue->>ExampleQueue: Queue-trigger delivery
+    ExampleQueue->>Processor: Parse validated MessageBody envelope
+    Processor->>Orchestrator: RaiseEventAsync(instanceId, GithubWorkflowCompleted, success)
+
+    alt Queue callback delayed or missing
+        Orchestrator->>GitHub: Query recent runs or run status directly
+        GitHub-->>Orchestrator: Matching run metadata
     end
 ```
 
-**Key Flow Points:**
+### Key flow points
 
-1. **Initiation**: User triggers orchestration via API endpoint, which forwards to Functions Trigger using reverse proxy with Azure Managed Identity authentication
-2. **Orchestration Start**: Trigger schedules new durable orchestration instance and returns instance ID immediately
-3. **Dispatch**: Orchestrator dispatches GitHub workflow with unique workflow name: `{functionappidentifier}-{instanceId}` (e.g., `InternalApi-{instanceId}`)
-4. **Event-Driven Tracking**: Orchestrator waits for external events (WorkflowInProgress, WorkflowCompleted) raised by webhook handler
-5. **Webhook Processing**: 
-   - GitHub sends webhooks to API at `/api/github/webhooks`
-   - Webhook Processor validates HMAC-SHA256 signature using Octokit.Webhooks library
-   - Processor validates repository, extracts instanceId from workflow name, and filters by `InternalApi` prefix
-   - Valid webhooks are forwarded to Functions webhook endpoint with Azure MI authentication
-6. **Event Raising**: Functions webhook handler raises external events to the orchestrator instance by instanceId
-7. **Fallback Polling**: If webhook events timeout, orchestrator queries GitHub API directly to get workflow status
-8. **Retry Logic**: On failure, orchestrator reruns failed jobs only (default) or entire workflow (if requested) up to MaxAttempts
-9. **Retry Verification**: If rerun API call fails, orchestrator queries workflow run status and verifies RunAttempt number matches expected attempt to confirm rerun succeeded
-10. **Authentication**: GitHub API calls use installation tokens obtained via JWT exchange with GitHub App credentials
+1. The orchestration correlation key is always the Durable `instanceId` encoded into `workflowName`.
+2. The workflow run name format is `<dispatcher>-<instanceId>`. The current dispatcher emitted by the Functions app is `InternalApi`.
+3. `github-app-authz-envs` is authz-only. It does not perform Azure login or queue publication.
+4. `GithubWorkflowInProgress` and `GithubWorkflowCompleted` are published by separate environment-scoped jobs that declare the target GitHub environment so Azure OIDC emits the correct `repo:<owner>/<repo>:environment:<env>` subject.
+5. `publish-github-workflow-event` is the shared publisher for both message types.
+6. The publisher base64-encodes the outer `MessageBody` JSON before calling `az storage message put` because the Functions app keeps the default Azure Storage Queues trigger semantics.
+7. `ExampleQueue` remains the sole queue trigger on `default-queue` and the outer envelope-validation boundary.
+8. Duplicate side effects are prevented by correlating on `instanceId`, `runId`, `runAttempt`, and message type.
 
 ---
 
 ## Prerequisites
 
-Before setting up workflow orchestration, you must create and configure a GitHub App. Follow the step-by-step instructions in:
+Before using workflow orchestration, make sure all of the following are true:
 
-**[GitHub App Creation Guide](github-app-creation.md)**
+1. The GitHub App for the target environment exists, is installed on the repository, and its credentials have been uploaded to the environment Key Vault. See [GitHub App Creation Guide](./github-app-creation.md).
+2. The Functions app has valid `Github` configuration values for owner, repo, branch, app id, installation id, private key, retry schedule, and workflow timeout.
+3. The GitHub Actions service principal for each target environment can authenticate to Azure through OIDC.
+4. The dispatcher storage account grants that service principal the built-in `Storage Queue Data Message Sender` role so the workflow can publish to `default-queue` with `--auth-mode login`.
 
-You will need the following information from your GitHub App:
-- App ID
-- Installation ID
-- Private Key (PEM file)
-- Webhook Secret
-
----
-
-## GitHub Workflow Requirements
-
-Your GitHub Actions workflow file must meet specific requirements for the orchestration to work correctly.
-
-### Required Trigger
-
-The workflow **must** accept `workflow_dispatch` trigger with a `workflowName` input:
-
-```yaml
-on:
-  workflow_dispatch:
-    inputs:
-      workflowName:
-        description: 'Workflow name for tracking (format: functionappidentifier-instanceId)'
-        required: true
-        type: string
-```
-
-### Required Workflow Name Format
-
-The workflow run name **must** use the workflowName input. This is how the system matches webhook events to orchestration instances:
-
-```yaml
-name: ${{ inputs.workflowName }}
-```
-
-**Actual Format:** The orchestrator generates workflow names in the format `{functionappidentifier}-{instanceId}`, where:
-- `{functionappidentifier}` is the function app identifier prefix that identifies which function app will process the workflow
-- `{instanceId}` is the unique orchestration instance ID used to track the workflow execution
-
-Example: `InternalApi-abc123def456`
-
-### Example Minimal Workflow Structure
-
-Here's a complete minimal example:
-
-```yaml
-name: ${{ inputs.workflowName }}
-
-on:
-  workflow_dispatch:
-    inputs:
-      workflowName:
-        description: 'Workflow name for tracking (format: functionappidentifier-instanceId)'
-        required: true
-        type: string
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Display workflow name
-        run: echo "Processing with workflow name: ${{ inputs.workflowName }}"
-      
-      - name: Your deployment steps
-        run: |
-          # Add your actual deployment logic here
-          echo "Deploying application..."
-```
-
-### Important Notes
-
-- The workflow name format will be: `{functionappidentifier}-{instanceId}` (e.g., `InternalApi-abc123def456`)
-- The function app identifier prefix is used to route the workflow to the correct function app
-- The instanceId is used to track the specific orchestration instance
-- The workflow name **must exactly match** the workflowName input for tracking to work
-- You can add any additional workflow logic, jobs, and steps as needed
-- The workflow can be triggered manually or via other triggers, but `workflow_dispatch` is required for orchestration
-- **Rate Limiting**: The GitHub webhook endpoint is protected by rate limiting to prevent abuse:
-  - Default: 100 requests per 1-minute window
-  - Configurable via `RateLimiting:GithubWebhook` section in API `appsettings.json`
-  - Uses fixed window rate limiting (excess requests are rejected immediately by default)
+For application deployment workflows, the repository resolves the Git branch setting by preferring `github.head_ref` for pull-request-originated runs and falling back to `github.ref_name` for branch and manual runs.
 
 ---
 
-## Azure Configuration
+## GitHub App Requirements
 
-### Configuration Structure
+The GitHub App used for orchestration is now an Actions-authentication app, not a webhook delivery app.
 
-Both the API and Functions applications require the same `Github` configuration section in their `appsettings.json` files.
+Required repository permissions:
 
-For detailed explanations of each configuration option and their XML documentation, see the [`GithubAppOptions` class](../src/Template.Shared/Github/GithubAppOptions.cs).
+| Permission | Access |
+| --- | --- |
+| Actions | Read & Write |
+| Metadata | Read |
 
-**Important:** When deploying to Azure, these configuration values must also be added to your `__app_deploy.yml` workflow file as environment variables or app settings to ensure they are properly configured during deployment.
+Operational rules:
 
-#### API - appsettings.json
+1. Install the app on `christianacca/web-api-starter`.
+2. Generate and store the private key securely.
+3. Configure the app id and installation id in the repo conventions and app settings.
+4. Do not configure a webhook URL for orchestration callbacks.
+5. Do not create or manage a webhook secret for orchestration.
+6. Leave event subscription settings unused for this orchestration flow.
+
+---
+
+## Application Configuration
+
+Both application projects still share the same `Github` configuration section, but the webhook secret has been removed.
 
 ```json
 {
@@ -232,7 +127,6 @@ For detailed explanations of each configuration option and their XML documentati
     "AppId": null,
     "InstallationId": 0,
     "PrivateKeyPem": null,
-    "WebhookSecret": null,
     "MaxAttempts": 5,
     "RerunTriggerRetryDelays": ["00:00:15", "00:00:30", "00:01:00"],
     "WorkflowTimeoutHours": 12
@@ -240,401 +134,359 @@ For detailed explanations of each configuration option and their XML documentati
 }
 ```
 
-#### Functions - appsettings.json
+`RerunTriggerRetryDelays` controls how long the Functions app waits before asking GitHub to rerun a failed workflow attempt.
 
-Same structure as API configuration above.
-
-`RerunTriggerRetryDelays` controls the delayed retry schedule used before the Functions app asks GitHub to rerun a failed workflow. Each value is a `TimeSpan` string.
-
-#### Rate Limiting Configuration (API only)
-
-The API application includes rate limiting for the GitHub webhook endpoint to prevent abuse:
+For local queue verification, the Functions app may also read this optional user-secret-backed setting:
 
 ```json
 {
-  "RateLimiting": {
-    "GithubWebhook": {
-      "PermitLimit": 100,
-      "Window": "00:01:00",
-      "QueueProcessingOrder": "OldestFirst",
-      "QueueLimit": 0
+  "Github": {
+    "LocalVerification": {
+      "QueueEndpoint": "https://<your-dev-tunnel-host>/devstoreaccount1"
     }
   }
 }
 ```
 
-**Configuration Parameters:**
-- `PermitLimit`: Maximum number of requests allowed within the time window (default: 100)
-- `Window`: Time window for the rate limit as a TimeSpan (default: "00:01:00" for 1 minute, supports standard TimeSpan format like "00:00:30" for 30 seconds or "01:00:00" for 1 hour)
-- `QueueProcessingOrder`: Order in which queued requests are processed (default: "OldestFirst", alternative: "NewestFirst")
-- `QueueLimit`: Maximum number of requests that can be queued when limit is reached (default: 0, meaning no queueing - requests are rejected immediately)
-
-**Behavior:**
-- Uses fixed window rate limiting algorithm (FixedWindowRateLimiterOptions)
-- Requests exceeding the limit receive HTTP 429 (Too Many Requests) response
-- With `QueueLimit: 0`, no requests are queued - all excess requests are rejected immediately
-- If `QueueLimit` is increased, queued requests are processed according to `QueueProcessingOrder`
-
-### Reverse Proxy Routing
-
-The API application uses a reverse proxy pattern with Azure Managed Identity authentication to forward requests to the Functions app:
-
-#### Workflow Start Flow
-1. **User Request**: Client sends POST to `/api/workflow/start`
-2. **API Proxy**: API forwards request to Functions using `FunctionAppHttpClient`
-3. **Authentication**: Azure Managed Identity token added via `AzureIdentityAuthHttpClientHandler`
-4. **Trigger**: Functions `GithubWorkflowTrigger` receives request and schedules orchestration
-5. **Response**: Instance ID returned through the proxy chain back to user
-
-#### Webhook Flow
-1. **GitHub Webhook**: GitHub sends webhook events to `POST /api/github/webhooks`
-2. **Octokit.Webhooks Validation**: ASP.NET Core middleware validates HMAC-SHA256 signature using webhook secret
-3. **Processor Validation**: `WorkflowRunWebhookProcessor` deserializes and validates:
-   - Event type must be `WorkflowRun`
-   - Repository must match configured Owner/Repo
-   - Workflow name must follow format: `{functionappidentifier}-{instanceId}`
-   - Function app identifier prefix extracted to determine target function app
-   - instanceId extracted from workflow name to track the orchestration instance
-4. **Forwarding**: Valid webhooks forwarded to Functions at `/api/github/webhooks` using `FunctionAppHttpClient` with Azure MI token
-5. **Event Raising**: Functions `GithubWebhook` handler parses event and raises external event to orchestrator instance
-6. **Security**: Only validated, repository-matched, prefix-filtered webhooks reach the Functions orchestration logic
-
-This approach uses:
-- **Octokit.Webhooks.AspNetCore** for type-safe webhook processing and HMAC validation
-- **Azure Managed Identity** for secure service-to-service authentication
-- **Function app identifier** in workflow name format to route webhooks to the correct function app
-- **instanceId** in workflow name format to track and correlate orchestration instances
-- **Repository validation** to prevent webhooks from unauthorized repositories
+This setting is development-only. It allows the Functions dispatcher to send a `localVerification` workflow input so GitHub Actions can publish back into local Azurite through a public queue endpoint.
 
 ---
 
-## Retry Behavior and RerunEntireWorkflow Flag
+## Workflow Requirements
 
-### Understanding Retry Modes
+### Required trigger and run name
 
-When a GitHub workflow fails, the orchestrator can retry the workflow in two modes:
-
-#### 1. Rerun Failed Jobs Only (Default)
-
-**Default behavior** when `RerunEntireWorkflow` is `false` or omitted:
-
-```json
-{
-  "WorkflowFile": "deploy.yaml"
-}
-```
-
-- Only jobs that failed are re-executed
-- Previously successful jobs are skipped
-- **Faster retry** - saves time and resources
-- **Use case**: Independent jobs where failures don't affect successful jobs
-
-**Limitations:**
-- **Not suitable for dependent jobs**: If a failed job depends on a previously successful job, the dependency won't be re-run
-- Example: If `build` job passes and `deploy` job fails, retrying will skip `build` and only retry `deploy`, even though `deploy` depends on fresh build artifacts
-
-#### 2. Rerun Entire Workflow
-
-**Explicit behavior** when `RerunEntireWorkflow` is `true`:
-
-```json
-{
-  "WorkflowFile": "deploy.yaml",
-  "RerunEntireWorkflow": true
-}
-```
-
-- All jobs are re-executed from scratch
-- All previous job results are discarded
-- **Longer retry time** - re-runs everything
-- **Use case**: Jobs with dependencies or when you need a clean slate
-
-**When to use:**
-- **Dependent jobs**: When failed jobs depend on successful jobs (e.g., deploy depends on build)
-- **State dependencies**: When jobs rely on artifacts, caches, or state from previous jobs
-- **Auto-approve workflows**: When using environment auto-approval (see below)
-
-### Auto-Approve Scenario
-
-When using GitHub environment protection rules with auto-approval actions, **you must use `RerunEntireWorkflow: true`**:
-
-**Why?** GitHub's auto-approval action (e.g., `activescott/automate-environment-deployment-approval`) runs as a separate job that approves deployment requests. If the deployment job fails and you retry with failed jobs only:
-1. The auto-approve job is skipped (it succeeded previously)
-2. The deployment job expects a new approval
-3. **No approval is granted** → deployment hangs indefinitely
-
-**Solution:** Set `RerunEntireWorkflow: true` to ensure the auto-approve job runs again on retry.
-
-**Example workflow with auto-approval:**
-```yaml
-jobs:
-  qa-auto-approve:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for deployment to be registered
-        run: sleep 20
-      
-      - name: Auto-approve deployment
-        uses: activescott/automate-environment-deployment-approval@10179fc61443cb28b95e807814d9dfce60a9e230
-        with:
-          github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
-          environment_allow_list: qa
-          run_id_allow_list: ${{ github.run_id }}
-  
-  qa-deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: qa
-    needs: qa-auto-approve  # Depends on auto-approve
-    steps:
-      - name: Deploy to QA
-        run: echo "Deploying..."
-```
-
-For this workflow, use:
-```bash
-curl -X POST https://<your-api-domain>/api/workflow/start \
-  -H "Authorization: Bearer <your-token>" \
-  -H "Content-Type: application/json" \
-  -d '{"WorkflowFile": "deploy.yaml", "RerunEntireWorkflow": true}'
-```
-
----
-
-## Restricting Workflows to Specific Environments
-
-### GitHub App Authorization per Environment
-
-The `validate-github-app-actor` action restricts workflow jobs to run only when triggered by the authorized GitHub App for that environment.
-
-### How It Works
-
-Each environment (dev, qa, staging, prod, etc.) can be configured with a specific GitHub App ID and slug in your infrastructure conventions. The action validates that the workflow actor (the GitHub App that triggered the workflow) matches the expected app for each environment.
-
-### Setup
-
-#### 1. Configure GitHub App per Environment
-
-In your infrastructure conventions (e.g., `tools/infrastructure/get-product-conventions.ps1`), set the GitHub App details for each environment:
-
-```json
-{
-  "SubProducts": {
-    "Github": {
-      "AppSlug": "my-app-dev",
-      "AppId": "123456"
-    }
-  }
-}
-```
-
-#### 2. Add Authorization Check Job
-
-Add a job that checks authorization for all environments:
+The workflow must support `workflow_dispatch` with a `workflowName` input, and the workflow run name must use that same value.
 
 ```yaml
-jobs:
-  check-authorization:
-    runs-on: ubuntu-latest
-    outputs:
-      dev: ${{ steps.auth.outputs.dev }}
-      qa: ${{ steps.auth.outputs.qa }}
-      staging: ${{ steps.auth.outputs.staging }}
-      prod-na: ${{ steps.auth.outputs.prod-na }}
-      # Add other environments as needed
-    steps:
-      - uses: actions/checkout@v4
-      - id: auth
-        uses: ./.github/actions/validate-github-app-actor
+on:
+  workflow_dispatch:
+    inputs:
+      workflowName:
+        description: Dispatcher-prefixed workflow name in the form <dispatcher>-<instanceId>
+        required: true
+        type: string
+      localVerification:
+        description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
+        required: false
+        type: string
+
+run-name: ${{ inputs.workflowName }}
 ```
 
-#### 3. Conditionally Run Environment Jobs
+### Required workflow shape
 
-Use the authorization outputs to control which environment jobs run:
+The implemented workflow pattern is:
 
-```yaml
-  dev-deploy:
-    runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.dev == 'true'
-    environment:
-      name: dev
-    steps:
-      - name: Deploy to Dev
-        run: echo "Deploying to dev environment"
-```
+1. `github-app-authz` runs first and calls `github-app-authz-envs` with a multi-line `gated-environments` input.
+2. `publish-inprogress` runs in the resolved primary GitHub environment, obtains an OIDC token for that environment, and publishes `GithubWorkflowInProgress` with `publish-github-workflow-event`.
+3. The environment jobs run only when their environment appears in `authorized-target-envs`.
+4. `publish-completed` runs with `if: always()` and publishes `GithubWorkflowCompleted` only after the bootstrap publisher succeeded.
 
-### Security Benefits
-
-1. **Environment Isolation**: Each environment can only be deployed to by its authorized GitHub App
-2. **Prevents Cross-Environment Contamination**: A dev GitHub App cannot deploy to production
-3. **Audit Trail**: GitHub shows which app triggered each workflow run
-4. **Multi-Tenancy Support**: Different teams/environments can use different GitHub Apps
-
-### Example: Complete Workflow
+Minimal queue-aware example:
 
 ```yaml
-name: ${{ inputs.workflowName }}
+name: Orchestrator Test Workflow
 
 on:
   workflow_dispatch:
     inputs:
       workflowName:
-        description: 'Workflow name for tracking (format: functionappidentifier-instanceId)'
+        description: Dispatcher-prefixed workflow name in the form <dispatcher>-<instanceId>
         required: true
+        type: string
+      localVerification:
+        description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
+        required: false
         type: string
 
 run-name: ${{ inputs.workflowName }}
 
+permissions:
+  contents: read
+
 jobs:
-  check-authorization:
+  github-app-authz:
     runs-on: ubuntu-latest
     outputs:
-      dev: ${{ steps.auth.outputs.dev }}
-      qa: ${{ steps.auth.outputs.qa }}
-      prod-na: ${{ steps.auth.outputs.prod-na }}
+      authz-primary-env: ${{ steps.authz.outputs.primary }}
+      authz-authorized-target-envs: ${{ steps.authz.outputs.authorized-target-envs }}
     steps:
       - uses: actions/checkout@v4
-      - id: auth
-        uses: ./.github/actions/validate-github-app-actor
+      - id: authz
+        uses: ./.github/actions/github-app-authz-envs
+        with:
+          gated-environments: |
+            dev
+            qa
 
-  dev-deploy:
+  publish-inprogress:
     runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.dev == 'true'
+    needs: github-app-authz
+    environment:
+      name: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      published-in-progress: ${{ steps.publish.outputs.published }}
+      authz-primary-env: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+      authz-authorized-target-envs: ${{ needs.github-app-authz.outputs.authz-authorized-target-envs }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: publish
+        uses: ./.github/actions/publish-github-workflow-event
+        with:
+          github-environment: ${{ needs.github-app-authz.outputs.authz-primary-env }}
+          message-type: GithubWorkflowInProgress
+          local-verification: ${{ inputs.localVerification }}
+          repository: ${{ github.repository }}
+          run-attempt: ${{ github.run_attempt }}
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ inputs.workflowName }}
+
+  dev-task:
+    runs-on: ubuntu-latest
+    needs: publish-inprogress
+    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev')
     environment:
       name: dev
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to Dev
-        run: |
-          echo "Deploying to dev with workflow name: ${{ inputs.workflowName }}"
-          # Your deployment logic here
+      - run: echo "Run the dev job"
 
-  qa-auto-approve:
+  publish-completed:
     runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.qa == 'true'
+    needs:
+      - publish-inprogress
+      - dev-task
+    if: ${{ always() && needs.publish-inprogress.outputs.published-in-progress == 'true' }}
+    environment:
+      name: ${{ needs.publish-inprogress.outputs.authz-primary-env }}
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - name: Wait for deployment to be registered
-        run: sleep 20
-      - name: Auto-approve deployment
-        uses: activescott/automate-environment-deployment-approval@10179fc61443cb28b95e807814d9dfce60a9e230
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/publish-github-workflow-event
         with:
-          github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
-          environment_allow_list: qa
-          run_id_allow_list: ${{ github.run_id }}
-
-  qa-deploy:
-    runs-on: ubuntu-latest
-    needs: 
-      - check-authorization
-      - qa-auto-approve
-    if: needs.check-authorization.outputs.qa == 'true'
-    environment:
-      name: qa
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to QA
-        run: |
-          echo "Deploying to QA with workflow name: ${{ inputs.workflowName }}"
-          # Your deployment logic here
-
-  prod-deploy:
-    runs-on: ubuntu-latest
-    needs: check-authorization
-    if: needs.check-authorization.outputs.prod-na == 'true'
-    environment:
-      name: prod-na
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to Production
-        run: |
-          echo "Deploying to production with workflow name: ${{ inputs.workflowName }}"
-          # Your deployment logic here
+          github-environment: ${{ needs.publish-inprogress.outputs.authz-primary-env }}
+          message-type: GithubWorkflowCompleted
+          local-verification: ${{ inputs.localVerification }}
+          needs-json: ${{ toJSON(needs) }}
+          repository: ${{ github.repository }}
+          run-attempt: ${{ github.run_attempt }}
+          run-id: ${{ github.run_id }}
+          workflow-name: ${{ inputs.workflowName }}
 ```
-
-**Important:** For workflows with auto-approval, remember to use `RerunEntireWorkflow: true` when triggering via the API.
 
 ---
 
-## Testing and Verification
+## Authorization Contract
 
-### Trigger a Workflow
+### `github-app-authz-envs`
 
-Use the Postman collection located at `tests/postman/api.postman_collection.json` to trigger workflows. The collection already includes the necessary authentication and endpoint configuration.
+The action [../.github/actions/github-app-authz-envs/action.yml](../.github/actions/github-app-authz-envs/action.yml) is the fail-closed authorization step for queue-aware workflows.
 
-**Request:** `Proxied > Trigger Workflow`
+Input contract:
 
-**Request Body Examples:**
+```yaml
+with:
+  gated-environments: |
+    dev
+    qa
+```
+
+Parsing rules:
+
+1. Split on newlines.
+2. Trim whitespace.
+3. Drop blank lines.
+4. Preserve the declared order.
+
+Output contract:
+
+1. `primary`: the primary environment for the dispatching GitHub App.
+2. `pipeline`: the full authorized pipeline environment list as JSON.
+3. `authorized-target-envs`: the ordered intersection between `gated-environments` and the app-authorized pipeline environments, serialized as a JSON array for downstream `if` expressions.
+
+Behavior:
+
+1. Resolve the dispatching GitHub App from `github.triggering_actor`.
+2. Fail the workflow if the actor cannot be resolved to a supported GitHub App.
+3. Intersect the workflow's gated environments with that app's authorized pipeline environments.
+4. Fail the workflow if the intersection is empty.
+5. Leave Azure login and queue publication to the later environment-scoped jobs.
+
+---
+
+## Queue Publication Contract
+
+### `publish-github-workflow-event`
+
+The action [../.github/actions/publish-github-workflow-event/action.yml](../.github/actions/publish-github-workflow-event/action.yml) is the shared queue publisher for both workflow event types.
+
+Key inputs:
+
+1. `github-environment`: the primary GitHub environment used for Azure login and conventions lookup.
+2. `message-type`: `GithubWorkflowInProgress` or `GithubWorkflowCompleted`.
+3. `workflow-name`: the dispatcher-prefixed run name.
+4. `repository`, `run-id`, and `run-attempt`: correlation fields.
+5. `needs-json`: required only for `GithubWorkflowCompleted` so the action can derive the conclusion.
+6. `local-verification`: optional local-only override JSON.
+
+Behavior:
+
+1. When `local-verification` is empty, the action logs into Azure with the environment-scoped OIDC subject and publishes with `az storage message put --auth-mode login`.
+2. The queue publisher resolves the dispatcher and storage account from `workflowName`, not from a hard-coded app name.
+3. When `local-verification` is present, the action bypasses storage-account lookup for transport only and publishes with `--connection-string` against the public Azurite queue endpoint.
+4. The action constructs the workflow payload, wraps it in the shared `MessageBody` envelope, base64-encodes the outer JSON, and passes the encoded string to `az storage message put --content`.
+5. The steady-state Azure path uses the built-in `Storage Queue Data Message Sender` role. It does not fall back to shared keys, connection strings, or SAS.
+
+### Queue transport format
+
+The payload written to the queue is a base64-encoded UTF-8 string whose decoded JSON matches this shape:
 
 ```json
-// Basic - reruns only failed jobs
+{
+  "id": "5f9fe4dc-7e74-4f51-9fdc-9dfc8a4cfd6e",
+  "data": "{\"environment\":\"dev\",\"instanceId\":\"42cf976321bd4288a18a3dc54e3e6228\",\"repository\":\"christianacca/web-api-starter\",\"runAttempt\":1,\"runId\":23686425734,\"workflowName\":\"InternalApi-42cf976321bd4288a18a3dc54e3e6228\"}",
+  "metadata": {
+    "messageType": "GithubWorkflowInProgress"
+  }
+}
+```
+
+Important transport rules:
+
+1. `MessageBody.Data` is a JSON string, not a nested object.
+2. The publisher serializes the inner payload once into `data`.
+3. The publisher serializes the outer envelope once.
+4. The publisher base64-encodes the outer envelope before queue submission.
+5. `ExampleQueue` is the only consumer bound to `default-queue`.
+
+### Supported workflow payloads
+
+`GithubWorkflowInProgress` minimum payload:
+
+```json
+{
+  "environment": "dev",
+  "instanceId": "42cf976321bd4288a18a3dc54e3e6228",
+  "repository": "christianacca/web-api-starter",
+  "runAttempt": 1,
+  "runId": 23686425734,
+  "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228"
+}
+```
+
+`GithubWorkflowCompleted` minimum payload:
+
+```json
+{
+  "conclusion": "success",
+  "environment": "dev",
+  "instanceId": "42cf976321bd4288a18a3dc54e3e6228",
+  "repository": "christianacca/web-api-starter",
+  "runAttempt": 1,
+  "runId": 23686425734,
+  "workflowName": "InternalApi-42cf976321bd4288a18a3dc54e3e6228"
+}
+```
+
+`messageType` carries lifecycle state. The inner payload does not duplicate a `status` field.
+
+---
+
+## Queue Consumption and Duplicate Handling
+
+The Functions-side queue design is intentionally split:
+
+1. `ExampleQueue` validates the outer queue envelope and remains the only `default-queue` trigger.
+2. `GithubWorkflowQueueMessageProcessor` handles GitHub workflow message parsing, correlation, dedupe, and Durable event raising.
+
+Duplicate handling contract:
+
+1. The minimum dedupe tuple is `instanceId`, `runId`, `runAttempt`, and `messageType`.
+2. The processor reserves that tuple in the workflow message state table before raising the Durable event.
+3. Repeated deliveries with the same tuple do not create duplicate Durable side effects.
+4. Invalid or unsupported workflow queue messages still retry under normal queue semantics.
+5. On the final attempt, workflow-message failures are logged inline after dedupe-state cleanup rather than being moved to `default-queue-poison`.
+
+---
+
+## Retry Behavior and Fallback Polling
+
+The orchestrator still supports retries and fallback polling.
+
+### Event and polling behavior
+
+1. The orchestrator waits first for `GithubWorkflowInProgress` and then for `GithubWorkflowCompleted`.
+2. If the in-progress message does not arrive before timeout, the orchestrator queries GitHub for a matching recent workflow run.
+3. If the completed message does not arrive before timeout, the orchestrator queries GitHub for the workflow run status directly.
+
+### `RerunEntireWorkflow`
+
+Default behavior retries failed jobs only.
+
+```json
 {
   "WorkflowFile": "deploy.yaml"
 }
+```
 
-// Rerun entire workflow on failure
+Use `RerunEntireWorkflow: true` when retrying workflows that depend on environment approvals or on earlier jobs that must rerun with the failing jobs.
+
+```json
 {
   "WorkflowFile": "deploy.yaml",
   "RerunEntireWorkflow": true
 }
 ```
 
-**Expected Response:**
+This remains the correct choice for workflows that use a separate environment auto-approval job, because rerunning only failed jobs would otherwise skip the approval job that the later environment job depends on.
+
+---
+
+## Triggering and Operational Verification
+
+### Trigger a workflow through the deployed API
+
+Use the Postman collection in `tests/postman/api.postman_collection.json` or call the supported API route directly.
+
+Example request body:
+
+```json
+{
+  "WorkflowFile": "deploy.yaml",
+  "RerunEntireWorkflow": true
+}
+```
+
+Expected response:
+
 ```json
 {
   "Id": "instanceId"
 }
 ```
 
-**What happens next:**
-- Orchestration instance is created in Durable Functions with specified workflow file
-- GitHub workflow is dispatched with workflowName: `{functionappidentifier}-{instanceId}` (e.g., `InternalApi-abc123def456`)
-- The function app identifier determines which function app processes the workflow
-- The instanceId is used to track and correlate webhook events to the orchestration
-- Orchestration waits for webhook events from GitHub
-- If webhook event doesn't arrive in time, orchestrator queries GitHub for recent workflow runs
+### Recommended deployed verification flow
 
-**Track the workflow execution:**
-- Use the [Durable Function Monitoring tool](durable-function-monitoring.md) to track the orchestration progress in real-time
-- Monitor the workflow status, steps, and any retry attempts through the Durable Functions Monitor UI
+When validating a deployed environment, use this sequence:
 
-### Verify Workflow Execution
+1. Trigger the orchestration through the supported API path.
+2. Capture the returned `instanceId`.
+3. Locate the matching GitHub Actions run whose run name is `InternalApi-<instanceId>`.
+4. Use Application Insights or Azure Monitor logs to confirm:
+   - the workflow trigger ran for that instance
+   - queue-driven `RaiseEvent:GithubWorkflowInProgress` occurred
+   - queue-driven `RaiseEvent:GithubWorkflowCompleted` occurred
+   - the durable orchestration reached its expected terminal state
 
-1. **Navigate to GitHub repository**
-   - Go to **Actions** tab
-   - You should see a new workflow run
+---
 
-2. **Check workflow details**
-   - Workflow run name should be: `{functionappidentifier}-{instanceId}` (e.g., `InternalApi-abc123def456`)
-   - Status should show as "In progress" or "Completed"
-   - Inputs should show workflowName matching the format
-
-3. **Verify workflow logs**
-   - Click into the workflow run
-   - Check job logs to ensure steps are executing correctly
-
-### Validate Webhook Delivery
-
-1. **Navigate to GitHub App settings**
-   - Settings → Developer settings → GitHub Apps → Your App
-
-2. **Check recent deliveries**
-   - Click **Advanced** tab
-   - View **Recent Deliveries**
-   - Look for deliveries with green checkmarks (successful)
-
-3. **Inspect delivery details**
-   - Click on a delivery to see request/response details
-   - Response status should be **200 OK**
-   - Response headers should show successful processing
-
-4. **Common webhook events to verify**
-   - `workflow_run` with action: `in_progress` (when workflow starts)
-   - `workflow_run` with action: `completed` (when workflow finishes)
-
-### Exact Local E2E Validation Procedure
+## Exact Local E2E Validation Procedure
 
 Use this procedure to validate the queue-callback path end to end from a local machine. This procedure is intentionally terminal-first and is written so that either a human or a coding agent can run it step by step without needing to infer missing commands.
 
@@ -646,7 +498,7 @@ This procedure validates the following path:
 4. the messages arrive in local Azurite through the dev tunnel queue endpoint
 5. the local Durable orchestration reaches the expected terminal state for the returned `instanceId`
 
-#### Validation Prerequisites
+### Validation prerequisites
 
 Before running the commands below, make sure all of the following are true:
 
@@ -662,16 +514,13 @@ brew install gh
 gh auth login
 ```
 
-#### Terminal Conventions
+### Terminal conventions
 
 Run the commands below from the repository root.
 
 The command blocks are written for PowerShell and are intended to be pasted directly into a PowerShell terminal.
 
 If your active terminal is not PowerShell, open a PowerShell terminal first. Only use `pwsh -File` for checked-in `.ps1` scripts.
-
-> Agent note:
-> If you are running this procedure from a coding agent or from a non-PowerShell shell, do not collapse these multi-line blocks into quoted `pwsh -Command "..."` one-liners. That is the fastest way to break variable expansion, quoting, and JSON handling.
 
 To keep GitHub CLI output non-interactive during this procedure, disable paging in Terminal D before you run any `gh` commands:
 
@@ -686,7 +535,7 @@ Use four terminals:
 3. Terminal C: Functions app
 4. Terminal D: validation commands
 
-#### Step 1: Set validation variables
+### Step 1: Set validation variables
 
 In Terminal D, set the variables for the run you want to validate.
 
@@ -700,7 +549,7 @@ Replace the placeholder values before running the block.
 $WorkflowBranch = (git rev-parse --abbrev-ref HEAD).Trim()
 $TunnelId = '<your-dev-tunnel-id>'
 $QueueTunnelBaseUrl = 'https://<your-dev-tunnel-host>/devstoreaccount1'
-$WorkflowFile = 'webhook-integration-test.yml'
+$WorkflowFile = 'github-integration-test.yml'
 $FunctionsBaseUrl = 'http://localhost:7071'
 $RepoRoot = (Get-Location).Path
 $TmpDir = Join-Path $RepoRoot 'tmp'
@@ -720,14 +569,9 @@ Remove-Item $FunctionsLog, $DurableInstancesLog, $DurableHistoryLog, $RunListLog
 Write-Host "WorkflowBranch: $WorkflowBranch"
 ```
 
-> Agent note:
-> Keep the first non-empty `instanceId` returned by Step 7 as the validation target unless Step 7 itself fails before returning an id.
->
-> Do not start a second orchestration instance just because a later lookup command needs adjustment. Fix the lookup against the original `instanceId` first.
->
-> If you do abandon an instance and start over, explicitly record the abandoned `instanceId` and why it was abandoned before proceeding.
+Keep the first non-empty `instanceId` returned by Step 7 as the validation target unless Step 7 itself fails before returning an id.
 
-#### Step 2: Restore tools and sign in
+### Step 2: Restore tools and sign in
 
 In Terminal D, run:
 
@@ -739,9 +583,7 @@ devtunnel user login
 gh auth status
 ```
 
-Keep `devtunnel user login` as the default because it is the normal interactive sign-in path. If browser-based sign-in is unavailable in your environment, use the dev tunnel device-flow variant instead (`-d`). Either way, this remains a user-authentication prerequisite, not a fully unattended agent step.
-
-#### Step 3: Apply the local validation overrides
+### Step 3: Apply the local validation overrides
 
 In Terminal D, run:
 
@@ -749,8 +591,6 @@ In Terminal D, run:
 dotnet user-secrets set Github:Branch $WorkflowBranch --project ./src/Template.Functions/Template.Functions.csproj
 dotnet user-secrets set Github:LocalVerification:QueueEndpoint $QueueTunnelBaseUrl --project ./src/Template.Functions/Template.Functions.csproj
 ```
-
-The `Github:Branch` override is what tells the local Functions app which branch GitHub should execute. In this procedure it is set automatically from your current checked out branch so the workflow runs against the same branch you are already working on.
 
 If you need to validate a specific rerun schedule locally without editing code, set the indexed `Github:RerunTriggerRetryDelays` values through user-secrets before starting the Functions host. For example, a single 1ms retry is:
 
@@ -760,7 +600,7 @@ dotnet user-secrets remove Github:RerunTriggerRetryDelays:1 --project ./src/Temp
 dotnet user-secrets remove Github:RerunTriggerRetryDelays:2 --project ./src/Template.Functions/Template.Functions.csproj
 ```
 
-#### Step 4: Start Azurite
+### Step 4: Start Azurite
 
 In Terminal A, run:
 
@@ -776,7 +616,7 @@ pwsh -File ./tools/azurite/azurite-run.ps1
 
 Leave Terminal A running.
 
-#### Step 5: Start the dev tunnel host
+### Step 5: Start the dev tunnel host
 
 In Terminal B, run:
 
@@ -798,7 +638,7 @@ devtunnel port show $TunnelId -p 10001
 
 The tunnel must show `Host connections: 1` or higher before continuing.
 
-#### Step 6: Start the local Functions app
+### Step 6: Start the local Functions app
 
 In Terminal C, run:
 
@@ -818,7 +658,7 @@ Invoke-RestMethod -Method Get -Uri "$FunctionsBaseUrl/api/Echo"
 
 Do not proceed to Step 7 until the Echo endpoint returns successfully and Terminal C shows the Functions host has started.
 
-#### Step 7: Trigger the workflow directly through `GithubWorkflowTrigger`
+### Step 7: Trigger the workflow directly through `GithubWorkflowTrigger`
 
 In Terminal D, run:
 
@@ -839,7 +679,7 @@ Write-Host "InstanceId: $InstanceId"
 Write-Host "WorkflowName: $WorkflowName"
 ```
 
-#### Step 8: Locate the matching GitHub Actions run on the target branch
+### Step 8: Locate the matching GitHub Actions run on the target branch
 
 In Terminal D, run:
 
@@ -866,12 +706,7 @@ if (-not $Run) {
 $Run | Select-Object databaseId, displayTitle, status, conclusion, attempt, url, createdAt | Format-List
 ```
 
-This step uses `gh run list --json` so the result shape is stable and easy to save locally for later inspection.
-
-> Agent note:
-> Prefer this `gh run list --json` path over ad hoc `gh api` calls during automated validation. It avoids the brittle quoting and pager behavior that showed up in earlier runs.
-
-#### Step 9: Wait for the GitHub Actions run to complete
+### Step 9: Wait for the GitHub Actions run to complete
 
 In Terminal D, run:
 
@@ -891,9 +726,7 @@ if ($Run.status -ne 'completed') {
 }
 ```
 
-If you are validating retry behavior, keep the `attempt` value from this step. It is the first check for whether GitHub actually created the rerun you expected.
-
-#### Step 10: Inspect the local Functions log for queue-message evidence
+### Step 10: Inspect the local Functions log for queue-message evidence
 
 In Terminal D, run:
 
@@ -908,7 +741,7 @@ Expected evidence:
 2. `GithubWorkflowInProgress` appears in the log, for example in a durable-host line such as `Reason: RaiseEvent:GithubWorkflowInProgress`
 3. `GithubWorkflowCompleted` appears in the log, for example in a durable-host line such as `Reason: RaiseEvent:GithubWorkflowCompleted`
 
-#### Step 11: Inspect Durable state in Azurite
+### Step 11: Inspect Durable state in Azurite
 
 In Terminal D, run:
 
@@ -930,16 +763,13 @@ Get-Content $DurableHistoryLog
 
 Some Azure CLI versions do not accept `--accept application/json` on `az storage entity query`. The `-o json` form above is the compatibility baseline for this runbook.
 
-> Agent note:
-> Run this block directly in PowerShell exactly as written. Do not re-wrap the `--filter` clauses inside another shell string, because that is the easiest way to corrupt the quoting and query the wrong partition.
-
 Expected evidence:
 
 1. `TestHubNameInstances` returns an entity for the returned `instanceId`
 2. `TestHubNameHistory` returns one or more rows for that same `instanceId`
 3. the instance record shows a terminal orchestration state consistent with the GitHub workflow conclusion
 
-#### Step 12: Optional direct queue verification
+### Step 12: Optional direct queue verification
 
 If you need to prove the Azure CLI can publish through the public Azurite queue endpoint used by the seam, run this in Terminal D:
 
@@ -959,20 +789,20 @@ az storage message put --queue-name local-validation --connection-string "$Valid
 
 This command is part of seam validation through the public tunnel endpoint. It is distinct from direct local CLI diagnostics against `https://127.0.0.1`, which may require `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1`.
 
-#### Pass Criteria
+### Pass criteria
 
 Treat the validation as passed only when all of the following are true:
 
 1. the Functions health check succeeds
 2. the dev tunnel shows an active host connection for port `10001`
 3. `POST /api/workflow/start` on the local Functions host returns a non-empty `instanceId`
-4. a GitHub Actions run exists on the target branch with `display_title` equal to `InternalApi-<instanceId>`
+4. a GitHub Actions run exists on the target branch with `displayTitle` equal to `InternalApi-<instanceId>`
 5. that GitHub Actions run reaches `completed`
 6. the Functions log contains evidence for both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the target instance
 7. Azurite Durable state exists for the same `instanceId` in both `TestHubNameInstances` and `TestHubNameHistory`
 8. the terminal Durable state is consistent with the GitHub Actions run conclusion
 
-#### Failure Handling
+### Failure handling
 
 If the validation fails, collect and keep these files for diagnosis:
 
@@ -982,37 +812,29 @@ If the validation fails, collect and keep these files for diagnosis:
 
 Record the failing command, the returned `instanceId`, the computed `workflowName`, the GitHub Actions run id, and whether the tunnel showed an active host connection when the failure occurred.
 
-> Agent note:
-> If the failure occurs after Step 7 returned a valid `instanceId`, keep troubleshooting against that same instance first. Only start a second instance after you have concluded that the first one is unusable for reasons unrelated to ordinary lookup or quoting mistakes.
+---
 
 ## Security Considerations
 
-### Critical Security Practices
+### Critical security practices
 
-**Store private keys ONLY in secure vaults** such as Azure Key Vault or HashiCorp Vault. Never store private keys in:
-- Source control (Git repositories)
-- Plain text configuration files
-- Environment variables in shared environments
-- Build/deployment logs
+Store private keys only in secure vaults such as Azure Key Vault. Never store them in source control, plain-text config files, or logs.
 
-### Webhook Security
+### Queue-path security model
 
-- **HMAC-SHA256 Validation**: All webhook requests are validated using Octokit.Webhooks library before processing
-- **Repository Validation**: Webhook processor verifies the webhook originates from the configured repository (Owner/Repo match)
-- **Workflow Name Format Validation**: Workflow names must follow `{functionappidentifier}-{instanceId}` format for processing
-- **Function App Routing**: Function app identifier in workflow name determines which function app processes the webhook
-- **Azure Managed Identity**: Service-to-service authentication between API and Functions using Azure MI tokens
-- **instanceId Extraction**: Orchestrator instanceId is extracted from the workflow name, ensuring events route to correct orchestration
-- **Type-Safe Deserialization**: Octokit.Webhooks provides strongly-typed payload deserialization with validation
-- **Rate Limiting**: Webhook endpoint is protected by rate limiting (100 requests per 1-minute window by default, excess requests rejected immediately)
-- **Endpoint Isolation**: Functions webhook endpoint is never exposed publicly; only accessible via authenticated API proxy
+1. GitHub API calls from the Functions app still use GitHub App credentials and installation tokens.
+2. Workflow queue publication in Azure uses GitHub OIDC plus the environment-scoped Azure service principal.
+3. Queue publication requires the built-in `Storage Queue Data Message Sender` role on the target storage account.
+4. The workflow must declare the target GitHub environment on the publishing jobs so the OIDC subject matches the federated credential configured for that environment.
+5. The local `localVerification` seam is development-only and exists only to redirect queue transport into local Azurite.
+6. No inbound webhook secret, HMAC validation, or `/api/github/webhooks` endpoint is part of the supported orchestration runtime.
 
 ---
 
 ## Additional Resources
 
-### GitHub Documentation
-- [GitHub Apps Documentation](https://docs.github.com/en/apps)
-- [Webhook Events and Payloads](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
-- [Authenticating with GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app)
----
+### GitHub documentation
+
+1. [GitHub Apps Documentation](https://docs.github.com/en/apps)
+2. [Authenticating with GitHub Apps](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app)
+3. [Using environments for deployment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
