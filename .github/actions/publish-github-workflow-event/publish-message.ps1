@@ -2,12 +2,16 @@
 param(
     [Parameter(Mandatory)]
     [string] $MessageType,
+
     [Parameter(Mandatory)]
     [string] $PayloadJson,
+
     [Parameter()]
     [string] $StorageAccountName = "",
+
     [Parameter()]
     [string] $StorageConnectionString = "",
+
     [Parameter(Mandatory)]
     [string] $QueueName
 )

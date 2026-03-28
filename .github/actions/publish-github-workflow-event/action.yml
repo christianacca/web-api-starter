@@ -74,10 +74,17 @@ runs:
           -WorkflowName $env:WORKFLOW_NAME
 
     - id: publish
-      uses: ./.github/actions/publish-workflow-queue-message
-      with:
-        message-type: ${{ inputs.message-type }}
-        payload-json: ${{ steps.payload.outputs.payload-json }}
-        queue-name: ${{ inputs.queue-name }}
-        storage-connection-string: ${{ steps.payload.outputs.storage-connection-string }}
-        storage-account: ${{ steps.payload.outputs.storage-account }}
+      shell: pwsh
+      env:
+        MESSAGE_TYPE: ${{ inputs.message-type }}
+        PAYLOAD_JSON: ${{ steps.payload.outputs.payload-json }}
+        QUEUE_NAME: ${{ inputs.queue-name }}
+        STORAGE_ACCOUNT: ${{ steps.payload.outputs.storage-account }}
+        STORAGE_CONNECTION_STRING: ${{ steps.payload.outputs.storage-connection-string }}
+      run: |
+        ${{ github.action_path }}/publish-message.ps1 `
+          -MessageType $env:MESSAGE_TYPE `
+          -PayloadJson $env:PAYLOAD_JSON `
+          -QueueName $env:QUEUE_NAME `
+          -StorageAccountName $env:STORAGE_ACCOUNT `
+          -StorageConnectionString $env:STORAGE_CONNECTION_STRING
