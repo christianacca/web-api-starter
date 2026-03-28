@@ -31,6 +31,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..' '_shared' 'GitHubWorkflowQueueSupport.psm1') -Force
 
 $workflowQueueContext = Resolve-WorkflowQueueContext -WorkflowName $WorkflowName -EnvironmentName $GitHubEnvironment -LocalVerificationDirectiveJson $LocalVerificationDirective
+$conclusion = $null
 $payload = [ordered]@{
     environment = $GitHubEnvironment
     instanceId = $workflowQueueContext.InstanceId
