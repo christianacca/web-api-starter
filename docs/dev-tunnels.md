@@ -2,6 +2,16 @@
 
 Use this guide when you need a public URL for a local service running on your machine.
 
+## Install
+
+Follow the platform-specific instructions at [Microsoft Dev Tunnels / Install](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=windows#install) to install the dev tunnels CLI for your OS.
+
+After installing, sign in:
+
+```pwsh
+devtunnel user login
+```
+
 Default approach for this repo: each developer creates and reuses one persistent dev tunnel, then adds whichever ports they need for the API, App, Functions HTTP endpoints, or the Azurite queue.
 
 Use a shared tunnel only for the cases where preserving one exact public URL across developers matters.

@@ -61,6 +61,9 @@ public class ExampleQueue {
 
     var lastAttempt = dequeueCount == QueueConstants.MaxDequeueCount;
 
+    // as of version 1.2.0 of Microsoft.Azure.Functions.Worker.Extensions.Tables, we need to explicitly create table ourselves
+    await tableClient.CreateIfNotExistsAsync(ct);
+
     try {
       switch (messageType) {
         case nameof(ExampleMessageData):
@@ -79,10 +82,6 @@ public class ExampleQueue {
     }
     catch (Exception ex) when (lastAttempt) {
       // store exception dto so that the details are available to the queue trigger handling the poison message queue...
-
-      // as of version 1.2.0 of Microsoft.Azure.Functions.Worker.Extensions.Tables, we need to explicitly create table ourselves
-      await tableClient.CreateIfNotExistsAsync(ct);
-
       await tableClient
         .UpsertEntityAsync(MessageExceptionTableEntity.Create(messageBody.Id, ex), TableUpdateMode.Replace, ct);
       throw;

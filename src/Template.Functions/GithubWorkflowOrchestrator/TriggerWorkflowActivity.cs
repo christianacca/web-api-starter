@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 using Octokit;
 using System.Data.Common;
 using System.Text.Json;
-using Template.Shared.Proxy;
 using Template.Shared.Github;
 
 namespace Template.Functions.GithubWorkflowOrchestrator;
@@ -13,6 +12,7 @@ namespace Template.Functions.GithubWorkflowOrchestrator;
 public class TriggerWorkflowActivity(
   IOptionsMonitor<GithubAppOptions> optionsMonitor,
   IGitHubClientFactory gitHubClientFactory,
+  FunctionAppName functionAppName,
   IConfiguration configuration,
   IHostEnvironment hostEnvironment) {
   private const string LocalVerificationQueueEndpointKey = "Github:LocalVerification:QueueEndpoint";
@@ -29,7 +29,7 @@ public class TriggerWorkflowActivity(
     var options = optionsMonitor.CurrentValue;
     var githubClient = await gitHubClientFactory.GetOrCreateClientAsync();
 
-    var workflowName = $"{FunctionAppIdentifiers.InternalApi}-{input.InstanceId}";
+    var workflowName = $"{functionAppName.Value}-{input.InstanceId}";
     var workflowInputs = new Dictionary<string, object>() { ["workflowName"] = workflowName };
     var localVerificationDirective = BuildLocalVerificationDirective();
     if (!string.IsNullOrWhiteSpace(localVerificationDirective)) {

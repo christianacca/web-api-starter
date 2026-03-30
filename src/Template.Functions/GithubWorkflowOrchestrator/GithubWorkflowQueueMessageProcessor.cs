@@ -17,8 +17,6 @@ public sealed class GithubWorkflowQueueMessageProcessor(ILogger<GithubWorkflowQu
     CancellationToken ct) {
     var workflowMessage = GithubWorkflowQueueMessageContract.Parse(message);
 
-    await tableClient.CreateIfNotExistsAsync(ct);
-
     GithubWorkflowMessageStateTableEntity? processingState = null;
 
     try {

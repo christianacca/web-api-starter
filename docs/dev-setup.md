@@ -53,7 +53,7 @@ Once up and running, feel free to then switch to running the projects via an IDE
     * mac: `sh -c "$(curl -fsSL https://aka.ms/install-artifacts-credprovider.sh)"`
     * for more details on installation see: <https://github.com/microsoft/artifacts-credprovider#setup>
 11. If you need GitHub or another external service to call one of your local services, install Microsoft dev tunnels CLI:
-    * Follow the install instructions here: [Microsoft Dev Tunnels / Install](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/get-started?tabs=windows#install)
+    * Follow the install instructions here: [Microsoft dev tunnels for local services — Install](./dev-tunnels.md#install)
     * For repo-specific tunnel usage, see [Microsoft dev tunnels for local services](./dev-tunnels.md)
 
 ## API
