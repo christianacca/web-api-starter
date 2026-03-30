@@ -66,7 +66,9 @@ sequenceDiagram
     end
 ```
 
-### Key flow points
+---
+
+## Key flow points
 
 1. The orchestration correlation key is always the Durable `instanceId` encoded into `workflowName`.
 2. The workflow run name format is `<dispatcher>-<instanceId>`. The current dispatcher emitted by the Functions app is `InternalApi`.
@@ -116,8 +118,7 @@ Operational rules:
 
 ## Application Configuration
 
-Both application projects still share the same `Github` configuration section, but the webhook secret has been removed.
-
+Both the API and Functions projects share the same `Github` configuration section.
 ```json
 {
   "Github": {
@@ -150,40 +151,22 @@ For local queue verification, the Functions app may also read this optional user
 
 This setting is development-only. It allows the Functions dispatcher to send a `localVerification` workflow input so GitHub Actions can publish back into local Azurite through a public queue endpoint.
 
+For tunnel setup, see [Microsoft dev tunnels for local services](./dev-tunnels.md).
+
 ---
 
 ## Workflow Requirements
 
-### Required trigger and run name
-
-The workflow must support `workflow_dispatch` with a `workflowName` input, and the workflow run name must use that same value.
-
-```yaml
-on:
-  workflow_dispatch:
-    inputs:
-      workflowName:
-        description: Dispatcher-prefixed workflow name in the form <dispatcher>-<instanceId>
-        required: true
-        type: string
-      localVerification:
-        description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
-        required: false
-        type: string
-
-run-name: ${{ inputs.workflowName }}
-```
-
 ### Required workflow shape
 
-The implemented workflow pattern is:
+The workflow must support `workflow_dispatch` with a `workflowName` input and set `run-name` from that input. The implemented job pattern is:
 
 1. `github-app-authz` runs first and calls `github-app-authz-envs` with a multi-line `gated-environments` input.
 2. `publish-inprogress` runs in the resolved primary GitHub environment, obtains an OIDC token for that environment, and publishes `GithubWorkflowInProgress` with `publish-github-workflow-event`.
 3. The environment jobs run only when their environment appears in `authorized-target-envs`.
 4. `publish-completed` runs with `if: always()` and publishes `GithubWorkflowCompleted` only after the bootstrap publisher succeeded.
 
-Minimal queue-aware example:
+Minimal complete example:
 
 ```yaml
 name: Orchestrator Test Workflow
@@ -218,7 +201,6 @@ jobs:
         with:
           gated-environments: |
             dev
-            qa
 
   publish-inprogress:
     runs-on: ubuntu-latest
@@ -288,7 +270,7 @@ jobs:
 
 The action [../.github/actions/github-app-authz-envs/action.yml](../.github/actions/github-app-authz-envs/action.yml) is the fail-closed authorization step for queue-aware workflows.
 
-Input contract:
+Input contract (example):
 
 ```yaml
 with:
@@ -296,13 +278,6 @@ with:
     dev
     qa
 ```
-
-Parsing rules:
-
-1. Split on newlines.
-2. Trim whitespace.
-3. Drop blank lines.
-4. Preserve the declared order.
 
 Output contract:
 
@@ -448,17 +423,32 @@ This remains the correct choice for workflows that use a separate environment au
 
 ---
 
+## Monitoring and Troubleshooting
+
+Use [Durable Function Monitoring](./durable-function-monitoring.md) for local Durable inspection.
+
+If the queue callback does not arrive:
+
+1. Confirm the workflow run name includes the expected dispatcher prefix and instance id.
+2. Confirm the relevant GitHub environment job obtained an OIDC token and executed the publisher action.
+3. Confirm the target queue publisher resolved the expected storage account for the dispatcher prefix.
+4. Confirm the queued message still contains a valid outer `MessageBody` envelope.
+5. Confirm `ExampleQueue` logs show the message being validated and forwarded to `GithubWorkflowQueueMessageProcessor`.
+6. If the queue event never arrives, inspect orchestrator fallback polling behavior in the Functions logs.
+
+---
+
 ## Triggering and Operational Verification
 
 ### Trigger a workflow through the deployed API
 
-Use the Postman collection in `tests/postman/api.postman_collection.json` or call the supported API route directly.
+Use the Postman collection in `tests/postman/api.postman_collection.json` (Proxied>Trigger Workflow) or call the supported API route directly.
 
 Example request body:
 
 ```json
 {
-  "WorkflowFile": "deploy.yaml",
+  "WorkflowFile": "github-integration-test.yml",
   "RerunEntireWorkflow": true
 }
 ```
