@@ -675,7 +675,7 @@ In Terminal D, run:
 
 ```pwsh
 $Run = $null
-1..24 | ForEach-Object {
+foreach ($_ in 1..24) {
   Start-Sleep -Seconds 10
   $RunCandidates = gh run list --workflow $WorkflowFile --branch $WorkflowBranch --limit 100 --json databaseId,displayTitle,status,conclusion,attempt,url,workflowName,createdAt |
     Tee-Object -FilePath $RunListLog |
@@ -701,7 +701,7 @@ $Run | Select-Object databaseId, displayTitle, status, conclusion, attempt, url,
 In Terminal D, run:
 
 ```pwsh
-1..60 | ForEach-Object {
+foreach ($_ in 1..60) {
   Start-Sleep -Seconds 10
   $Run = gh run view $Run.databaseId --json databaseId,attempt,status,conclusion,url,displayTitle |
     Tee-Object -FilePath $RunLog |
