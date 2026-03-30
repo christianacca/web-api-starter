@@ -85,7 +85,7 @@ sequenceDiagram
 
 Before using workflow orchestration, make sure all of the following are true:
 
-1. The GitHub App for the target environment exists, is installed on the repository, and its credentials have been uploaded to the environment Key Vault. See [GitHub App Creation Guide](./github-app-creation.md).
+1. The GitHub App for the target environment exists, is installed on the repository, and its private key has been uploaded to the environment Key Vault. See [GitHub App Creation Guide](./github-app-creation.md).
 2. The Functions app has valid `Github` configuration values for owner, repo, branch, app id, installation id, private key, retry schedule, and workflow timeout.
 3. The GitHub Actions service principal for each target environment can authenticate to Azure through OIDC.
 4. The dispatcher storage account grants that service principal the built-in `Storage Queue Data Message Sender` role so the workflow can publish to `default-queue` with `--auth-mode login`.
@@ -157,16 +157,36 @@ For tunnel setup, see [Microsoft dev tunnels for local services](./dev-tunnels.m
 
 ## Workflow Requirements
 
+### Required trigger and run name
+
+The workflow must support `workflow_dispatch` with a `workflowName` input, and the workflow run name must use that same value.
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      workflowName:
+        description: Dispatcher-prefixed workflow name in the form <dispatcher>-<instanceId>
+        required: true
+        type: string
+      localVerification:
+        description: Optional local-only queue publication override JSON supplied by the local Functions dispatcher
+        required: false
+        type: string
+
+run-name: ${{ inputs.workflowName }}
+```
+
 ### Required workflow shape
 
-The workflow must support `workflow_dispatch` with a `workflowName` input and set `run-name` from that input. The implemented job pattern is:
+The implemented job pattern is:
 
 1. `github-app-authz` runs first and calls `github-app-authz-envs` with a multi-line `gated-environments` input.
 2. `publish-inprogress` runs in the resolved primary GitHub environment, obtains an OIDC token for that environment, and publishes `GithubWorkflowInProgress` with `publish-github-workflow-event`.
 3. The environment jobs run only when their environment appears in `authorized-target-envs`.
 4. `publish-completed` runs with `if: always()` and publishes `GithubWorkflowCompleted` only after the bootstrap publisher succeeded.
 
-Minimal complete example:
+Minimal queue-aware example:
 
 ```yaml
 name: Orchestrator Test Workflow
@@ -423,7 +443,7 @@ This remains the correct choice for workflows that use a separate environment au
 
 ---
 
-## Monitoring and Troubleshooting
+## Monitoring and troubleshooting
 
 Use [Durable Function Monitoring](./durable-function-monitoring.md) for local Durable inspection.
 
@@ -438,7 +458,7 @@ If the queue callback does not arrive:
 
 ---
 
-## Triggering and Operational Verification
+## Triggering and operational verification
 
 ### Trigger a workflow through the deployed API
 
@@ -473,6 +493,18 @@ When validating a deployed environment, use this sequence:
    - queue-driven `RaiseEvent:GithubWorkflowInProgress` occurred
    - queue-driven `RaiseEvent:GithubWorkflowCompleted` occurred
    - the durable orchestration reached its expected terminal state
+
+### Local verification
+
+For local end-to-end queue verification:
+
+1. Start the Functions app locally.
+2. Start Azurite.
+3. Expose the Azurite queue endpoint through a dev tunnel as described in [Microsoft dev tunnels for local services](./dev-tunnels.md).
+4. Set `Github:LocalVerification:QueueEndpoint` in user secrets to the tunneled queue base URL.
+5. Dispatch the queue-aware GitHub workflow and verify that `GithubWorkflowInProgress` and `GithubWorkflowCompleted` arrive on local `default-queue`.
+
+For the full step-by-step terminal procedure, see [Exact Local E2E Validation Procedure](#exact-local-e2e-validation-procedure).
 
 ---
 
@@ -675,7 +707,7 @@ In Terminal D, run:
 
 ```pwsh
 $Run = $null
-foreach ($_ in 1..24) {
+foreach ($i in 1..24) {
   Start-Sleep -Seconds 10
   $RunCandidates = gh run list --workflow $WorkflowFile --branch $WorkflowBranch --limit 100 --json databaseId,displayTitle,status,conclusion,attempt,url,workflowName,createdAt |
     Tee-Object -FilePath $RunListLog |
@@ -701,7 +733,7 @@ $Run | Select-Object databaseId, displayTitle, status, conclusion, attempt, url,
 In Terminal D, run:
 
 ```pwsh
-foreach ($_ in 1..60) {
+foreach ($i in 1..60) {
   Start-Sleep -Seconds 10
   $Run = gh run view $Run.databaseId --json databaseId,attempt,status,conclusion,url,displayTitle |
     Tee-Object -FilePath $RunLog |
