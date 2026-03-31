@@ -20,16 +20,18 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
 
 ## Phase 1: Modify `github-integration-test.yml`
 
+> **Agent instruction**: tick each checkbox in this document (`- [ ]` → `- [x]`) immediately after completing each step. Do not batch ticks at the end.
+
 **File**: `.github/workflows/github-integration-test.yml`
 
 ### Steps
 
-- [ ] Read `github-integration-test.yml` to confirm current full content before editing.
-- [ ] Make `workflowName` input optional: remove `required: true`, add `default: ''`.
-- [ ] Update `run-name`: `${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}`.
-- [ ] Add `if: endsWith(github.triggering_actor, '[bot]')` to the `github-app-authz` job. No other change to that job.
-- [ ] Confirm `publish-inprogress` naturally skips (it has `needs: github-app-authz` with no `always()`, so it is skipped when authz is skipped). No change needed.
-- [ ] Update `dev-task` `if` condition:
+- [x] Read `github-integration-test.yml` to confirm current full content before editing.
+- [x] Make `workflowName` input optional: remove `required: true`, add `default: ''`.
+- [x] Update `run-name`: `${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}`.
+- [x] Add `if: endsWith(github.triggering_actor, '[bot]')` to the `github-app-authz` job. No other change to that job.
+- [x] Confirm `publish-inprogress` naturally skips (it has `needs: github-app-authz` with no `always()`, so it is skipped when authz is skipped). No change needed.
+- [x] Update `dev-task` `if` condition:
   ```yaml
   if: |
     always() && !cancelled() &&
@@ -39,7 +41,7 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
        contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev'))
     )
   ```
-- [ ] Update `qa-auto-approve` `if` condition:
+- [x] Update `qa-auto-approve` `if` condition:
   ```yaml
   if: |
     always() && !cancelled() &&
@@ -49,7 +51,7 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
        contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa'))
     )
   ```
-- [ ] Update `qa-task` `if` condition (same pattern as `qa-auto-approve`):
+- [x] Update `qa-task` `if` condition (same pattern as `qa-auto-approve`):
   ```yaml
   if: |
     always() && !cancelled() &&
@@ -59,20 +61,22 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
        contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa'))
     )
   ```
-- [ ] Verify `publish-completed` — existing `if: ${{ always() && needs.publish-inprogress.outputs.published-in-progress == 'true' }}` correctly skips for human dispatch (output is empty when job skipped). No change needed unless issues found.
-- [ ] **Code review checklist** (agent must complete before moving to Phase 2):
-  - [ ] Are all `needs` declarations correct? `dev-task`, `qa-auto-approve`, `qa-task` still `needs: publish-inprogress` — correct, so authz outputs are accessible for bot dispatch.
-  - [ ] Does `always()` appear on every environment job that must run even when needs are skipped?
-  - [ ] Does `!cancelled()` appear on every environment job?
-  - [ ] Is `run-name` expression valid GitHub Actions expression syntax?
-  - [ ] No new code references missing variables or outputs that could be null for either dispatch mode?
-  - [ ] Shared actions `github-app-authz-envs` and `publish-github-workflow-event` are untouched?
-  - [ ] Confirm security: a bot that deliberately omits `workflowName` still hits `github-app-authz` (actor ends with `[bot]`), then `publish-inprogress` fails (no `workflowName` to resolve `instanceId`), so env jobs are gated on a failed need and do not run.
-- [ ] **Feed-forward to Phase 2**: Record final `if` conditions for each job and confirm both dispatch paths are ready for E2E testing. Note that the pattern is: bot-only jobs guarded with `endsWith(github.triggering_actor, '[bot]')`; environment jobs use `always() && !cancelled() && (!endsWith(...) || bot-condition)`.
+- [x] Verify `publish-completed` — existing `if: ${{ always() && needs.publish-inprogress.outputs.published-in-progress == 'true' }}` correctly skips for human dispatch (output is empty when job skipped). No change needed unless issues found.
+- [x] **Code review checklist** (agent must complete before moving to Phase 2):
+  - [x] Are all `needs` declarations correct? `dev-task`, `qa-auto-approve`, `qa-task` still `needs: publish-inprogress` — correct, so authz outputs are accessible for bot dispatch.
+  - [x] Does `always()` appear on every environment job that must run even when needs are skipped?
+  - [x] Does `!cancelled()` appear on every environment job?
+  - [x] Is `run-name` expression valid GitHub Actions expression syntax?
+  - [x] No new code references missing variables or outputs that could be null for either dispatch mode?
+  - [x] Shared actions `github-app-authz-envs` and `publish-github-workflow-event` are untouched?
+  - [x] Confirm security: a bot that deliberately omits `workflowName` still hits `github-app-authz` (actor ends with `[bot]`), then `publish-inprogress` fails (no `workflowName` to resolve `instanceId`), so env jobs are gated on a failed need and do not run.
+- [x] **Feed-forward to Phase 2**: Record final `if` conditions for each job and confirm both dispatch paths are ready for E2E testing. Note that the pattern is: bot-only jobs guarded with `endsWith(github.triggering_actor, '[bot]')`; environment jobs use `always() && !cancelled() && (!endsWith(...) || bot-condition)`.
 
 ---
 
 ## Phase 2: End-to-End Verification
+
+> **Agent instruction**: tick each checkbox in this document (`- [ ]` → `- [x]`) immediately after completing each step. Do not batch ticks at the end.
 
 ### Sub-phase A: Bot Dispatch (existing E2E procedure)
 
@@ -149,6 +153,8 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
 ---
 
 ## Phase 3: Update `workflow-orchestration-setup.md`
+
+> **Agent instruction**: tick each checkbox in this document (`- [ ]` → `- [x]`) immediately after completing each step. Do not batch ticks at the end.
 
 **File**: `docs/workflow-orchestration-setup.md`
 

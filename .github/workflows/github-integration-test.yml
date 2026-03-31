@@ -7,14 +7,15 @@ on:
     inputs:
       workflowName:
         description: 'Workflow run name (format: functionappidentifier-instanceId)'
-        required: true
+        required: false
+        default: ''
         type: string
       localVerification:
         description: 'Optional local-only queue publication override JSON supplied by the local Functions dispatcher'
         required: false
         type: string
 
-run-name: ${{ inputs.workflowName }}
+run-name: ${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}
 
 permissions:
   contents: read
@@ -22,6 +23,7 @@ permissions:
 jobs:
   github-app-authz:
     runs-on: ubuntu-latest
+    if: endsWith(github.triggering_actor, '[bot]')
     permissions:
       contents: read
     outputs:
@@ -70,7 +72,13 @@ jobs:
   dev-task:
     runs-on: ubuntu-latest
     needs: publish-inprogress
-    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev')
+    if: |
+      always() && !cancelled() &&
+      (
+        !endsWith(github.triggering_actor, '[bot]') ||
+        (needs.publish-inprogress.result == 'success' &&
+         contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev'))
+      )
     environment:
       name: dev
     steps:
@@ -80,7 +88,13 @@ jobs:
   qa-auto-approve:
     runs-on: ubuntu-latest
     needs: publish-inprogress
-    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa')
+    if: |
+      always() && !cancelled() &&
+      (
+        !endsWith(github.triggering_actor, '[bot]') ||
+        (needs.publish-inprogress.result == 'success' &&
+         contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa'))
+      )
     steps:
       - name: Wait for deployment to be registered
         run: sleep 20
@@ -95,7 +109,13 @@ jobs:
   qa-task:
     runs-on: ubuntu-latest
     needs: publish-inprogress
-    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa')
+    if: |
+      always() && !cancelled() &&
+      (
+        !endsWith(github.triggering_actor, '[bot]') ||
+        (needs.publish-inprogress.result == 'success' &&
+         contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa'))
+      )
     environment:
       name: qa
     steps:
