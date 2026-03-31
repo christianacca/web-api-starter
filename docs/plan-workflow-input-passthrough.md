@@ -533,7 +533,7 @@ and `maxRetries` (type `number`, default `3`).
 > a `boolean` input and `"5"` (string) for a `number` input is the correct API contract; passing JSON
 > booleans or numbers would risk a 422 rejection.
 
-- [ ] Trigger with all four non-reserved input types:
+- [x] Trigger with all four non-reserved input types:
   ```pwsh
   $TestEResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
       -ContentType 'application/json' `
@@ -550,16 +550,16 @@ and `maxRetries` (type `number`, default `3`).
   $TestEInstanceId = $TestEResponse.Id
   Write-Host "TestEInstanceId: $TestEInstanceId"
   ```
-- [ ] Poll Durable table until terminal state is reached:
+- [x] Poll Durable table until terminal state is reached:
   ```pwsh
   Watch-DurableInstance -InstanceId $TestEInstanceId
   ```
-- [ ] Confirm orchestration reaches `FinalOutcome: Succeeded`.
-- [ ] Confirm GitHub run log for `dev-task` contains:
+- [x] Confirm orchestration reaches `FinalOutcome: Succeeded`.
+- [x] Confirm GitHub run log for `dev-task` contains:
   - `Verbose logging: true`
   - `Max retries: 5`
 
-**RESULT**: (pending)
+**RESULT**: PASSED — `FinalOutcome: Succeeded`, `workflowSucceeded: true`, runId: 23821636414, stage: Completed. GitHub run log for `dev-task` confirmed `Verbose logging: true` and `Max retries: 5`.
 
 ---
 
