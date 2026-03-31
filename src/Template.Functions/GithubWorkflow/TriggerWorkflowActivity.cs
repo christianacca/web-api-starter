@@ -43,12 +43,8 @@ public class TriggerWorkflowActivity(
     var githubClient = await gitHubClientFactory.GetOrCreateClientAsync();
 
     var workflowName = $"{functionAppName.Value}-{input.InstanceId}";
-    var workflowInputs = new Dictionary<string, object>();
-
-    if (input.WorkflowInputs != null) {
-      foreach (var (key, value) in input.WorkflowInputs)
-        workflowInputs[key] = value;
-    }
+    var workflowInputs = (input.WorkflowInputs ?? [])
+      .ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
 
     workflowInputs["workflowName"] = workflowName;
 
