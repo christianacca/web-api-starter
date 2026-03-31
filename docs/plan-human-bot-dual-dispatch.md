@@ -245,28 +245,41 @@ Prerequisites: Azurite running, dev tunnel active, Functions app running locally
 
 **File**: `docs/workflow-orchestration-setup.md`
 
+### Scope boundary — what NOT to do
+
+> **Agent instruction**: Before writing a single word, read this boundary carefully. The two failure modes to avoid are:
+>
+> 1. **Over-complicating the existing minimal example** — the `github-integration-test.yml` workflow is a complex dual-dispatch example. The "Workflow Requirements" minimal example in the doc must remain bot-only and simple. Do **not** add dual-dispatch `if` conditions to it.
+> 2. **Failing to acknowledge the example** — the doc must make it clear that `github-integration-test.yml` IS the canonical reference for dual-dispatch patterns, so readers know it exists without having to reproduce its complexity in prose.
+>
+> The right line to tread: explain the **concept and detection mechanism** concisely, show short **pattern snippets** only (not a full workflow template), and point to `github-integration-test.yml` for the complete implementation. The inline comments within that file are self-documenting — the doc should guide readers there rather than duplicate that information.
+
 ### Steps
 
-- [ ] Re-read `workflow-orchestration-setup.md` to identify the best insertion point (likely after "Workflow Requirements" section, before or within "Authorization Contract").
-- [ ] Add a new section **"Supporting Both Human and Bot Dispatch"** that covers:
-  - The problem statement: authz + queue publishing must be skipped for human dispatch.
-  - The detection pattern: `endsWith(github.triggering_actor, '[bot]')` signals bot dispatch. Explain why input-based detection (`workflowName != ''`) is insecure — a bot controls its own inputs.
-  - A table or list of which jobs are bot-only vs universal.
-  - The job-level `if` condition templates (both the guard pattern for bot-only jobs and the dual-condition pattern for environment jobs).
-  - Reference `github-integration-test.yml` as the canonical implementation example.
-  - Note that shared actions `github-app-authz-envs` and `publish-github-workflow-event` are NOT modified.
-- [ ] Add a new sub-section within "Exact Local E2E Validation Procedure" (or as a sibling section) titled **"Human Dispatch Simulation"** that covers:
-  - Purpose: validate that authz and queue-publishing jobs are skipped and environment jobs still run.
-  - No tunnel, no Azurite, no Functions app required.
-  - Terminal commands (PowerShell): `gh workflow run github-integration-test.yml --ref <branch>` (no `workflowName` input).
-  - How to locate and watch the run: `gh run list --workflow github-integration-test.yml --branch <branch> --limit 5 --json databaseId,displayTitle,status,conclusion | ConvertFrom-Json`.
-  - Pass criteria: `github-app-authz` → skipped, `publish-inprogress` → skipped, `dev-task` → success, `qa-auto-approve` → skipped, `qa-task` → success (after human approval of the qa environment gate), `publish-completed` → skipped.
+- [ ] Re-read `workflow-orchestration-setup.md` to confirm the position of "Workflow Requirements" and "Authorization Contract" sections and identify the correct insertion point for the new section.
+- [ ] Add a new section **"Supporting Both Human and Bot Dispatch"** between "Workflow Requirements" and "Authorization Contract". The section must cover:
+  - **Problem statement**: by default the authz and queue-publishing jobs are bot-only; a workflow that needs to support human dispatch must explicitly detect the dispatch mode.
+  - **Detection pattern**: `endsWith(github.triggering_actor, '[bot]')` is the secure signal — GitHub sets `triggering_actor`, so it cannot be forged via inputs. Briefly explain why using `workflowName != ''` would be insecure.
+  - **Two short pattern snippets only** (not a full workflow template):
+    1. Bot-only guard (for `github-app-authz` and other skippable-by-humans jobs): `if: endsWith(github.triggering_actor, '[bot]')`
+    2. Dual-condition pattern (for environment jobs that must run for both modes): the `always() && !cancelled() && (!endsWith([bot]) || bot-condition)` template.
+  - **Reference to `github-integration-test.yml`** as the canonical full implementation, with a sentence noting that the workflow's inline comments document each job's behaviour for each dispatch scenario.
+  - **Note that `workflowName` becomes optional** when supporting human dispatch, and that `run-name` should handle the empty case (e.g. `format('manual: {0}', github.actor)`). Add the YAML quoting requirement: the `run-name` value **must be double-quoted** when the expression contains `': '` (colon-space), otherwise YAML interprets it as a mapping separator.
+  - **Note that shared actions are NOT modified**: `github-app-authz-envs` and `publish-github-workflow-event` work unchanged for both dispatch modes.
+- [ ] Add a new sibling section **"Human Dispatch Simulation"** immediately after the "Exact Local E2E Validation Procedure" section. This section is specifically about verifying `github-integration-test.yml` and must make that scope explicit. It covers:
+  - **Purpose**: verify that, for a human-triggered run of `github-integration-test.yml`, bot-only jobs are skipped and environment jobs still run without queue interaction.
+  - **No infrastructure required**: no tunnel, no Azurite, no Functions app.
+  - **Terminal commands**: push branch, dispatch via `gh workflow run github-integration-test.yml --ref <branch>` (no inputs), locate run, poll for completion, approve the `qa` environment gate.
+  - **Pass criteria** (framed as specific to `github-integration-test.yml`, not as a general contract): `github-app-authz`=skipped, `publish-inprogress`=skipped, `dev-task`=success, `qa-auto-approve`=skipped, `qa-task`=success (after human approval), `publish-completed`=skipped; run-name = `manual: <actor>`; no Durable instance created.
+  - **Approval step**: include the `gh api .../pending_deployments` POST command with `state=approved` to unblock `qa-task`, since the qa environment gate requires a reviewer.
 - [ ] **Code review checklist**:
-  - [ ] Does the new guidance reference the correct job names and output names?
-  - [ ] Are the `if` condition templates accurate as written (consistent with what was implemented in Phase 1)?
-  - [ ] Is the human dispatch simulation procedure self-contained?
-  - [ ] Are there no references to webhook or HMAC that might now be outdated?
-- [ ] **Consistency check**: Confirm the `if` condition templates written in the doc match exactly what was implemented in Phase 1 and verified in Phase 2. Confirm the human dispatch simulation commands match what was executed in Phase 2 Sub-phase B.
+  - [ ] Does the "Supporting Both Human and Bot Dispatch" section stay at the concept+snippet level, with no full workflow template embedded?
+  - [ ] Does the existing "Workflow Requirements" minimal example remain unchanged (bot-only, simple `workflowName` required)?
+  - [ ] Does `github-integration-test.yml` appear as a named reference, not as an inline duplication?
+  - [ ] Do the pattern snippets match exactly what is implemented in Phase 1?
+  - [ ] Is the "Human Dispatch Simulation" section clearly scoped to `github-integration-test.yml` and not presented as a generic procedure?
+  - [ ] Is the human dispatch simulation procedure self-contained (no cross-references to the bot E2E steps for infrastructure)?
+- [ ] **Consistency check**: Confirm pattern snippets match exactly the `if` conditions in `github-integration-test.yml`. Confirm simulation commands match what was executed in Phase 2 Sub-phase B (Scenario 3 re-run).
 
 ---
 
