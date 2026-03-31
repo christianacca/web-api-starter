@@ -107,6 +107,34 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Trigger Workflow (with inputs)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"WorkflowFile\": \"github-integration-test.yml\",\n    \"ReRunEntireWorkflow\": true,\n    \"WorkflowInputs\": {\n        \"testMode\": \"full-regression\",\n        \"notificationEmail\": \"dev@example.com\"\n    }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/workflow/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "workflow",
+                "start"
+              ]
+            }
+          },
+          "response": []
         }
       ],
       "event": [

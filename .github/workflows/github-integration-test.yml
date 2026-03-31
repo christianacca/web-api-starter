@@ -90,6 +90,20 @@ on:
         description: 'Optional local-only queue publication override JSON supplied by the local Functions dispatcher'
         required: false
         type: string
+      testMode:
+        description: 'Test execution mode'
+        required: false
+        default: 'smoke-test'
+        type: choice
+        options:
+          - smoke-test
+          - full-regression
+          - dry-run
+      notificationEmail:
+        description: 'Optional email address to notify on completion'
+        required: false
+        default: ''
+        type: string
 
 run-name: "${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}"
 
@@ -165,7 +179,10 @@ jobs:
       name: dev
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Building workflow for ${{ inputs.workflowName }} in DEV environment"
+      - run: |
+          echo "Building workflow for ${{ inputs.workflowName }} in DEV environment"
+          echo "Test mode: ${{ inputs.testMode }}"
+          echo "Notification email: ${{ inputs.notificationEmail || '(none)' }}"
 
   # Bot dispatch:    runs if 'qa' is in authorized-target-envs — auto-approves the qa environment gate
   # Human dispatch:  skipped — the GitHub environment protection gate requires a human to approve qa-task
@@ -203,7 +220,10 @@ jobs:
       name: qa
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
+      - run: |
+          echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
+          echo "Test mode: ${{ inputs.testMode }}"
+          echo "Notification email: ${{ inputs.notificationEmail || '(none)' }}"
 
   # Bot dispatch:    runs — publishes GithubWorkflowCompleted queue message
   # Human dispatch:  skipped (published-in-progress output is empty when publish-inprogress was skipped)

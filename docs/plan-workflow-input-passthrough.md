@@ -473,13 +473,51 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 
 ---
 
-### Note on positive passthrough verification
+### Test D — Valid `WorkflowInputs` accepted and visible in GitHub run
 
-A full positive test — confirming that caller-supplied keys physically arrive as inputs in the
-GitHub Actions run — requires `github-integration-test.yml` to declare an extra optional input and
-for GitHub to evaluate it. This is deferred until the first real consumer workflow (e.g., a deploy
-workflow) is integrated, at which point the declared inputs will be visible in the GitHub run log.
-The regression covered by Test A confirms the plumbing compiles and dispatches without error.
+**Purpose**: Confirm that caller-supplied keys physically arrive as inputs in the dispatched GitHub
+Actions run. `github-integration-test.yml` now declares `testMode` (type `choice`) and
+`notificationEmail` (type `string`), so a dispatch supplying both should succeed and the run log
+should reflect the supplied values.
+
+- [ ] Trigger with valid declared inputs:
+  ```pwsh
+  $ValidInputsResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
+      -ContentType 'application/json' `
+      -Body (@{
+          WorkflowFile        = $WorkflowFile
+          ReRunEntireWorkflow = $true
+          WorkflowInputs      = @{
+              testMode           = 'full-regression'
+              notificationEmail  = 'dev@example.com'
+          }
+      } | ConvertTo-Json)
+  $ValidInputsInstanceId = $ValidInputsResponse.Id
+  Write-Host "ValidInputsInstanceId: $ValidInputsInstanceId"
+  ```
+- [ ] Wait for the GitHub Actions run to appear (poll `gh run list --workflow $WorkflowFile --limit 5`) and complete.
+- [ ] Inspect the run log for `dev-task` to confirm both values appear:
+  ```pwsh
+  $RunId = gh run list --workflow $WorkflowFile --json databaseId,displayTitle,status `
+      --limit 10 | ConvertFrom-Json |
+      Where-Object { $_.displayTitle -like "*$ValidInputsInstanceId*" } |
+      Select-Object -First 1 -ExpandProperty databaseId
+  gh run view $RunId --log | Select-String 'full-regression|dev@example.com'
+  ```
+- [ ] Confirm the orchestration reaches a terminal `Succeeded` state:
+  ```pwsh
+  $InstancesJson = az storage entity query --table-name TestHubNameInstances `
+      --connection-string "$StorageConnectionString" `
+      --filter "PartitionKey eq '$ValidInputsInstanceId'" --only-show-errors -o json
+  $InstancesJson | ConvertFrom-Json
+  ```
+
+**Pass criteria**:
+- Orchestration reaches `FinalOutcome = Succeeded`, `IsTerminal = true`
+- GitHub run log for `dev-task` contains `"Test mode: full-regression"` and `"Notification email: dev@example.com"`
+- Queue callbacks (`GithubWorkflowInProgress` and `GithubWorkflowCompleted`) arrive as normal
+
+**RESULT**: _Pending_
 
 ---
 
@@ -490,6 +528,7 @@ The regression covered by Test A confirms the plumbing compiles and dispatches w
 | A — Regression | Orchestration reaches `Succeeded`; queue callbacks arrive |
 | B — Reserved-key collision | Orchestration reaches `Failed`; log contains reserved-key error; no GitHub run dispatched |
 | C — GitHub 422 | Orchestration reaches `Failed`; log contains dispatch-failed error; no Durable crash |
+| D — Valid inputs passthrough | Orchestration reaches `Succeeded`; GitHub run log shows `testMode=full-regression` and `notificationEmail=dev@example.com` |
 
 ---
 
@@ -497,5 +536,5 @@ The regression covered by Test A confirms the plumbing compiles and dispatches w
 
 - `RerunFailedJobActivity` and `RerunEntireWorkflowActivity` — reruns inherit original run inputs from GitHub automatically.
 - `GetRecentWorkflowRunActivity`, `GetWorkflowRunStatusActivity` — no input forwarding relevant.
-- `github-integration-test.yml` — no structural changes required for this feature.
+- `github-integration-test.yml` — extended in Test D with `testMode` (choice) and `notificationEmail` (string) inputs to enable positive passthrough verification.
 - `workflow-orchestration-setup.md` — update separately once the feature is verified.
