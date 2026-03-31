@@ -655,10 +655,9 @@ In Terminal D, confirm that the queue port is actively hosted:
 
 ```pwsh
 devtunnel show $TunnelId
-devtunnel port show $TunnelId -p 10001
 ```
 
-The tunnel must show `Host connections: 1` or higher before continuing.
+The output must show `Host connections: 1` or higher before continuing. Do not use `devtunnel port show` to verify this — that command reports `Client connections` (currently active external callers), which will always be `0` outside of an active request and does not confirm the tunnel host is running.
 
 ### Step 6: Start the local Functions app
 
@@ -679,6 +678,8 @@ Invoke-RestMethod -Method Get -Uri "$FunctionsBaseUrl/api/Echo"
 ```
 
 Do not proceed to Step 7 until the Echo endpoint returns successfully and Terminal C shows the Functions host has started.
+
+> **Important — idle restart**: If the Functions app was already running from a previous session and has been idle for an extended period, restart it before continuing. A long-idle host can silently fail at `TriggerWorkflowActivity` with a disposed RSA key error (`Cannot access a disposed object — RSAImplementation`), causing Step 8 to fail because no GitHub Actions run is ever dispatched. To restart, stop Terminal C (`Ctrl+C`), then rerun the `func start` command above.
 
 ### Step 7: Trigger the workflow directly through `GithubWorkflowTrigger`
 
