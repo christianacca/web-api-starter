@@ -1,27 +1,107 @@
 name: Orchestrator Test Workflow
 
 # Showcase workflow for queue-callback validation during the migration.
+#
+# =============================================================================
+# DISPATCH SCENARIOS
+# =============================================================================
+#
+# This workflow supports two dispatch modes, detected via github.triggering_actor:
+#   - Bot dispatch:   triggering_actor ends with '[bot]'  (e.g. a GitHub App)
+#   - Human dispatch: triggering_actor does NOT end with '[bot]'
+#
+# -----------------------------------------------------------------------------
+# Scenario 1 — Bot dispatch, GitHub App authorized for BOTH dev AND qa
+# -----------------------------------------------------------------------------
+# Trigger:  Functions app (or other GitHub App) calls workflow_dispatch,
+#           passing workflowName = "InternalApi-<instanceId>"
+#
+# run-name: InternalApi-<instanceId>
+#
+# Job outcomes:
+#   github-app-authz    SUCCESS  — resolves primary env and authorized-target-envs
+#   publish-inprogress  SUCCESS  — publishes GithubWorkflowInProgress to default-queue
+#   dev-task            SUCCESS  — runs in the dev environment
+#   qa-auto-approve     SUCCESS  — auto-approves the qa environment gate
+#   qa-task             SUCCESS  — runs in the qa environment (gate pre-approved above)
+#   publish-completed   SUCCESS  — publishes GithubWorkflowCompleted to default-queue
+#
+# Observable acceptance criteria:
+#   1. run-name equals the supplied workflowName value
+#   2. GithubWorkflowInProgress message arrives in default-queue
+#   3. GithubWorkflowCompleted message arrives in default-queue
+#   4. Durable orchestration for the instanceId reaches a terminal Completed state
+#
+# -----------------------------------------------------------------------------
+# Scenario 2 — Bot dispatch, GitHub App authorized for dev ONLY (not qa)
+# -----------------------------------------------------------------------------
+# Same trigger as Scenario 1, but this App's pipeline does not include qa.
+#
+# run-name: InternalApi-<instanceId>
+#
+# Job outcomes:
+#   github-app-authz    SUCCESS  — authorized-target-envs contains only 'dev'
+#   publish-inprogress  SUCCESS  — publishes GithubWorkflowInProgress
+#   dev-task            SUCCESS  — 'dev' is in authorized-target-envs
+#   qa-auto-approve     SKIPPED  — 'qa' is NOT in authorized-target-envs
+#   qa-task             SKIPPED  — 'qa' is NOT in authorized-target-envs
+#   publish-completed   SUCCESS  — publishes GithubWorkflowCompleted
+#
+# Observable acceptance criteria:
+#   Same as Scenario 1 except no qa environment jobs run and
+#   GithubWorkflowCompleted still arrives (orchestration still succeeds).
+#
+# -----------------------------------------------------------------------------
+# Scenario 3 — Human dispatch (manual trigger from GitHub UI or gh CLI)
+# -----------------------------------------------------------------------------
+# Trigger:  A human runs the workflow manually; workflowName is left blank.
+#
+# run-name: manual: <github.actor>
+#
+# Job outcomes:
+#   github-app-authz    SKIPPED  — bot-only guard; human actors never end with '[bot]'
+#   publish-inprogress  SKIPPED  — depends on github-app-authz with no always(); skipped by dependency
+#   dev-task            SUCCESS  — always() + !cancelled() + !endsWith([bot]) = true
+#   qa-auto-approve     SKIPPED  — bot-only; human dispatch must go through the GitHub environment gate
+#   qa-task             WAITING  — always() + !cancelled() + !endsWith([bot]) = true, but the
+#                                  qa environment has a protection rule requiring human approval;
+#                                  a reviewer must approve before qa-task runs
+#   publish-completed   SKIPPED  — published-in-progress output is empty (publish-inprogress was skipped)
+#
+# Observable acceptance criteria:
+#   1. run-name matches "manual: <actor>"
+#   2. No queue messages are published (no GithubWorkflowInProgress or GithubWorkflowCompleted)
+#   3. No Durable orchestration instance is created for this run
+#   4. dev-task completes successfully without any queue interaction
+#   5. qa-task is blocked at the GitHub environment gate until a reviewer approves
+#   6. After a reviewer approves, qa-task runs successfully
+#
+# =============================================================================
 
 on:
   workflow_dispatch:
     inputs:
       workflowName:
         description: 'Workflow run name (format: functionappidentifier-instanceId)'
-        required: true
+        required: false
+        default: ''
         type: string
       localVerification:
         description: 'Optional local-only queue publication override JSON supplied by the local Functions dispatcher'
         required: false
         type: string
 
-run-name: ${{ inputs.workflowName }}
+run-name: "${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}"
 
 permissions:
   contents: read
 
 jobs:
+  # Bot dispatch:    runs — resolves authorized environments for the dispatching GitHub App
+  # Human dispatch:  skipped
   github-app-authz:
     runs-on: ubuntu-latest
+    if: endsWith(github.triggering_actor, '[bot]')
     permissions:
       contents: read
     outputs:
@@ -38,6 +118,8 @@ jobs:
             dev
             qa
 
+  # Bot dispatch:    runs — publishes GithubWorkflowInProgress queue message
+  # Human dispatch:  skipped (github-app-authz was skipped, so this is skipped by dependency)
   publish-inprogress:
     runs-on: ubuntu-latest
     needs: github-app-authz
@@ -67,20 +149,33 @@ jobs:
           run-id: ${{ github.run_id }}
           workflow-name: ${{ inputs.workflowName }}
 
+  # Bot dispatch:    runs if 'dev' is in authorized-target-envs; skipped otherwise
+  # Human dispatch:  always runs
   dev-task:
     runs-on: ubuntu-latest
     needs: publish-inprogress
-    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev')
+    if: |
+      always() && !cancelled() &&
+      (
+        !endsWith(github.triggering_actor, '[bot]') ||
+        (needs.publish-inprogress.result == 'success' &&
+         contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'dev'))
+      )
     environment:
       name: dev
     steps:
       - uses: actions/checkout@v4
       - run: echo "Building workflow for ${{ inputs.workflowName }} in DEV environment"
 
+  # Bot dispatch:    runs if 'qa' is in authorized-target-envs — auto-approves the qa environment gate
+  # Human dispatch:  skipped — the GitHub environment protection gate requires a human to approve qa-task
   qa-auto-approve:
     runs-on: ubuntu-latest
     needs: publish-inprogress
-    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa')
+    if: |
+      endsWith(github.triggering_actor, '[bot]') &&
+      needs.publish-inprogress.result == 'success' &&
+      contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa')
     steps:
       - name: Wait for deployment to be registered
         run: sleep 20
@@ -92,16 +187,26 @@ jobs:
           environment_allow_list: qa
           run_id_allow_list: ${{ github.run_id }}
 
+  # Bot dispatch:    runs if 'qa' is in authorized-target-envs; skipped otherwise
+  # Human dispatch:  always runs, but waits at the GitHub environment protection gate for a human to approve
   qa-task:
     runs-on: ubuntu-latest
     needs: publish-inprogress
-    if: contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa')
+    if: |
+      always() && !cancelled() &&
+      (
+        !endsWith(github.triggering_actor, '[bot]') ||
+        (needs.publish-inprogress.result == 'success' &&
+         contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa'))
+      )
     environment:
       name: qa
     steps:
       - uses: actions/checkout@v4
       - run: echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
 
+  # Bot dispatch:    runs — publishes GithubWorkflowCompleted queue message
+  # Human dispatch:  skipped (published-in-progress output is empty when publish-inprogress was skipped)
   publish-completed:
     runs-on: ubuntu-latest
     needs:

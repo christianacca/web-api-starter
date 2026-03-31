@@ -284,6 +284,63 @@ jobs:
 
 ---
 
+## Supporting Both Human and Bot Dispatch
+
+By default, `github-app-authz`, `publish-inprogress`, and `publish-completed` are bot-only jobs — they authorize the dispatching GitHub App and publish queue messages. A workflow that also needs to support human-triggered dispatch must explicitly detect the dispatch mode and condition each job accordingly.
+
+### Detection mechanism
+
+Use `github.triggering_actor` as the dispatch-mode signal:
+
+- **Bot dispatch**: `endsWith(github.triggering_actor, '[bot]')` evaluates to `true`
+- **Human dispatch**: the expression evaluates to `false`
+
+GitHub sets `triggering_actor` — it cannot be forged via workflow inputs. Using an input such as `workflowName != ''` as the detection signal would be insecure: a bot could deliberately omit `workflowName` and bypass `github-app-authz`.
+
+### Pattern 1 — Bot-only guard
+
+Apply this condition to jobs that must only run for bot dispatch (for example, `github-app-authz`):
+
+```yaml
+if: endsWith(github.triggering_actor, '[bot]')
+```
+
+### Pattern 2 — Dual-condition for environment jobs
+
+Apply this pattern to environment jobs that must run for both dispatch modes:
+
+```yaml
+if: |
+  always() && !cancelled() &&
+  (
+    !endsWith(github.triggering_actor, '[bot]') ||
+    (needs.publish-inprogress.result == 'success' &&
+     contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), '<env>'))
+  )
+```
+
+Replace `<env>` with the target environment name (for example, `dev` or `qa`). The `always() && !cancelled()` clauses ensure the job runs even when its `needs` are skipped on the human path.
+
+### Making `workflowName` optional
+
+When supporting human dispatch, make the `workflowName` input optional and update `run-name` to handle the empty case:
+
+```yaml
+run-name: "${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}"
+```
+
+> **YAML quoting requirement**: Wrap `run-name` in double quotes when the expression contains `': '` (colon-space). Without the surrounding quotes, YAML treats the colon-space in `'manual: '` as a mapping separator and the workflow file fails to parse.
+
+### Shared actions are not modified
+
+`github-app-authz-envs` and `publish-github-workflow-event` work unchanged for both dispatch modes. No changes to those actions are needed.
+
+### Reference implementation
+
+`.github/workflows/github-integration-test.yml` is the canonical dual-dispatch reference for this repository. Its inline comments document each job's expected outcome for all three dispatch scenarios (bot authorized for dev only, bot authorized for dev+qa, and human dispatch). For human dispatch E2E verification, see [Human Dispatch Simulation](#human-dispatch-simulation).
+
+---
+
 ## Authorization Contract
 
 ### `github-app-authz-envs`
@@ -655,10 +712,9 @@ In Terminal D, confirm that the queue port is actively hosted:
 
 ```pwsh
 devtunnel show $TunnelId
-devtunnel port show $TunnelId -p 10001
 ```
 
-The tunnel must show `Host connections: 1` or higher before continuing.
+The output must show `Host connections: 1` or higher before continuing. Do not use `devtunnel port show` to verify this — that command reports `Client connections` (currently active external callers), which will always be `0` outside of an active request and does not confirm the tunnel host is running.
 
 ### Step 6: Start the local Functions app
 
@@ -679,6 +735,8 @@ Invoke-RestMethod -Method Get -Uri "$FunctionsBaseUrl/api/Echo"
 ```
 
 Do not proceed to Step 7 until the Echo endpoint returns successfully and Terminal C shows the Functions host has started.
+
+> **Important — idle restart**: If the Functions app was already running from a previous session and has been idle for an extended period, restart it before continuing. A long-idle host can silently fail at `TriggerWorkflowActivity` with a disposed RSA key error (`Cannot access a disposed object — RSAImplementation`), causing Step 8 to fail because no GitHub Actions run is ever dispatched. To restart, stop Terminal C (`Ctrl+C`), then rerun the `func start` command above.
 
 ### Step 7: Trigger the workflow directly through `GithubWorkflowTrigger`
 
@@ -833,6 +891,93 @@ If the validation fails, collect and keep these files for diagnosis:
 3. `tmp/local-workflow-durable-history.json`
 
 Record the failing command, the returned `instanceId`, the computed `workflowName`, the GitHub Actions run id, and whether the tunnel showed an active host connection when the failure occurred.
+
+---
+
+## Human Dispatch Simulation
+
+Use this procedure to verify that, for a human-triggered run of `github-integration-test.yml`, all bot-only jobs are skipped and environment jobs run without any queue interaction.
+
+> **Scope**: This procedure is specific to `github-integration-test.yml`. It is not a generic human-dispatch verification template.
+
+**No infrastructure required.** No dev tunnel, no Azurite, and no local Functions app are needed.
+
+### Step 1: Push the branch and set variables
+
+```pwsh
+git push
+
+$WorkflowBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+$WorkflowFile = 'github-integration-test.yml'
+$env:GH_PAGER = 'cat'
+```
+
+### Step 2: Dispatch as human (no inputs)
+
+```pwsh
+gh workflow run $WorkflowFile --ref $WorkflowBranch
+```
+
+### Step 3: Locate the most recent run
+
+Wait approximately 15 seconds, then run:
+
+```pwsh
+$HumanRuns = gh run list --workflow $WorkflowFile --branch $WorkflowBranch --limit 5 --json databaseId,displayTitle,status,conclusion,createdAt | ConvertFrom-Json
+$LatestRun = $HumanRuns | Sort-Object createdAt -Descending | Select-Object -First 1
+$LatestRun | Select-Object databaseId, displayTitle, status, conclusion | Format-List
+```
+
+Confirm the run name matches `manual: <actor>` (not `InternalApi-...`).
+
+### Step 4: Approve the `qa` environment gate
+
+`qa-task` is blocked at the GitHub environment protection rule and requires a human reviewer to approve. Run:
+
+```pwsh
+$QaEnvId = (gh api "repos/christianacca/web-api-starter/environments" | ConvertFrom-Json).environments |
+    Where-Object { $_.name -eq 'qa' } | Select-Object -ExpandProperty id
+
+gh api "repos/christianacca/web-api-starter/actions/runs/$($LatestRun.databaseId)/pending_deployments" `
+    --method POST -F "environment_ids[]=$QaEnvId" -f state=approved -f comment="Human dispatch verification"
+```
+
+### Step 5: Wait for the run to complete
+
+```pwsh
+foreach ($i in 1..60) {
+  Start-Sleep -Seconds 10
+  $RunStatus = gh run view $LatestRun.databaseId --json status,conclusion | ConvertFrom-Json
+  Write-Host "status: $($RunStatus.status); conclusion: $($RunStatus.conclusion)"
+  if ($RunStatus.status -eq 'completed') { break }
+}
+```
+
+### Step 6: Verify per-job results
+
+```pwsh
+gh run view $LatestRun.databaseId --json jobs | ConvertFrom-Json |
+    Select-Object -ExpandProperty jobs | Select-Object name, status, conclusion | Format-Table
+```
+
+### Pass criteria
+
+Treat the simulation as passed when all of the following are true:
+
+| Job | Expected result |
+| --- | --- |
+| `github-app-authz` | `skipped` |
+| `publish-inprogress` | `skipped` |
+| `dev-task` | `success` |
+| `qa-auto-approve` | `skipped` |
+| `qa-task` | `success` (after approval in Step 4) |
+| `publish-completed` | `skipped` |
+
+Additional checks:
+
+- run-name matches `manual: <actor>` (not `InternalApi-...`)
+- no `GithubWorkflowInProgress` or `GithubWorkflowCompleted` queue messages were published
+- no Durable orchestration instance was created for this run
 
 ---
 
