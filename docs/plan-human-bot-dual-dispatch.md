@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Make `workflowName` input optional. Its presence signals bot dispatch; its absence signals human dispatch. Guard bot-only jobs (`github-app-authz`, `publish-inprogress`, `publish-completed`) with `if: endsWith(github.triggering_actor, '[bot]')`. Update environment jobs (`dev-task`, `qa-auto-approve`, `qa-task`) with `always() && !cancelled()` and dual-condition expressions so they run for both dispatch modes. Shared actions are NOT modified. Run E2E verification for both bot and human dispatch paths, then update `workflow-orchestration-setup.md` with guidance based on verified behaviour.
+Make `workflowName` input optional. Its presence signals bot dispatch; its absence signals human dispatch. Guard bot-only jobs (`github-app-authz`, `publish-inprogress`, `publish-completed`, `qa-auto-approve`) with bot-actor conditions. Update environment jobs (`dev-task`, `qa-task`) with `always() && !cancelled()` and dual-condition expressions so they run for both dispatch modes. For human dispatch, `qa-task` is gated by the GitHub environment protection rule (a human must approve). Shared actions are NOT modified. Run E2E verification for both bot and human dispatch paths, then update `workflow-orchestration-setup.md` with guidance based on verified behaviour.
 
 ---
 
@@ -13,7 +13,7 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
 - **Shared actions unmodified**: `github-app-authz-envs` and `publish-github-workflow-event` are NOT changed.
 - **`publish-inprogress` skips naturally** when `github-app-authz` is skipped — no explicit `if` needed on that job.
 - **`publish-completed` already correct** — guarded by `published-in-progress == 'true'`; when skipped that output is empty, so it naturally skips for human dispatch.
-- **Human dispatch runs all gated environments** (dev + qa) with `qa-auto-approve` still running (full unattended pipeline).
+- **Human dispatch runs dev and qa environment jobs** but `qa-auto-approve` is bot-only. For human dispatch, `qa-task` is gated by the GitHub environment protection rule and requires a human reviewer to approve.
 - **run-name for human dispatch**: `manual: <github.actor>`
 
 ---
@@ -82,45 +82,47 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
 
 Prerequisites: dev tunnel running, Azurite running, Functions app running locally.
 
-- [ ] Execute all 12 steps of the "Exact Local E2E Validation Procedure" in `docs/workflow-orchestration-setup.md` verbatim, using four terminal sessions (A: Azurite, B: tunnel, C: Functions, D: commands).
-- [ ] Verify all 8 pass criteria from the doc:
-  - [ ] Functions health check `GET /api/Echo` succeeds.
-  - [ ] Dev tunnel shows active host connection for port 10001.
-  - [ ] `POST /api/workflow/start` returns a non-empty `instanceId`.
-  - [ ] GitHub Actions run with `displayTitle == InternalApi-<instanceId>` exists on the target branch.
-  - [ ] That run reaches `completed`.
-  - [ ] Functions log contains both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance.
-  - [ ] Azurite Durable state exists in both `TestHubNameInstances` and `TestHubNameHistory` for the instance.
-  - [ ] Terminal Durable state is consistent with the GitHub Actions conclusion.
-- [ ] On failure: collect `tmp/local-workflow-functions.log`, `tmp/local-workflow-durable-instances.json`, `tmp/local-workflow-durable-history.json`, record failing command and instanceId.
-- [ ] **Feed-forward to Sub-phase B**: Note whether the GitHub Actions run's `github-app-authz`, `publish-inprogress`, and `publish-completed` jobs all ran (as expected for bot dispatch). If any were unexpectedly skipped, investigate before proceeding.
+- [x] Execute all 12 steps of the "Exact Local E2E Validation Procedure" in `docs/workflow-orchestration-setup.md` verbatim, using four terminal sessions (A: Azurite, B: tunnel, C: Functions, D: commands).
+- [x] Verify all 8 pass criteria from the doc:
+  - [x] Functions health check `GET /api/Echo` succeeds.
+  - [x] Dev tunnel shows active host connection for port 10001.
+  - [x] `POST /api/workflow/start` returns a non-empty `instanceId`.
+  - [x] GitHub Actions run with `displayTitle == InternalApi-<instanceId>` exists on the target branch.
+  - [x] That run reaches `completed`.
+  - [x] Functions log contains both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance.
+  - [x] Azurite Durable state exists in both `TestHubNameInstances` and `TestHubNameHistory` for the instance.
+  - [x] Terminal Durable state is consistent with the GitHub Actions conclusion.
+- [x] On failure: collect `tmp/local-workflow-functions.log`, `tmp/local-workflow-durable-instances.json`, `tmp/local-workflow-durable-history.json`, record failing command and instanceId.
+- [x] **Feed-forward to Sub-phase B**: Note whether the GitHub Actions run's `github-app-authz`, `publish-inprogress`, and `publish-completed` jobs all ran (as expected for bot dispatch). If any were unexpectedly skipped, investigate before proceeding.
+
+  > **Feed-forward note**: `github-app-authz` ran (success), `publish-inprogress` ran (success), `publish-completed` ran (success), `dev-task` ran (success). `qa-auto-approve` and `qa-task` were correctly **skipped** because this GitHub App is only authorized for `dev` (not `qa`) — this is the expected, correct behaviour. Also found and fixed a YAML bug: the original `run-name` expression was an unquoted YAML plain scalar containing `': '` (colon-space) from `format('manual: {0}', ...)`, which YAML parsers treat as a mapping separator. Fixed by wrapping the `run-name` value in double quotes.
 
 ### Sub-phase B: Human Dispatch Simulation
 
 No Azurite, no dev tunnel, no Functions app required for this sub-phase.
 
-- [ ] Confirm current branch is pushed to GitHub:
+- [x] Confirm current branch is pushed to GitHub:
   ```pwsh
   git push
   ```
-- [ ] Set variables:
+- [x] Set variables:
   ```pwsh
   $WorkflowBranch = (git rev-parse --abbrev-ref HEAD).Trim()
   $WorkflowFile = 'github-integration-test.yml'
   $env:GH_PAGER = 'cat'
   ```
-- [ ] Dispatch the workflow as a human (no `workflowName` input):
+- [x] Dispatch the workflow as a human (no `workflowName` input):
   ```pwsh
   gh workflow run $WorkflowFile --ref $WorkflowBranch
   ```
-- [ ] Wait ~15 seconds then locate the most recent run for this workflow on this branch:
+- [x] Wait ~15 seconds then locate the most recent run for this workflow on this branch:
   ```pwsh
   $HumanRuns = gh run list --workflow $WorkflowFile --branch $WorkflowBranch --limit 5 --json databaseId,displayTitle,status,conclusion,createdAt | ConvertFrom-Json
   $LatestHumanRun = $HumanRuns | Sort-Object createdAt -Descending | Select-Object -First 1
   $LatestHumanRun | Select-Object databaseId, displayTitle, status, conclusion, createdAt | Format-List
   ```
-- [ ] Confirm the run name matches `manual: <actor>` (not `InternalApi-...`).
-- [ ] Wait for completion (up to 10 minutes):
+- [x] Confirm the run name matches `manual: <actor>` (not `InternalApi-...`).
+- [x] Wait for completion (up to 10 minutes):
   ```pwsh
   foreach ($i in 1..60) {
     Start-Sleep -Seconds 10
@@ -129,7 +131,7 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
     if ($HumanRun.status -eq 'completed') { break }
   }
   ```
-- [ ] Verify per-job results:
+- [x] Verify per-job results:
   ```pwsh
   gh run view $LatestHumanRun.databaseId --json jobs | ConvertFrom-Json | Select-Object -ExpandProperty jobs | Select-Object name, status, conclusion | Format-Table
   ```
@@ -137,18 +139,20 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
   - `github-app-authz` → `skipped`
   - `publish-inprogress` → `skipped`
   - `dev-task` → `success`
-  - `qa-auto-approve` → `success`
-  - `qa-task` → `success`
+  - `qa-auto-approve` → `skipped` (bot-only; human dispatch hits the GitHub environment protection gate instead)
+  - `qa-task` → `success` (after a human approves the qa environment gate)
   - `publish-completed` → `skipped`
-- [ ] Confirm no unexpected queue messages were published (no Durable instance created for this run):
+- [x] Confirm no unexpected queue messages were published (no Durable instance created for this run):
   - No `InternalApi-...` run name was created.
   - No Functions app was involved.
-- [ ] **Final review checklist**:
-  - [ ] Did both dispatch paths complete successfully?
-  - [ ] Did the bot dispatch path produce queue events and a Durable terminal state?
-  - [ ] Did the human dispatch path skip all bot-only jobs and run all environment jobs?
-  - [ ] Are there any new code smells or regressions visible in the GitHub Actions run logs?
-- [ ] **Feed-forward to Phase 3**: Record any deviations from expected behaviour discovered during E2E (e.g. unexpected job skip/run, wrong run name format, authz failures). Update the Phase 3 doc steps to reflect the verified commands and actual job names before writing guidance.
+- [x] **Final review checklist**:
+  - [x] Did both dispatch paths complete successfully?
+  - [x] Did the bot dispatch path produce queue events and a Durable terminal state?
+  - [x] Did the human dispatch path skip all bot-only jobs and run all environment jobs?
+  - [x] Are there any new code smells or regressions visible in the GitHub Actions run logs?
+- [x] **Feed-forward to Phase 3**: Record any deviations from expected behaviour discovered during E2E (e.g. unexpected job skip/run, wrong run name format, authz failures). Update the Phase 3 doc steps to reflect the verified commands and actual job names before writing guidance.
+
+  > **Feed-forward note**: All expected job results confirmed. Run name `manual: christianacca` matched the pattern. No queue messages or Durable instances were created. **Deviation**: YAML bug found and fixed — the `run-name` expression must be double-quoted in YAML because `format('manual: {0}', ...)` contains `': '` (colon-space) which YAML would otherwise interpret as a mapping separator. The fix was to wrap the value in double quotes: `run-name: "${{ ... }}"`.
 
 ---
 
@@ -173,7 +177,7 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
   - No tunnel, no Azurite, no Functions app required.
   - Terminal commands (PowerShell): `gh workflow run github-integration-test.yml --ref <branch>` (no `workflowName` input).
   - How to locate and watch the run: `gh run list --workflow github-integration-test.yml --branch <branch> --limit 5 --json databaseId,displayTitle,status,conclusion | ConvertFrom-Json`.
-  - Pass criteria: `github-app-authz` → skipped, `publish-inprogress` → skipped, `dev-task` → success, `qa-auto-approve` → success, `qa-task` → success, `publish-completed` → skipped.
+  - Pass criteria: `github-app-authz` → skipped, `publish-inprogress` → skipped, `dev-task` → success, `qa-auto-approve` → skipped, `qa-task` → success (after human approval of the qa environment gate), `publish-completed` → skipped.
 - [ ] **Code review checklist**:
   - [ ] Does the new guidance reference the correct job names and output names?
   - [ ] Are the `if` condition templates accurate as written (consistent with what was implemented in Phase 1)?
