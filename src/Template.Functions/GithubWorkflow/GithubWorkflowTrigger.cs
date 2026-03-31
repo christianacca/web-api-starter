@@ -22,7 +22,8 @@ public class GithubWorkflowTrigger(IOptionsMonitor<GithubAppOptions> optionsMoni
       RerunTriggerRetryDelays = options.GetRerunTriggerRetryDelayValues(),
       Timeout = options.WorkflowTimeout,
       RerunEntireWorkflow = workflowRequest.RerunEntireWorkflow,
-      WorkflowFile = workflowRequest.WorkflowFile
+      WorkflowFile = workflowRequest.WorkflowFile,
+      WorkflowInputs = workflowRequest.WorkflowInputs
     };
 
     var instanceId = await client.ScheduleNewOrchestrationInstanceAsync(nameof(GithubWorkflowOrchestrator), input);

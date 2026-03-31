@@ -51,7 +51,8 @@ public class GithubWorkflowOrchestrator {
 
     var triggerInput = new TriggerInput {
       InstanceId = context.InstanceId,
-      WorkflowFile = input.WorkflowFile
+      WorkflowFile = input.WorkflowFile,
+      WorkflowInputs = input.WorkflowInputs
     };
 
     var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), triggerInput);
