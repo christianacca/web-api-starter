@@ -104,6 +104,16 @@ on:
         required: false
         default: ''
         type: string
+      verboseLogging:
+        description: 'Enable verbose logging output'
+        required: false
+        default: false
+        type: boolean
+      maxRetries:
+        description: 'Maximum number of retry attempts'
+        required: false
+        default: 3
+        type: number
 
 run-name: "${{ inputs.workflowName != '' && inputs.workflowName || format('manual: {0}', github.actor) }}"
 
@@ -183,6 +193,8 @@ jobs:
           echo "Building workflow for ${{ inputs.workflowName }} in DEV environment"
           echo "Test mode: ${{ inputs.testMode }}"
           echo "Notification email: ${{ inputs.notificationEmail || '(none)' }}"
+          echo "Verbose logging: ${{ inputs.verboseLogging }}"
+          echo "Max retries: ${{ inputs.maxRetries }}"
 
   # Bot dispatch:    runs if 'qa' is in authorized-target-envs — auto-approves the qa environment gate
   # Human dispatch:  skipped — the GitHub environment protection gate requires a human to approve qa-task
@@ -224,6 +236,8 @@ jobs:
           echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
           echo "Test mode: ${{ inputs.testMode }}"
           echo "Notification email: ${{ inputs.notificationEmail || '(none)' }}"
+          echo "Verbose logging: ${{ inputs.verboseLogging }}"
+          echo "Max retries: ${{ inputs.maxRetries }}"
 
   # Bot dispatch:    runs — publishes GithubWorkflowCompleted queue message
   # Human dispatch:  skipped (published-in-progress output is empty when publish-inprogress was skipped)

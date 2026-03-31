@@ -521,6 +521,48 @@ should reflect the supplied values.
 
 ---
 
+### Test E — All declared input types: `boolean` and `number` pass-through
+
+**Purpose**: Confirm that `boolean` (type `boolean`) and `number` (type `number`) workflow inputs are
+accepted and arrive in the GitHub run log as their string representations (`"true"` / `"5"`).
+`github-integration-test.yml` is extended with `verboseLogging` (type `boolean`, default `false`)
+and `maxRetries` (type `number`, default `3`).
+
+> **Why strings?** GitHub's `workflow_dispatch` REST API defines all input values as strings at the
+> wire level. The `type:` field is UI-only (checkbox, number input). Supplying `"true"` (string) for
+> a `boolean` input and `"5"` (string) for a `number` input is the correct API contract; passing JSON
+> booleans or numbers would risk a 422 rejection.
+
+- [ ] Trigger with all four non-reserved input types:
+  ```pwsh
+  $TestEResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
+      -ContentType 'application/json' `
+      -Body (@{
+          WorkflowFile        = $WorkflowFile
+          ReRunEntireWorkflow = $true
+          WorkflowInputs      = @{
+              testMode          = 'full-regression'
+              notificationEmail = 'dev@example.com'
+              verboseLogging    = 'true'
+              maxRetries        = '5'
+          }
+      } | ConvertTo-Json)
+  $TestEInstanceId = $TestEResponse.Id
+  Write-Host "TestEInstanceId: $TestEInstanceId"
+  ```
+- [ ] Poll Durable table until terminal state is reached:
+  ```pwsh
+  Watch-DurableInstance -InstanceId $TestEInstanceId
+  ```
+- [ ] Confirm orchestration reaches `FinalOutcome: Succeeded`.
+- [ ] Confirm GitHub run log for `dev-task` contains:
+  - `Verbose logging: true`
+  - `Max retries: 5`
+
+**RESULT**: (pending)
+
+---
+
 ### Phase 5 pass criteria summary
 
 | Test | Pass condition |
@@ -529,6 +571,7 @@ should reflect the supplied values.
 | B — Reserved-key collision | Orchestration reaches `Failed`; log contains reserved-key error; no GitHub run dispatched |
 | C — GitHub 422 | Orchestration reaches `Failed`; log contains dispatch-failed error; no Durable crash |
 | D — Valid inputs passthrough | Orchestration reaches `Succeeded`; GitHub run log shows `testMode=full-regression` and `notificationEmail=dev@example.com` |
+| E — boolean + number types | Orchestration reaches `Succeeded`; GitHub run log shows `verboseLogging=true` and `maxRetries=5` |
 
 ---
 
@@ -536,5 +579,5 @@ should reflect the supplied values.
 
 - `RerunFailedJobActivity` and `RerunEntireWorkflowActivity` — reruns inherit original run inputs from GitHub automatically.
 - `GetRecentWorkflowRunActivity`, `GetWorkflowRunStatusActivity` — no input forwarding relevant.
-- `github-integration-test.yml` — extended in Test D with `testMode` (choice) and `notificationEmail` (string) inputs to enable positive passthrough verification.
+- `github-integration-test.yml` — extended in Test D with `testMode` (choice) and `notificationEmail` (string); extended in Test E with `verboseLogging` (boolean) and `maxRetries` (number).
 - `workflow-orchestration-setup.md` — update separately once the feature is verified.
