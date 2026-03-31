@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Octokit;
 using Template.Shared.Github;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 public record WorkflowRunInfo(
   WorkflowRunStatus Status,

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 public class OrchestratorInput {
   [Required]

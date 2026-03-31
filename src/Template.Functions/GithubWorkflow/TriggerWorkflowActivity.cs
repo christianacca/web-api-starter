@@ -7,7 +7,7 @@ using System.Data.Common;
 using System.Text.Json;
 using Template.Shared.Github;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 public class TriggerWorkflowActivity(
   IOptionsMonitor<GithubAppOptions> optionsMonitor,

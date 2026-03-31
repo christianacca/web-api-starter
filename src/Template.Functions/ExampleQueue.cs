@@ -5,7 +5,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.DurableTask.Client;
 using Microsoft.Extensions.Logging;
 using System.Text;
-using Template.Functions.GithubWorkflowOrchestrator;
+using Template.Functions.GithubWorkflow;
 using Template.Functions.Shared;
 using Template.Shared.Azure.MessageQueue;
 using Template.Shared.Extensions;

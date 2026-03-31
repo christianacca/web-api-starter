@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
-using Template.Functions.GithubWorkflowOrchestrator;
+using Template.Functions.GithubWorkflow;
 using Template.Functions.Shared;
 using Template.Functions.Shared.FunctionContextAccessor;
 using Template.Functions.Shared.HttpContextAccessor;

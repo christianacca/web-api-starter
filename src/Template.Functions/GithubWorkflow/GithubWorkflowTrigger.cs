@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using Template.Shared.Github;
 using FromBody = Microsoft.Azure.Functions.Worker.Http.FromBodyAttribute;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 public class GithubWorkflowTrigger(IOptionsMonitor<GithubAppOptions> optionsMonitor) {
 

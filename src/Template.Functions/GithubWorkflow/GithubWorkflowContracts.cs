@@ -3,7 +3,7 @@ using System.Text.Json;
 using Template.Shared.Azure.MessageQueue;
 using Template.Shared.Extensions;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 internal static class GithubWorkflowQueueContractConstants {
   internal const string RepositoryFormatRegex = @"^[^/]+/[^/]+$";

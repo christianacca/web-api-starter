@@ -6,7 +6,7 @@ using Template.Functions.Shared;
 using Template.Shared.Azure.MessageQueue;
 using Template.Shared.Model;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 public sealed class GithubWorkflowQueueMessageProcessor(ILogger<GithubWorkflowQueueMessageProcessor> logger) {
   public async Task ProcessAsync(

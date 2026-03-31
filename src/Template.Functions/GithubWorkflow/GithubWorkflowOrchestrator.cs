@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Octokit;
 using Template.Functions.Shared;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 public class GithubWorkflowOrchestrator {
   private sealed record RerunTriggerResult(bool Started, WorkflowRunInfo? LastObservedWorkflowStatus);

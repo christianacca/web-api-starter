@@ -1,4 +1,4 @@
-using Template.Functions.GithubWorkflowOrchestrator;
+using Template.Functions.GithubWorkflow;
 
 namespace Template.Functions.Shared;
 

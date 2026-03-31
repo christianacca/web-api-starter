@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Octokit;
 
-namespace Template.Functions.GithubWorkflowOrchestrator;
+namespace Template.Functions.GithubWorkflow;
 
 /// <summary>
 /// Describes the current orchestration lifecycle stage exposed through custom status and final output.
