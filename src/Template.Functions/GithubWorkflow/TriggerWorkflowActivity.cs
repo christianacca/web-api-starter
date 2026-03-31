@@ -24,13 +24,30 @@ public class TriggerWorkflowActivity(
   private const string BlobEndpointKey = "BlobEndpoint";
   private const string TableEndpointKey = "TableEndpoint";
 
+  private static readonly HashSet<string> ReservedInputKeys =
+    new(StringComparer.Ordinal) { "workflowName", "localVerification" };
+
   [Function(nameof(TriggerWorkflowActivity))]
   public async Task<string> RunAsync([ActivityTrigger] TriggerInput input) {
+    if (input.WorkflowInputs != null) {
+      var collision = input.WorkflowInputs.Keys
+        .FirstOrDefault(k => ReservedInputKeys.Contains(k));
+      if (collision != null) {
+        throw new InvalidOperationException(
+          $"WorkflowInputs contains the reserved orchestration key '{collision}'. " +
+          "This key is managed by the dispatcher and must not be supplied by the caller.");
+      }
+    }
+
     var options = optionsMonitor.CurrentValue;
     var githubClient = await gitHubClientFactory.GetOrCreateClientAsync();
 
     var workflowName = $"{functionAppName.Value}-{input.InstanceId}";
-    var workflowInputs = new Dictionary<string, object>() { ["workflowName"] = workflowName };
+    var workflowInputs = (input.WorkflowInputs ?? [])
+      .ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
+
+    workflowInputs["workflowName"] = workflowName;
+
     var localVerificationDirective = BuildLocalVerificationDirective();
     if (!string.IsNullOrWhiteSpace(localVerificationDirective)) {
       workflowInputs["localVerification"] = localVerificationDirective;
@@ -40,8 +57,17 @@ public class TriggerWorkflowActivity(
       Inputs = workflowInputs
     };
 
-    await githubClient.Actions.Workflows.CreateDispatch(options.Owner, options.Repo,
-      input.WorkflowFile, workflowDispatchRequest);
+    try {
+      await githubClient.Actions.Workflows.CreateDispatch(options.Owner, options.Repo,
+        input.WorkflowFile, workflowDispatchRequest);
+    }
+    catch (ApiValidationException ex) {
+      var details = ex.ApiError?.Errors is { Count: > 0 }
+        ? "; details: " + string.Join(", ", ex.ApiError.Errors.Select(e => e.Message ?? e.Code))
+        : string.Empty;
+      throw new InvalidOperationException(
+        $"GitHub rejected the workflow dispatch (HTTP {(int)ex.StatusCode}): {ex.Message}{details}", ex);
+    }
 
     return workflowName;
   }

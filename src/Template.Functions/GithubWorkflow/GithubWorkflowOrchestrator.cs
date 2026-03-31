@@ -28,7 +28,26 @@ public class GithubWorkflowOrchestrator {
     }
 
     const int initialAttempt = 1;
-    var (_, runId) = await TriggerWorkflowAsync(context, input, initialAttempt);
+
+    long runId;
+    try {
+      (_, runId) = await TriggerWorkflowAsync(context, input, initialAttempt);
+    }
+    catch (TaskFailedException ex) {
+      var logger = context.CreateReplaySafeLogger<GithubWorkflowOrchestrator>();
+      logger.LogError(ex, "Workflow dispatch failed; terminating orchestration as Failed.");
+
+      return Complete(
+        context,
+        CreateState(
+          stage: GithubWorkflowOrchestrationStage.InvalidInput,
+          currentAttempt: initialAttempt,
+          maxAttempts: input.MaxAttempts,
+          finalOutcome: GithubWorkflowOrchestrationFinalOutcome.Failed,
+          isTerminal: true,
+          message: $"Workflow dispatch failed and the orchestration cannot proceed: {ex.FailureDetails.ErrorMessage}"));
+    }
+
     var terminalState = await WaitForWorkflowAttemptResultAsync(context, input, runId, initialAttempt);
 
     if (terminalState != null) {
@@ -51,7 +70,8 @@ public class GithubWorkflowOrchestrator {
 
     var triggerInput = new TriggerInput {
       InstanceId = context.InstanceId,
-      WorkflowFile = input.WorkflowFile
+      WorkflowFile = input.WorkflowFile,
+      WorkflowInputs = input.WorkflowInputs
     };
 
     var workflowName = await context.CallActivityAsync<string>(nameof(TriggerWorkflowActivity), triggerInput);

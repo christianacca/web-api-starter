@@ -87,7 +87,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"WorkflowFile\": \"github-integration-test.yml\",\n    \"ReRunEntireWorkflow\": true\n}",
+              "raw": "{\n    \"WorkflowFile\": \"github-integration-test.yml\",\n    \"ReRunEntireWorkflow\": true,\n    \"WorkflowInputs\": {\n        \"testMode\": \"full-regression\",\n        \"notificationEmail\": \"dev@example.com\",\n        \"verboseLogging\": \"true\",\n        \"maxRetries\": \"5\"\n    }\n}",
               "options": {
                 "raw": {
                   "language": "json"
