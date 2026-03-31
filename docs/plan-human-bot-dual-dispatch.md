@@ -78,7 +78,10 @@ Make `workflowName` input optional. Its presence signals bot dispatch; its absen
 
 > **Agent instruction**: tick each checkbox in this document (`- [ ]` → `- [x]`) immediately after completing each step. Do not batch ticks at the end.
 
-### Sub-phase A: Bot Dispatch (existing E2E procedure)
+> **Scenario correspondence**: Sub-phase A = Scenario 2 (bot, dev only), Sub-phase B = Scenario 3 (human), Sub-phase C = Scenario 1 (bot, dev+qa).  
+> **Execution order for complete re-verification**: Run Scenario 3 first (no infrastructure required), Scenario 2 second (bot dispatch infra required), Scenario 1 last (requires a temporary change to `get-product-github-app-config.ps1` that must be reverted and committed at the end).
+
+### Sub-phase A: Scenario 2 — Bot dispatch, GitHub App authorized for dev only
 
 Prerequisites: dev tunnel running, Azurite running, Functions app running locally.
 
@@ -97,7 +100,14 @@ Prerequisites: dev tunnel running, Azurite running, Functions app running locall
 
   > **Feed-forward note**: `github-app-authz` ran (success), `publish-inprogress` ran (success), `publish-completed` ran (success), `dev-task` ran (success). `qa-auto-approve` and `qa-task` were correctly **skipped** because this GitHub App is only authorized for `dev` (not `qa`) — this is the expected, correct behaviour. Also found and fixed a YAML bug: the original `run-name` expression was an unquoted YAML plain scalar containing `': '` (colon-space) from `format('manual: {0}', ...)`, which YAML parsers treat as a mapping separator. Fixed by wrapping the `run-name` value in double quotes.
 
-### Sub-phase B: Human Dispatch Simulation
+**Scenario 2 re-run** (after qa-auto-approve redesigned as bot-only):
+- [ ] Verify infrastructure: Azurite running, dev tunnel active, Functions healthy at `GET http://localhost:7071/api/Echo`.
+- [ ] Run bot dispatch E2E per the 12-step procedure above and wait for run to complete.
+- [ ] Verify run conclusion = `success`.
+- [ ] Verify per-job results: `github-app-authz`=success, `publish-inprogress`=success, `dev-task`=success, `qa-auto-approve`=**skipped** (qa not in authorized-target-envs), `qa-task`=**skipped** (qa not in authorized-target-envs), `publish-completed`=success.
+- [ ] Verify Durable terminal state: RuntimeStatus=`Completed`.
+
+### Sub-phase B: Scenario 3 — Human dispatch
 
 No Azurite, no dev tunnel, no Functions app required for this sub-phase.
 
@@ -152,7 +162,80 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
   - [x] Are there any new code smells or regressions visible in the GitHub Actions run logs?
 - [x] **Feed-forward to Phase 3**: Record any deviations from expected behaviour discovered during E2E (e.g. unexpected job skip/run, wrong run name format, authz failures). Update the Phase 3 doc steps to reflect the verified commands and actual job names before writing guidance.
 
-  > **Feed-forward note**: All expected job results confirmed. Run name `manual: christianacca` matched the pattern. No queue messages or Durable instances were created. **Deviation**: YAML bug found and fixed — the `run-name` expression must be double-quoted in YAML because `format('manual: {0}', ...)` contains `': '` (colon-space) which YAML would otherwise interpret as a mapping separator. The fix was to wrap the value in double quotes: `run-name: "${{ ... }}"`.
+  > **Feed-forward note (initial run)**: Initial run result: `github-app-authz`=skipped, `publish-inprogress`=skipped, `dev-task`=success, `qa-auto-approve`=success (at that time the job used a dual-condition that also ran for human dispatch), `qa-task`=success, `publish-completed`=skipped. Run name `manual: christianacca` matched the pattern. No queue messages or Durable instances were created. **Post-run change**: `qa-auto-approve` was subsequently redesigned to be bot-only, so Scenario 3 requires a re-run to confirm the new expected behaviour. **YAML bug found and fixed**: the `run-name` expression must be double-quoted in YAML because `format('manual: {0}', ...)` contains `': '` (colon-space) which YAML interprets as a mapping separator.
+
+**Scenario 3 re-run** (confirming qa-auto-approve is now **skipped** for human dispatch):
+
+- [ ] Push current branch: `git push`
+- [ ] Dispatch the workflow as a human (no `workflowName` input):
+  ```pwsh
+  $WorkflowBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+  $env:GH_PAGER = 'cat'
+  gh workflow run github-integration-test.yml --ref $WorkflowBranch
+  ```
+- [ ] Wait ~15 seconds then locate the latest run:
+  ```pwsh
+  $HumanRuns = gh run list --workflow github-integration-test.yml --branch $WorkflowBranch --limit 5 --json databaseId,displayTitle,status,conclusion,createdAt | ConvertFrom-Json
+  $LatestRun = $HumanRuns | Sort-Object createdAt -Descending | Select-Object -First 1
+  $LatestRun | Select-Object databaseId, displayTitle, status, conclusion | Format-List
+  ```
+- [ ] Confirm run-name = `manual: <actor>`.
+- [ ] Wait for `dev-task` to complete, then approve the `qa` environment gate so `qa-task` can proceed:
+  ```pwsh
+  $QaEnvId = (gh api "repos/christianacca/web-api-starter/environments" | ConvertFrom-Json).environments |
+      Where-Object { $_.name -eq 'qa' } | Select-Object -ExpandProperty id
+  gh api "repos/christianacca/web-api-starter/actions/runs/$($LatestRun.databaseId)/pending_deployments" `
+      --method POST -F "environment_ids[]=$QaEnvId" -f state=approved -f comment="Scenario 3 re-run verification"
+  ```
+- [ ] Wait for run to complete and verify per-job results:
+  ```pwsh
+  gh run view $LatestRun.databaseId --json jobs | ConvertFrom-Json |
+      Select-Object -ExpandProperty jobs | Select-Object name, status, conclusion | Format-Table
+  ```
+  Expected:
+  - `github-app-authz` → `skipped`
+  - `publish-inprogress` → `skipped`
+  - `dev-task` → `success`
+  - `qa-auto-approve` → **`skipped`** (bot-only; no auto-approve for human dispatch)
+  - `qa-task` → `success` (after approval above)
+  - `publish-completed` → `skipped`
+- [ ] Confirm no Durable instance created for this run.
+
+### Sub-phase C: Scenario 1 — Bot dispatch, GitHub App authorized for dev AND qa
+
+> **Critical**: The change to `get-product-github-app-config.ps1` in this sub-phase is a real authorization change. It **must** be reverted and the revert committed before merging the branch.
+
+Prerequisites: Azurite running, dev tunnel active, Functions app running locally. If infra has been stopped, restart it before proceeding.
+
+- [ ] Modify `get-product-github-app-config.ps1` line 13: change `Pipeline = @('dev')` to `Pipeline = @('dev', 'qa')`.
+- [ ] Commit and push the temporary change:
+  ```pwsh
+  git add tools/infrastructure/get-product-github-app-config.ps1
+  git commit -m "temp: authorize GitHub App for qa (Scenario 1 E2E — revert before merge)"
+  git push
+  ```
+- [ ] Run bot dispatch E2E per the 12-step procedure in Sub-phase A. Wait for the run to complete.
+- [ ] Verify run conclusion = `success`.
+- [ ] Verify per-job results:
+  ```pwsh
+  gh run view $RunId --json jobs | ConvertFrom-Json |
+      Select-Object -ExpandProperty jobs | Select-Object name, status, conclusion | Format-Table
+  ```
+  Expected:
+  - `github-app-authz` → `success`
+  - `publish-inprogress` → `success`
+  - `dev-task` → `success`
+  - `qa-auto-approve` → `success` (bot dispatch + qa in authorized-target-envs)
+  - `qa-task` → `success` (gate auto-approved by qa-auto-approve above)
+  - `publish-completed` → `success`
+- [ ] Verify Durable terminal state: RuntimeStatus = `Completed`.
+- [ ] Verify Functions log contains both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance.
+- [ ] **Revert** `get-product-github-app-config.ps1` to `Pipeline = @('dev')`:
+  ```pwsh
+  git revert HEAD --no-edit
+  git push
+  ```
+- [ ] Confirm `get-product-github-app-config.ps1` line 13 = `Pipeline = @('dev')`.
 
 ---
 
