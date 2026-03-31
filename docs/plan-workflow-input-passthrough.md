@@ -480,7 +480,7 @@ Actions run. `github-integration-test.yml` now declares `testMode` (type `choice
 `notificationEmail` (type `string`), so a dispatch supplying both should succeed and the run log
 should reflect the supplied values.
 
-- [ ] Trigger with valid declared inputs:
+- [x] Trigger with valid declared inputs:
   ```pwsh
   $ValidInputsResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
       -ContentType 'application/json' `
@@ -495,8 +495,8 @@ should reflect the supplied values.
   $ValidInputsInstanceId = $ValidInputsResponse.Id
   Write-Host "ValidInputsInstanceId: $ValidInputsInstanceId"
   ```
-- [ ] Wait for the GitHub Actions run to appear (poll `gh run list --workflow $WorkflowFile --limit 5`) and complete.
-- [ ] Inspect the run log for `dev-task` to confirm both values appear:
+- [x] Wait for the GitHub Actions run to appear (poll `gh run list --workflow $WorkflowFile --limit 5`) and complete.
+- [x] Inspect the run log for `dev-task` to confirm both values appear:
   ```pwsh
   $RunId = gh run list --workflow $WorkflowFile --json databaseId,displayTitle,status `
       --limit 10 | ConvertFrom-Json |
@@ -504,7 +504,7 @@ should reflect the supplied values.
       Select-Object -First 1 -ExpandProperty databaseId
   gh run view $RunId --log | Select-String 'full-regression|dev@example.com'
   ```
-- [ ] Confirm the orchestration reaches a terminal `Succeeded` state:
+- [x] Confirm the orchestration reaches a terminal `Succeeded` state:
   ```pwsh
   $InstancesJson = az storage entity query --table-name TestHubNameInstances `
       --connection-string "$StorageConnectionString" `
@@ -517,7 +517,7 @@ should reflect the supplied values.
 - GitHub run log for `dev-task` contains `"Test mode: full-regression"` and `"Notification email: dev@example.com"`
 - Queue callbacks (`GithubWorkflowInProgress` and `GithubWorkflowCompleted`) arrive as normal
 
-**RESULT**: _Pending_
+**RESULT**: PASSED — `FinalOutcome: Succeeded`, `workflowSucceeded: true`, runId: 23820362338, stage: Completed. GitHub run log for `dev-task` confirmed `Test mode: full-regression` and `Notification email: dev@example.com`.
 
 ---
 
