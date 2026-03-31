@@ -136,31 +136,31 @@ at that point would be the right extension.
 
 ### Steps
 
-- [ ] Read `StartWorkflowRequest.cs`, `OrchestratorInput.cs`, and `TriggerInput.cs` to confirm current content before editing.
-- [ ] Add to `StartWorkflowRequest`:
+- [x] Read `StartWorkflowRequest.cs`, `OrchestratorInput.cs`, and `TriggerInput.cs` to confirm current content before editing.
+- [x] Add to `StartWorkflowRequest`:
   ```csharp
   public Dictionary<string, string>? WorkflowInputs { get; set; }
   ```
-- [ ] Add to `OrchestratorInput`:
+- [x] Add to `OrchestratorInput`:
   ```csharp
   public Dictionary<string, string>? WorkflowInputs { get; set; }
   ```
-- [ ] Add to `TriggerInput`:
+- [x] Add to `TriggerInput`:
   ```csharp
   public Dictionary<string, string>? WorkflowInputs { get; set; }
   ```
-- [ ] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
+- [x] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
 
 ### Code review
 
-- [ ] Are the type choices (`Dictionary<string, string>?`) consistent with how the inputs will be used downstream (merged into `Dictionary<string, object>` in the activity)?
-- [ ] `Dictionary<string, string>?` is used across all three models for serialization compatibility: `System.Text.Json` (HTTP request body and Durable Functions checkpointing) cannot deserialize into `IReadOnlyDictionary` directly.
-- [ ] No validation attribute (`[Required]`, `[MinLength]`) needed — `WorkflowInputs` is intentionally optional in all three models.
-- [ ] No other properties in these files are affected by the additions.
+- [x] Are the type choices (`Dictionary<string, string>?`) consistent with how the inputs will be used downstream (merged into `Dictionary<string, object>` in the activity)?
+- [x] `Dictionary<string, string>?` is used across all three models for serialization compatibility: `System.Text.Json` (HTTP request body and Durable Functions checkpointing) cannot deserialize into `IReadOnlyDictionary` directly.
+- [x] No validation attribute (`[Required]`, `[MinLength]`) needed — `WorkflowInputs` is intentionally optional in all three models.
+- [x] No other properties in these files are affected by the additions.
 
 ### Feed forward
 
-- [ ] All three models use `Dictionary<string, string>?`. Phase 2 assignment is a direct reference pass — no conversion needed.
+- [x] All three models use `Dictionary<string, string>?`. Phase 2 assignment is a direct reference pass — no conversion needed.
 
 ---
 
@@ -170,20 +170,20 @@ at that point would be the right extension.
 
 ### Steps
 
-- [ ] Read `GithubWorkflowTrigger.cs` to confirm the current `OrchestratorInput` initializer.
-- [ ] In `GithubWorkflowTrigger.RunAsync`, add `WorkflowInputs = workflowRequest.WorkflowInputs` to the `OrchestratorInput` initializer.
-- [ ] Read `GithubWorkflowOrchestrator.cs` `TriggerWorkflowAsync` to confirm the current `TriggerInput` initializer.
-- [ ] In `GithubWorkflowOrchestrator.TriggerWorkflowAsync`, add `WorkflowInputs = input.WorkflowInputs` to the `TriggerInput` initializer.
-- [ ] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
+- [x] Read `GithubWorkflowTrigger.cs` to confirm the current `OrchestratorInput` initializer.
+- [x] In `GithubWorkflowTrigger.RunAsync`, add `WorkflowInputs = workflowRequest.WorkflowInputs` to the `OrchestratorInput` initializer.
+- [x] Read `GithubWorkflowOrchestrator.cs` `TriggerWorkflowAsync` to confirm the current `TriggerInput` initializer.
+- [x] In `GithubWorkflowOrchestrator.TriggerWorkflowAsync`, add `WorkflowInputs = input.WorkflowInputs` to the `TriggerInput` initializer.
+- [x] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
 
 ### Code review
 
-- [ ] Is `input.WorkflowInputs` simply passed by reference into `TriggerInput`? The activity only reads from it (via a `foreach` with a null guard); no mutation occurs at either end, so sharing the same `Dictionary<string, string>?` reference is safe.
-- [ ] No other changes to `GithubWorkflowTrigger.RunAsync` or `TriggerWorkflowAsync` are needed — confirm stray edits are absent.
+- [x] Is `input.WorkflowInputs` simply passed by reference into `TriggerInput`? The activity only reads from it (via a `foreach` with a null guard); no mutation occurs at either end, so sharing the same `Dictionary<string, string>?` reference is safe.
+- [x] No other changes to `GithubWorkflowTrigger.RunAsync` or `TriggerWorkflowAsync` are needed — confirm stray edits are absent.
 
 ### Feed forward
 
-- [ ] No known issues. Proceed to Phase 3.
+- [x] No known issues. Proceed to Phase 3.
 
 ---
 
@@ -193,8 +193,8 @@ at that point would be the right extension.
 
 ### Steps
 
-- [ ] Read `TriggerWorkflowActivity.RunAsync` to confirm the current `workflowInputs` dictionary construction.
-- [ ] At the very top of `RunAsync` (before `GetOrCreateClientAsync()`), add reserved-key validation:
+- [x] Read `TriggerWorkflowActivity.RunAsync` to confirm the current `workflowInputs` dictionary construction.
+- [x] At the very top of `RunAsync` (before `GetOrCreateClientAsync()`), add reserved-key validation:
   ```csharp
   private static readonly HashSet<string> ReservedInputKeys =
       new(StringComparer.Ordinal) { "workflowName", "localVerification" };
@@ -212,7 +212,7 @@ at that point would be the right extension.
       }
   }
   ```
-- [ ] Merge caller inputs before the reserved keys are written, so reserved keys always win:
+- [x] Merge caller inputs before the reserved keys are written, so reserved keys always win:
   ```csharp
   var workflowInputs = new Dictionary<string, object>();
 
@@ -228,8 +228,8 @@ at that point would be the right extension.
   if (!string.IsNullOrWhiteSpace(localVerificationDirective))
       workflowInputs["localVerification"] = localVerificationDirective;
   ```
-- [ ] Confirm the existing `workflowName` and `localVerification` assignment lines are removed / replaced (not duplicated).
-- [ ] After the `CreateDispatch` call, add `ApiValidationException` catch-and-rethrow to preserve field-level error detail through the Durable serialization boundary:
+- [x] Confirm the existing `workflowName` and `localVerification` assignment lines are removed / replaced (not duplicated).
+- [x] After the `CreateDispatch` call, add `ApiValidationException` catch-and-rethrow to preserve field-level error detail through the Durable serialization boundary:
   ```csharp
   // Wrap the CreateDispatch call:
   try
@@ -247,21 +247,21 @@ at that point would be the right extension.
   }
   ```
   > **Why**: Durable only serializes `Exception.Message` across the activity boundary. `ApiValidationException.ApiError.Errors` (the structured per-field detail) is silently dropped. Wrapping into `InvalidOperationException` with a message that includes all `ApiErrorDetail.Message` values ensures the full detail survives into `FailureDetails.ErrorMessage`, the shaped state's `Message` field, and operator-visible logs. See Phase 0 for the full research.
-- [ ] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
+- [x] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
 
 ### Code review
 
-- [ ] Is `ReservedInputKeys` declared at the right scope? It is a static, immutable set — placing it as a `private static readonly` field on the class is correct.
-- [ ] Does the merge loop correctly handle a `null` `WorkflowInputs`? (Guard is `if (input.WorkflowInputs != null)`.)
-- [ ] Is the `InvalidOperationException` message precise enough for an operator diagnosing a reserved-key collision?
-- [ ] Does the reserved-key validation run before `GetOrCreateClientAsync()` (moved to the top of `RunAsync` per the step above)?
-- [ ] Does the merge preserve all caller-supplied values, including values that are empty strings (valid for optional workflow inputs)?
-- [ ] Does the `ApiValidationException` catch wrap only `CreateDispatch`, and not broader code (so that unexpected API errors in other calls are not silently swallowed)?
-- [ ] Does the catch include the original `ApiValidationException` as `innerException` so App Insights retains the full stack and raw HTTP body alongside the shaped message?
+- [x] Is `ReservedInputKeys` declared at the right scope? It is a static, immutable set — placing it as a `private static readonly` field on the class is correct.
+- [x] Does the merge loop correctly handle a `null` `WorkflowInputs`? (Guard is `if (input.WorkflowInputs != null)`.)
+- [x] Is the `InvalidOperationException` message precise enough for an operator diagnosing a reserved-key collision?
+- [x] Does the reserved-key validation run before `GetOrCreateClientAsync()` (moved to the top of `RunAsync` per the step above)?
+- [x] Does the merge preserve all caller-supplied values, including values that are empty strings (valid for optional workflow inputs)?
+- [x] Does the `ApiValidationException` catch wrap only `CreateDispatch`, and not broader code (so that unexpected API errors in other calls are not silently swallowed)?
+- [x] Does the catch include the original `ApiValidationException` as `innerException` so App Insights retains the full stack and raw HTTP body alongside the shaped message?
 
 ### Feed forward
 
-- [ ] If the validation was moved before `GetOrCreateClientAsync()`, record that here so Phase 4 knows the exception is thrown at the top of the activity before any I/O.
+- [x] Validation runs before `GetOrCreateClientAsync()` — exception is thrown at the top of the activity before any I/O. Phase 4 `TaskFailedException` wraps this `InvalidOperationException`.
 
 ---
 
@@ -277,8 +277,8 @@ unstructured Durable `Failed` state instead of a shaped outcome.
 
 ### Steps
 
-- [ ] Read `GithubWorkflowOrchestrator.RunAsync` to confirm the current call site of `TriggerWorkflowAsync`.
-- [ ] Wrap the `TriggerWorkflowAsync` call in `RunAsync` with a try/catch:
+- [x] Read `GithubWorkflowOrchestrator.RunAsync` to confirm the current call site of `TriggerWorkflowAsync`.
+- [x] Wrap the `TriggerWorkflowAsync` call in `RunAsync` with a try/catch:
   ```csharp
   try
   {
@@ -303,20 +303,20 @@ unstructured Durable `Failed` state instead of a shaped outcome.
   ```
   > **Note on `FailureDetails.ErrorMessage`**: because Phase 3 catches `ApiValidationException` in the activity and rethrows as `InvalidOperationException` with a message that includes all `ApiErrorDetail.Message` values, `FailureDetails.ErrorMessage` already contains the fully enriched string. No `InnerException?.Message` fallback is needed.
   ```
-- [ ] Confirm `TriggerWorkflowAsync`, `WaitForWorkflowAttemptResultAsync`, and `RetryWorkflowUntilTerminalAsync` are all inside the same try block (because `TriggerWorkflowAsync` is the only source of dispatch-time failures; the others deal with runs already in progress and should not be caught here).
-- [ ] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
+- [x] Confirm try block wraps only `TriggerWorkflowAsync` (narrow scope per code review guidance); `WaitForWorkflowAttemptResultAsync` and `RetryWorkflowUntilTerminalAsync` remain outside to prevent masking post-dispatch failures.
+- [x] Run `dotnet build src/Template.Functions/Template.Functions.csproj` and confirm zero errors.
 
 ### Code review
 
-- [ ] Should the catch cover only `TriggerWorkflowAsync`, or the entire body? Catching too broadly would mask legitimate timeout/rerun exceptions that already have their own shaped paths. The catch should target the dispatch step only.
-- [ ] Is `GithubWorkflowOrchestrationStage.InvalidInput` the right stage for a GitHub dispatch failure (as distinct from a missing input payload)? If not, consider whether a new stage is warranted or whether `TriggeringWorkflow` with `finalOutcome: Failed` is more accurate. Record the decision here.
-- [ ] Does `ex.FailureDetails.ErrorMessage` now carry the enriched message (with `ApiErrorDetail` values joined in) thanks to the Phase 3 `ApiValidationException` rethrow? Confirm by inspecting the log.
-- [ ] Is there a risk that `TaskFailedException` catches rerun exceptions that surface during `TriggeringWorkflow` stage in a future code path change? The narrow scope of the try block (dispatch only) mitigates this.
+- [x] Catch covers only `TriggerWorkflowAsync` (narrow scope); `WaitForWorkflowAttemptResultAsync` and `RetryWorkflowUntilTerminalAsync` are outside the try block.
+- [x] `GithubWorkflowOrchestrationStage.InvalidInput` chosen for dispatch-time failures — consistent with the pre-existing invalid-input path and correct because the dispatch could not be initiated.
+- [x] `ex.FailureDetails.ErrorMessage` carries the enriched message — confirmed by Test C output: `"GitHub rejected the workflow dispatch (HTTP 422): Unexpected inputs provided: [\"undeclaredForTest\"]"` was in the shaped state.
+- [x] Risk of `TaskFailedException` from rerun exceptions is mitigated by the narrow try block scope.
 
 ### Feed forward
 
-- [ ] Record the chosen stage for dispatch-time failures and confirm it is consistent with the existing `SetProgressState` call at the top of `TriggerWorkflowAsync` (which sets `TriggeringWorkflow`).
-- [ ] Note whether a log line indicating the exception detail is sufficient, or whether telemetry structured logging via `Application Insights` requires a specific correlation property.
+- [x] `InvalidInput` stage is used for dispatch failures. `TriggerWorkflowAsync` sets `TriggeringWorkflow` at its start, then the catch in `RunAsync` overrides with `InvalidInput` on failure — consistent.
+- [x] Log line with the exception detail is sufficient for local dev. App Insights captures the full original `ApiValidationException` from the activity with complete structured data.
 
 ---
 
@@ -360,15 +360,15 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 
 ### Step 2 — Start Azurite, dev tunnel, and Functions app
 
-- [ ] Run `./tools/azurite/azurite-run.ps1` in a background terminal and leave it running.
-- [ ] Identify your dev tunnel id (`devtunnel list`) and host it (`devtunnel host <id>`) in a second terminal; confirm `Host connections: ≥ 1`.
-- [ ] Build and start the Functions app:
+- [x] Run `./tools/azurite/azurite-run.ps1` in a background terminal and leave it running.
+- [x] Identify your dev tunnel id (`devtunnel list`) and host it (`devtunnel host <id>`) in a second terminal; confirm `Host connections: ≥ 1`.
+- [x] Build and start the Functions app:
   ```pwsh
   dotnet build ./src/Template.Functions/Template.Functions.csproj
   Set-Location ./src/Template.Functions/bin/Debug/net10.0
   func start *>&1 | Tee-Object -FilePath $FunctionsLog
   ```
-- [ ] Confirm the health check succeeds before continuing:
+- [x] Confirm the health check succeeds before continuing:
   ```pwsh
   Invoke-RestMethod -Method Get -Uri "$FunctionsBaseUrl/api/Echo"
   ```
@@ -379,8 +379,8 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 
 **Purpose**: Confirm existing behaviour is undisturbed.
 
-- [ ] Set the branch and tunnel base URL in user-secrets (as per the full procedure in `workflow-orchestration-setup.md` Steps 1–3) so `localVerification` is populated.
-- [ ] Trigger the workflow:
+- [x] Set the branch and tunnel base URL in user-secrets (as per the full procedure in `workflow-orchestration-setup.md` Steps 1–3) so `localVerification` is populated.
+- [x] Trigger the workflow:
   ```pwsh
   $TriggerResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
       -ContentType 'application/json' `
@@ -389,13 +389,9 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
   $WorkflowName = "InternalApi-$InstanceId"
   Write-Host "InstanceId: $InstanceId  WorkflowName: $WorkflowName"
   ```
-- [ ] Wait for the GitHub Actions run to appear and complete (Steps 8–9 of the full procedure).
-- [ ] Confirm Functions log contains `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance:
-  ```pwsh
-  Select-String -Path $FunctionsLog -Pattern $InstanceId, 'GithubWorkflowInProgress', 'GithubWorkflowCompleted' |
-      Select-Object LineNumber, Line
-  ```
-- [ ] Confirm Durable terminal state in Azurite:
+- [x] Wait for the GitHub Actions run to appear and complete (Steps 8–9 of the full procedure).
+- [x] Confirm Functions log contains `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance.
+- [x] Confirm Durable terminal state in Azurite:
   ```pwsh
   $InstancesJson = az storage entity query --table-name TestHubNameInstances `
       --connection-string "$StorageConnectionString" `
@@ -406,14 +402,16 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 
 **Pass criteria**: orchestration reaches Completed/Succeeded; queue messages arrive; Functions app log is clean.
 
+**RESULT**: PASSED — `FinalOutcome: Succeeded`, `workflowSucceeded: true`, runId: 23807575580, stage: Completed.
+
 ---
 
 ### Test B — Reserved-key collision (pre-dispatch, no GitHub call)
 
 **Purpose**: Confirm the activity throws and the orchestrator returns a shaped `Failed` state, without ever calling the GitHub API.
 
-- [ ] Clear previous Durable state by restarting the Functions app between tests (or use a distinct instance).
-- [ ] Trigger with a reserved key:
+- [x] Clear previous Durable state by restarting the Functions app between tests (or use a distinct instance).
+- [x] Trigger with a reserved key:
   ```pwsh
   $CollisionResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
       -ContentType 'application/json' `
@@ -424,19 +422,8 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
   $CollisionInstanceId = $CollisionResponse.Id
   Write-Host "CollisionInstanceId: $CollisionInstanceId"
   ```
-- [ ] Poll until the orchestration reaches a terminal state (wait up to 30 seconds):
-  ```pwsh
-  foreach ($i in 1..6) {
-      Start-Sleep -Seconds 5
-      $CollisionState = az storage entity query --table-name TestHubNameInstances `
-          --connection-string "$StorageConnectionString" `
-          --filter "PartitionKey eq '$CollisionInstanceId'" --only-show-errors -o json |
-          ConvertFrom-Json
-      $entity = $CollisionState.items | Select-Object -First 1
-      if ($entity) { $entity | ConvertTo-Json; break }
-  }
-  ```
-- [ ] Inspect the Functions log for the `InvalidOperationException` message:
+- [x] Poll until the orchestration reaches a terminal state (wait up to 30 seconds).
+- [x] Inspect the Functions log for the `InvalidOperationException` message:
   ```pwsh
   Select-String -Path $FunctionsLog -Pattern $CollisionInstanceId, 'reserved', 'workflowName' |
       Select-Object LineNumber, Line
@@ -448,6 +435,8 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 - Functions log contains the reserved-key error message
 - No GitHub Actions run was dispatched for this instance (verify via `gh run list --workflow $WorkflowFile --limit 5`)
 
+**RESULT**: PASSED — `FinalOutcome: Failed`, `isTerminal: true`, `stage: InvalidInput`, message: "WorkflowInputs contains the reserved orchestration key 'workflowName'. This key is managed by the dispatcher and must not be supplied by the caller."
+
 ---
 
 ### Test C — GitHub HTTP 422 (undeclared input key)
@@ -456,7 +445,7 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 
 > `github-integration-test.yml` does not declare an input named `undeclaredForTest`, so GitHub will return HTTP 422 when such a key is supplied.
 
-- [ ] Trigger with an undeclared input key:
+- [x] Trigger with an undeclared input key:
   ```pwsh
   $UndeclaredResponse = Invoke-RestMethod -Method Post -Uri "$FunctionsBaseUrl/api/workflow/start" `
       -ContentType 'application/json' `
@@ -467,19 +456,8 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
   $Undeclared422InstanceId = $UndeclaredResponse.Id
   Write-Host "Undeclared422InstanceId: $Undeclared422InstanceId"
   ```
-- [ ] Poll until the orchestration reaches terminal state (wait up to 30 seconds):
-  ```pwsh
-  foreach ($i in 1..6) {
-      Start-Sleep -Seconds 5
-      $State422 = az storage entity query --table-name TestHubNameInstances `
-          --connection-string "$StorageConnectionString" `
-          --filter "PartitionKey eq '$Undeclared422InstanceId'" --only-show-errors -o json |
-          ConvertFrom-Json
-      $entity = $State422.items | Select-Object -First 1
-      if ($entity) { $entity | ConvertTo-Json; break }
-  }
-  ```
-- [ ] Inspect the Functions log for the GitHub 422 error:
+- [x] Poll until the orchestration reaches terminal state (wait up to 30 seconds).
+- [x] Inspect the Functions log for the GitHub 422 error:
   ```pwsh
   Select-String -Path $FunctionsLog -Pattern $Undeclared422InstanceId, '422', 'Unprocessable', 'dispatch failed' |
       Select-Object LineNumber, Line
@@ -490,6 +468,8 @@ $env:AZURE_CLI_DISABLE_CONNECTION_VERIFICATION = '1'
 - Terminal state has `FinalOutcome` = `Failed` and `IsTerminal` = `true`
 - The state has a `Message` property that includes the error detail from the `TaskFailedException`
 - No Durable orchestration crash (no unhandled exception in the Functions host log for this instance)
+
+**RESULT**: PASSED — `FinalOutcome: Failed`, `isTerminal: true`, `stage: InvalidInput`, message: "GitHub rejected the workflow dispatch (HTTP 422): Unexpected inputs provided: [\"undeclaredForTest\"]"
 
 ---
 
