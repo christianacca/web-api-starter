@@ -6,4 +6,6 @@ public class StartWorkflowRequest {
   [Required] public string WorkflowFile { get; set; } = null!;
 
   public bool RerunEntireWorkflow { get; set; } = false;
+
+  public Dictionary<string, string>? WorkflowInputs { get; set; }
 }

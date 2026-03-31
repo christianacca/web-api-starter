@@ -16,4 +16,6 @@ public class OrchestratorInput {
   [Required] public bool RerunEntireWorkflow { get; set; }
 
   [Required] public string WorkflowFile { get; set; } = null!;
+
+  public Dictionary<string, string>? WorkflowInputs { get; set; }
 }
