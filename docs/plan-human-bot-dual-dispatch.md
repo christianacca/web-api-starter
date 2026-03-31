@@ -101,11 +101,11 @@ Prerequisites: dev tunnel running, Azurite running, Functions app running locall
   > **Feed-forward note**: `github-app-authz` ran (success), `publish-inprogress` ran (success), `publish-completed` ran (success), `dev-task` ran (success). `qa-auto-approve` and `qa-task` were correctly **skipped** because this GitHub App is only authorized for `dev` (not `qa`) — this is the expected, correct behaviour. Also found and fixed a YAML bug: the original `run-name` expression was an unquoted YAML plain scalar containing `': '` (colon-space) from `format('manual: {0}', ...)`, which YAML parsers treat as a mapping separator. Fixed by wrapping the `run-name` value in double quotes.
 
 **Scenario 2 re-run** (after qa-auto-approve redesigned as bot-only):
-- [ ] Verify infrastructure: Azurite running, dev tunnel active, Functions healthy at `GET http://localhost:7071/api/Echo`.
-- [ ] Run bot dispatch E2E per the 12-step procedure above and wait for run to complete.
-- [ ] Verify run conclusion = `success`.
-- [ ] Verify per-job results: `github-app-authz`=success, `publish-inprogress`=success, `dev-task`=success, `qa-auto-approve`=**skipped** (qa not in authorized-target-envs), `qa-task`=**skipped** (qa not in authorized-target-envs), `publish-completed`=success.
-- [ ] Verify Durable terminal state: RuntimeStatus=`Completed`.
+- [x] Verify infrastructure: Azurite running, dev tunnel active, Functions healthy at `GET http://localhost:7071/api/Echo`.
+- [x] Run bot dispatch E2E per the 12-step procedure above and wait for run to complete.
+- [x] Verify run conclusion = `success`.
+- [x] Verify per-job results: `github-app-authz`=success, `publish-inprogress`=success, `dev-task`=success, `qa-auto-approve`=**skipped** (qa not in authorized-target-envs), `qa-task`=**skipped** (qa not in authorized-target-envs), `publish-completed`=success.
+- [x] Verify Durable terminal state: RuntimeStatus=`Completed`.
 
 ### Sub-phase B: Scenario 3 — Human dispatch
 
@@ -166,28 +166,28 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
 
 **Scenario 3 re-run** (confirming qa-auto-approve is now **skipped** for human dispatch):
 
-- [ ] Push current branch: `git push`
-- [ ] Dispatch the workflow as a human (no `workflowName` input):
+- [x] Push current branch: `git push`
+- [x] Dispatch the workflow as a human (no `workflowName` input):
   ```pwsh
   $WorkflowBranch = (git rev-parse --abbrev-ref HEAD).Trim()
   $env:GH_PAGER = 'cat'
   gh workflow run github-integration-test.yml --ref $WorkflowBranch
   ```
-- [ ] Wait ~15 seconds then locate the latest run:
+- [x] Wait ~15 seconds then locate the latest run:
   ```pwsh
   $HumanRuns = gh run list --workflow github-integration-test.yml --branch $WorkflowBranch --limit 5 --json databaseId,displayTitle,status,conclusion,createdAt | ConvertFrom-Json
   $LatestRun = $HumanRuns | Sort-Object createdAt -Descending | Select-Object -First 1
   $LatestRun | Select-Object databaseId, displayTitle, status, conclusion | Format-List
   ```
-- [ ] Confirm run-name = `manual: <actor>`.
-- [ ] Wait for `dev-task` to complete, then approve the `qa` environment gate so `qa-task` can proceed:
+- [x] Confirm run-name = `manual: <actor>`.
+- [x] Wait for `dev-task` to complete, then approve the `qa` environment gate so `qa-task` can proceed:
   ```pwsh
   $QaEnvId = (gh api "repos/christianacca/web-api-starter/environments" | ConvertFrom-Json).environments |
       Where-Object { $_.name -eq 'qa' } | Select-Object -ExpandProperty id
   gh api "repos/christianacca/web-api-starter/actions/runs/$($LatestRun.databaseId)/pending_deployments" `
       --method POST -F "environment_ids[]=$QaEnvId" -f state=approved -f comment="Scenario 3 re-run verification"
   ```
-- [ ] Wait for run to complete and verify per-job results:
+- [x] Wait for run to complete and verify per-job results:
   ```pwsh
   gh run view $LatestRun.databaseId --json jobs | ConvertFrom-Json |
       Select-Object -ExpandProperty jobs | Select-Object name, status, conclusion | Format-Table
@@ -199,7 +199,7 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
   - `qa-auto-approve` → **`skipped`** (bot-only; no auto-approve for human dispatch)
   - `qa-task` → `success` (after approval above)
   - `publish-completed` → `skipped`
-- [ ] Confirm no Durable instance created for this run.
+- [x] Confirm no Durable instance created for this run.
 
 ### Sub-phase C: Scenario 1 — Bot dispatch, GitHub App authorized for dev AND qa
 
@@ -207,16 +207,16 @@ No Azurite, no dev tunnel, no Functions app required for this sub-phase.
 
 Prerequisites: Azurite running, dev tunnel active, Functions app running locally. If infra has been stopped, restart it before proceeding.
 
-- [ ] Modify `get-product-github-app-config.ps1` line 13: change `Pipeline = @('dev')` to `Pipeline = @('dev', 'qa')`.
-- [ ] Commit and push the temporary change:
+- [x] Modify `get-product-github-app-config.ps1` line 13: change `Pipeline = @('dev')` to `Pipeline = @('dev', 'qa')`.
+- [x] Commit and push the temporary change:
   ```pwsh
   git add tools/infrastructure/get-product-github-app-config.ps1
   git commit -m "temp: authorize GitHub App for qa (Scenario 1 E2E — revert before merge)"
   git push
   ```
-- [ ] Run bot dispatch E2E per the 12-step procedure in Sub-phase A. Wait for the run to complete.
-- [ ] Verify run conclusion = `success`.
-- [ ] Verify per-job results:
+- [x] Run bot dispatch E2E per the 12-step procedure in Sub-phase A. Wait for the run to complete.
+- [x] Verify run conclusion = `success`.
+- [x] Verify per-job results:
   ```pwsh
   gh run view $RunId --json jobs | ConvertFrom-Json |
       Select-Object -ExpandProperty jobs | Select-Object name, status, conclusion | Format-Table
@@ -228,14 +228,14 @@ Prerequisites: Azurite running, dev tunnel active, Functions app running locally
   - `qa-auto-approve` → `success` (bot dispatch + qa in authorized-target-envs)
   - `qa-task` → `success` (gate auto-approved by qa-auto-approve above)
   - `publish-completed` → `success`
-- [ ] Verify Durable terminal state: RuntimeStatus = `Completed`.
-- [ ] Verify Functions log contains both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance.
-- [ ] **Revert** `get-product-github-app-config.ps1` to `Pipeline = @('dev')`:
+- [x] Verify Durable terminal state: RuntimeStatus = `Completed`.
+- [x] Verify Functions log contains both `GithubWorkflowInProgress` and `GithubWorkflowCompleted` for the instance.
+- [x] **Revert** `get-product-github-app-config.ps1` to `Pipeline = @('dev')`:
   ```pwsh
   git revert HEAD --no-edit
   git push
   ```
-- [ ] Confirm `get-product-github-app-config.ps1` line 13 = `Pipeline = @('dev')`.
+- [x] Confirm `get-product-github-app-config.ps1` line 13 = `Pipeline = @('dev')`.
 
 ---
 
