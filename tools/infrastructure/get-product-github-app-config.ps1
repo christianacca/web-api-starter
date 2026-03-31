@@ -10,7 +10,7 @@ process {
             @{
                 AppId          = '2800136'
                 InstallationId = '108147932'
-                Pipeline = @('dev')
+                Pipeline = @('dev', 'qa')
             }
         }
         'qa' {
