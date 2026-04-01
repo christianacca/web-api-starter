@@ -25,7 +25,7 @@ public class TriggerWorkflowActivity(
   private const string TableEndpointKey = "TableEndpoint";
 
   private static readonly HashSet<string> ReservedInputKeys =
-    new(StringComparer.Ordinal) { "workflowName", "localVerification" };
+    new(StringComparer.OrdinalIgnoreCase) { "workflowName", "localVerification" };
 
   [Function(nameof(TriggerWorkflowActivity))]
   public async Task<string> RunAsync([ActivityTrigger] TriggerInput input) {
