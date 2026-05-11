@@ -115,7 +115,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
   services.AddHttpContextAccessor();
 
-  services.AddGithubAppOptions("Github");
+  services.AddGithubAppCredentialOptions("Github");
 
   services
     .AddAzureAppConfiguration()

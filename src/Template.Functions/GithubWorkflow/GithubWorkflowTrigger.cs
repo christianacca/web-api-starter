@@ -8,7 +8,7 @@ using FromBody = Microsoft.Azure.Functions.Worker.Http.FromBodyAttribute;
 
 namespace Template.Functions.GithubWorkflow;
 
-public class GithubWorkflowTrigger(IOptionsMonitor<GithubAppOptions> optionsMonitor) {
+public class GithubWorkflowTrigger(IOptionsMonitor<GithubWorkflowOptions> optionsMonitor) {
 
   [Function(nameof(GithubWorkflowTrigger))]
   public async Task<IActionResult> RunAsync(

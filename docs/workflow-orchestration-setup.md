@@ -118,16 +118,18 @@ Operational rules:
 
 ## Application Configuration
 
-Both the API and Functions projects share the same `Github` configuration section.
+Both the API and Functions projects share the `Github` credential configuration section. The Functions project additionally reads the `GithubWorkflow` section for workflow-specific settings.
 ```json
 {
   "Github": {
+    "AppId": null,
+    "InstallationId": 0,
+    "PrivateKeyPem": null
+  },
+  "GithubWorkflow": {
     "Owner": null,
     "Repo": null,
     "Branch": null,
-    "AppId": null,
-    "InstallationId": 0,
-    "PrivateKeyPem": null,
     "MaxAttempts": 5,
     "RerunTriggerRetryDelays": ["00:00:15", "00:00:30", "00:01:00"],
     "WorkflowTimeoutHours": 12
@@ -141,7 +143,7 @@ For local queue verification, the Functions app may also read this optional user
 
 ```json
 {
-  "Github": {
+  "GithubWorkflow": {
     "LocalVerification": {
       "QueueEndpoint": "https://<your-dev-tunnel-host>/devstoreaccount1"
     }
@@ -667,16 +669,16 @@ gh auth status
 In Terminal D, run:
 
 ```pwsh
-dotnet user-secrets set Github:Branch $WorkflowBranch --project ./src/Template.Functions/Template.Functions.csproj
-dotnet user-secrets set Github:LocalVerification:QueueEndpoint $QueueTunnelBaseUrl --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets set GithubWorkflow:Branch $WorkflowBranch --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets set GithubWorkflow:LocalVerification:QueueEndpoint $QueueTunnelBaseUrl --project ./src/Template.Functions/Template.Functions.csproj
 ```
 
-If you need to validate a specific rerun schedule locally without editing code, set the indexed `Github:RerunTriggerRetryDelays` values through user-secrets before starting the Functions host. For example, a single 1ms retry is:
+If you need to validate a specific rerun schedule locally without editing code, set the indexed `GithubWorkflow:RerunTriggerRetryDelays` values through user-secrets before starting the Functions host. For example, a single 1ms retry is:
 
 ```pwsh
-dotnet user-secrets set Github:RerunTriggerRetryDelays:0 00:00:00.001 --project ./src/Template.Functions/Template.Functions.csproj
-dotnet user-secrets remove Github:RerunTriggerRetryDelays:1 --project ./src/Template.Functions/Template.Functions.csproj
-dotnet user-secrets remove Github:RerunTriggerRetryDelays:2 --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets set GithubWorkflow:RerunTriggerRetryDelays:0 00:00:00.001 --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets remove GithubWorkflow:RerunTriggerRetryDelays:1 --project ./src/Template.Functions/Template.Functions.csproj
+dotnet user-secrets remove GithubWorkflow:RerunTriggerRetryDelays:2 --project ./src/Template.Functions/Template.Functions.csproj
 ```
 
 ### Step 4: Start Azurite

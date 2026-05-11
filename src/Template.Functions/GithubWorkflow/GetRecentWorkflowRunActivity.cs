@@ -7,7 +7,7 @@ using Template.Shared.Github;
 namespace Template.Functions.GithubWorkflow;
 
 public class GetRecentWorkflowRunActivity(
-  IOptionsMonitor<GithubAppOptions> optionsMonitor,
+  IOptionsMonitor<GithubWorkflowOptions> optionsMonitor,
   IGitHubClientFactory githubClientFactory,
   ILogger<GetRecentWorkflowRunActivity> logger) {
 
