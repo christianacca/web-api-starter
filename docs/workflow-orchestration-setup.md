@@ -118,7 +118,7 @@ Operational rules:
 
 ## Application Configuration
 
-Both the API and Functions projects share the `Github` credential configuration section. The Functions project additionally reads the `GithubWorkflow` section for workflow-specific settings.
+The Functions project reads the `Github` credential configuration section for GitHub App authentication, and the `GithubWorkflow` section for workflow-specific settings.
 ```json
 {
   "Github": {

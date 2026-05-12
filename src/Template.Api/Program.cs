@@ -26,7 +26,6 @@ using Template.Shared.Azure.ConfigStore;
 using Template.Shared.Azure.KeyVault;
 using Template.Shared.Data;
 using Template.Shared.Extensions;
-using Template.Shared.Github;
 using Template.Shared.Util;
 
 // ReSharper disable UnusedParameter.Local
@@ -114,8 +113,6 @@ void ConfigureLogging(IHostBuilder host) {
 void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment environment) {
 
   services.AddHttpContextAccessor();
-
-  services.AddGithubAppCredentialOptions("Github");
 
   services
     .AddAzureAppConfiguration()
