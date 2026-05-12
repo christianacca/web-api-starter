@@ -1,0 +1,27 @@
+name: assert-bot-workflow-allowed
+description: Fails if the triggering actor is a bot and the current workflow is not in the allowlist.
+
+runs:
+  using: composite
+  steps:
+    - name: Verify workflow is allowed for bot actor
+      shell: pwsh
+      run: |
+        $triggeringActor = "${{ github.triggering_actor }}"
+        $workflowRef     = "${{ github.workflow_ref }}"
+
+        if ($triggeringActor -notmatch '\[bot\]$') {
+          exit 0
+        }
+
+        $workflowFile = Split-Path -Leaf ($workflowRef -split '@')[0]
+
+        $allowedWorkflows = @(
+          'github-integration-test.yml'
+          'infra-grant-azure-env-access.yml'
+          'infra-revoke-azure-env-access.yml'
+        )
+
+        if ($allowedWorkflows -notcontains $workflowFile) {
+          throw "Bot '$triggeringActor' is not permitted to trigger workflow '$workflowFile'. To allow it, add the filename to the `$allowedWorkflows list."
+        }

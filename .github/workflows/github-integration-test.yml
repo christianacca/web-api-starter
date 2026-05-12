@@ -22,7 +22,7 @@ name: Orchestrator Test Workflow
 #   github-app-authz    SUCCESS  — resolves primary env and authorized-target-envs
 #   publish-inprogress  SUCCESS  — publishes GithubWorkflowInProgress to default-queue
 #   dev-task            SUCCESS  — runs in the dev environment
-#   qa-auto-approve     SUCCESS  — auto-approves the qa environment gate
+#   auto_approve        SUCCESS  — auto-approves the qa environment gate
 #   qa-task             SUCCESS  — runs in the qa environment (gate pre-approved above)
 #   publish-completed   SUCCESS  — publishes GithubWorkflowCompleted to default-queue
 #
@@ -43,7 +43,7 @@ name: Orchestrator Test Workflow
 #   github-app-authz    SUCCESS  — authorized-target-envs contains only 'dev'
 #   publish-inprogress  SUCCESS  — publishes GithubWorkflowInProgress
 #   dev-task            SUCCESS  — 'dev' is in authorized-target-envs
-#   qa-auto-approve     SKIPPED  — 'qa' is NOT in authorized-target-envs
+#   auto_approve        SUCCESS  — polls pending gates; qa not in allow list so skips qa gate
 #   qa-task             SKIPPED  — 'qa' is NOT in authorized-target-envs
 #   publish-completed   SUCCESS  — publishes GithubWorkflowCompleted
 #
@@ -62,7 +62,7 @@ name: Orchestrator Test Workflow
 #   github-app-authz    SKIPPED  — bot-only guard; human actors never end with '[bot]'
 #   publish-inprogress  SKIPPED  — depends on github-app-authz with no always(); skipped by dependency
 #   dev-task            SUCCESS  — always() + !cancelled() + !endsWith([bot]) = true
-#   qa-auto-approve     SKIPPED  — bot-only; human dispatch must go through the GitHub environment gate
+#   auto_approve        SKIPPED  — bot-only; human dispatch must go through the GitHub environment gate
 #   qa-task             WAITING  — always() + !cancelled() + !endsWith([bot]) = true, but the
 #                                  qa environment has a protection rule requiring human approval;
 #                                  a reviewer must approve before qa-task runs
@@ -196,25 +196,23 @@ jobs:
           echo "Verbose logging: ${{ inputs.verboseLogging }}"
           echo "Max retries: ${{ inputs.maxRetries }}"
 
-  # Bot dispatch:    runs if 'qa' is in authorized-target-envs — auto-approves the qa environment gate
+  # Bot dispatch:    runs if github-app-authz succeeded — polls and auto-approves any gates in the allow list
   # Human dispatch:  skipped — the GitHub environment protection gate requires a human to approve qa-task
-  qa-auto-approve:
+  auto_approve:
     runs-on: ubuntu-latest
-    needs: publish-inprogress
+    needs: github-app-authz
     if: |
       endsWith(github.triggering_actor, '[bot]') &&
-      needs.publish-inprogress.result == 'success' &&
-      contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa')
+      needs.github-app-authz.result == 'success'
+    permissions:
+      actions: read
+      contents: read
     steps:
-      - name: Wait for deployment to be registered
-        run: sleep 20
-
-      - name: Auto-approve deployment
-        uses: activescott/automate-environment-deployment-approval@10179fc61443cb28b95e807814d9dfce60a9e230 # <- v1.1.0
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/auto-approve-deployments
         with:
           github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
-          environment_allow_list: qa
-          run_id_allow_list: ${{ github.run_id }}
+          environment_allow_list: ${{ needs.github-app-authz.outputs.authz-authorized-target-envs }}
 
   # Bot dispatch:    runs if 'qa' is in authorized-target-envs; skipped otherwise
   # Human dispatch:  always runs, but waits at the GitHub environment protection gate for a human to approve

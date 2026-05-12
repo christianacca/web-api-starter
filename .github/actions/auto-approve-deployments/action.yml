@@ -1,0 +1,25 @@
+name: auto-approve-deployments
+description: >
+  Polls for pending environment deployments on this workflow run and approves them as they appear,
+  until the run completes or 15 minutes elapse. A single instance of this job covers all gates,
+  removing the need for one approver job per gate.
+
+inputs:
+  github_token:
+    description: GitHub token with actions:write permission to approve environment deployments
+    required: true
+  environment_allow_list:
+    description: JSON array of environment names eligible for auto-approval (e.g. '["dev","qa"]')
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Poll and approve pending deployments
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        ENVIRONMENT_ALLOW_LIST: ${{ inputs.environment_allow_list }}
+        RUN_ID: ${{ github.run_id }}
+        REPO: ${{ github.repository }}
+      run: bash ${{ github.action_path }}/poll-and-approve.sh

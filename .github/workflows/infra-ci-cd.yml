@@ -53,15 +53,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: [globalvars, build]
     if: needs.globalvars.outputs.createRelease == 'true' && needs.globalvars.outputs.buildType == 'release'
+    permissions:
+      actions: read
+      contents: read
     steps:
-      - name: Sleep for 30 seconds # wait for jobs that require approval to start and enter pending state
-        run: sleep 30s
-      - name: Auto Approve Deployments qa
-        uses: activescott/automate-environment-deployment-approval@10179fc61443cb28b95e807814d9dfce60a9e230 # <- v1.1.0
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/auto-approve-deployments
         with:
           github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
           environment_allow_list: qa
-          run_id_allow_list: ${{ github.run_id }} # only approve the current run of THIS workflow only
       
   deploy-dev:
     needs: [globalvars, build]
