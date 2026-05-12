@@ -1,14 +1,24 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Template.Shared.Github;
 
 public static class ServiceCollectionExtensions {
+  private sealed class GithubAppCredentialMarker { }
+
   public static IServiceCollection AddGithubAppCredentialOptions(this IServiceCollection services, string configurationSection = "Github") {
+    // Marker prevents duplicate BindConfiguration/ValidateDataAnnotations registrations when multiple
+    // consumers (e.g. AddGithubWorkflow) each call this method internally.
+    // Unlike TryAddSingleton, this guards the AddOptions fluent chain which uses plain AddSingleton internally.
+    if (services.Any(d => d.ServiceType == typeof(GithubAppCredentialMarker)))
+      return services;
+
+    services.AddSingleton<GithubAppCredentialMarker>();
     services.AddOptions<GithubAppCredentialOptions>()
       .BindConfiguration(configurationSection)
       .ValidateDataAnnotations();
 
-    services.AddSingleton<IGitHubClientFactory, GitHubClientFactory>();
+    services.TryAddSingleton<IGitHubClientFactory, GitHubClientFactory>();
     return services;
   }
 
