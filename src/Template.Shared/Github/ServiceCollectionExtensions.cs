@@ -3,7 +3,7 @@
 namespace Template.Shared.Github;
 
 public static class ServiceCollectionExtensions {
-  public static IServiceCollection AddGithubAppCredentialOptions(this IServiceCollection services, string configurationSection) {
+  public static IServiceCollection AddGithubAppCredentialOptions(this IServiceCollection services, string configurationSection = "Github") {
     services.AddOptions<GithubAppCredentialOptions>()
       .BindConfiguration(configurationSection)
       .ValidateDataAnnotations();
@@ -26,7 +26,7 @@ public static class ServiceCollectionExtensions {
     this IServiceCollection services,
     string configurationSection,
     string functionAppName) {
-    services.AddGithubAppCredentialOptions("Github");
+    services.AddGithubAppCredentialOptions();
 
     services.AddOptions<GithubWorkflowOptions>()
       .BindConfiguration(configurationSection)
