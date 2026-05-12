@@ -244,7 +244,7 @@ jobs:
     needs:
       - publish-inprogress
       - dev-task
-      - qa-auto-approve
+      - auto_approve
       - qa-task
     if: ${{ always() && needs.publish-inprogress.outputs.published-in-progress == 'true' }}
     environment:
