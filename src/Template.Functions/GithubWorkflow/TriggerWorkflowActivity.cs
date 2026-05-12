@@ -10,12 +10,12 @@ using Template.Shared.Github;
 namespace Template.Functions.GithubWorkflow;
 
 public class TriggerWorkflowActivity(
-  IOptionsMonitor<GithubAppOptions> optionsMonitor,
+  IOptionsMonitor<GithubWorkflowOptions> optionsMonitor,
   IGitHubClientFactory gitHubClientFactory,
   FunctionAppName functionAppName,
   IConfiguration configuration,
   IHostEnvironment hostEnvironment) {
-  private const string LocalVerificationQueueEndpointKey = "Github:LocalVerification:QueueEndpoint";
+  private const string LocalVerificationQueueEndpointKey = "GithubWorkflow:LocalVerification:QueueEndpoint";
   private const string AzureWebJobsStorageKey = "AzureWebJobsStorage";
   private const string AccountNameKey = "AccountName";
   private const string AccountKeyKey = "AccountKey";

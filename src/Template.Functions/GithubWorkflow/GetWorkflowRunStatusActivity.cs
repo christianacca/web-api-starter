@@ -12,7 +12,7 @@ public record WorkflowRunInfo(
   long RunAttempt);
 
 public class GetWorkflowRunStatusActivity(
-  IOptionsMonitor<GithubAppOptions> optionsMonitor,
+  IOptionsMonitor<GithubWorkflowOptions> optionsMonitor,
   IGitHubClientFactory githubClientFactory,
   ILogger<GetWorkflowRunStatusActivity> logger) {
 

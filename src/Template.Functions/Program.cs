@@ -88,7 +88,7 @@ void ConfigureServices(IServiceCollection services, IConfiguration configuration
 
   services.AddEnvironmentInfoOptions(environment.IsDevelopment());
   
-  services.AddGithubWorkflow("Github", "InternalApi");
+  services.AddGithubWorkflow("GithubWorkflow", "InternalApi");
 
   if (environment.IsDevelopment()) {
     services.AddHostedService<DevelopmentQueueInitializer>();

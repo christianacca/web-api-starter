@@ -7,7 +7,7 @@ namespace Template.Functions.GithubWorkflow;
 public record RerunInput(long RunId, bool RerunEntireWorkflow);
 
 public class RerunFailedJobActivity(
-  IOptionsMonitor<GithubAppOptions> optionsMonitor, 
+  IOptionsMonitor<GithubWorkflowOptions> optionsMonitor,
   IGitHubClientFactory githubClientFactory) {
 
   [Function(nameof(RerunFailedJobActivity))]
