@@ -16,10 +16,10 @@ runs:
   using: composite
   steps:
     - name: Poll and approve pending deployments
-      shell: bash
+      shell: pwsh
       env:
         GH_TOKEN: ${{ inputs.github_token }}
         ENVIRONMENT_ALLOW_LIST: ${{ inputs.environment_allow_list }}
         RUN_ID: ${{ github.run_id }}
         REPO: ${{ github.repository }}
-      run: bash ${{ github.action_path }}/poll-and-approve.sh
+      run: ${{ github.action_path }}/poll-and-approve.ps1
