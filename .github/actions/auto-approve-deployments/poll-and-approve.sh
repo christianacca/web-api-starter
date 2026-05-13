@@ -9,8 +9,6 @@
 #                            or a JSON array string ('["dev","qa"]')
 #   GH_TOKEN               - PAT of a human who is a required reviewer on those environments
 #                            (the gh CLI picks this up automatically)
-#   JOB_NAME               - the name of this job (github.job), used to exclude it from the
-#                            all-others-done check so the loop can exit cleanly
 set -euo pipefail
 
 MAX_WAIT=900   # 15 minutes — give up if the run hasn't finished by then
@@ -21,19 +19,15 @@ echo "Starting auto-approval polling for run $RUN_ID in $REPO"
 echo "Environment allow list: $ENVIRONMENT_ALLOW_LIST"
 
 # Normalise the allow list to a JSON array (handles both a JSON array string and a plain string)
-if echo "$ENVIRONMENT_ALLOW_LIST" | jq -e . >/dev/null 2>&1; then
-  allow_list=$(echo "$ENVIRONMENT_ALLOW_LIST" | jq -c 'if type == "array" then . else [.] end')
-else
-  allow_list=$(jq -cn --arg env "$ENVIRONMENT_ALLOW_LIST" '[$env]')
-fi
+allow_list=$(echo "$ENVIRONMENT_ALLOW_LIST" | jq -c 'if type == "array" then . else [.] end')
 
 while [[ $elapsed -lt $MAX_WAIT ]]; do
   # The run is always "in_progress" while this job itself is running, so we can't use run
   # status to detect completion. Instead check whether every *other* job has reached a
   # terminal state (completed). When they have and nothing is pending, we're done.
-  all_others_done=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" 2>/dev/null \
-    | jq -r --arg job "$JOB_NAME" '(.jobs | length > 0) and ([.jobs[] | select(.name != $job) | .status] | all(. == "completed"))' \
-    || echo "false")
+  all_others_done=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
+    --jq '(.jobs | length > 0) and ([.jobs[] | select(.name != "auto_approve") | .status] | all(. == "completed"))' \
+    2>/dev/null || echo "false")
 
   # Fetch the list of deployment gates currently waiting for a reviewer to approve.
   pending=$(gh api "repos/$REPO/actions/runs/$RUN_ID/pending_deployments" 2>/dev/null || echo "[]")
