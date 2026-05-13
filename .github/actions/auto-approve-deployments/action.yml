@@ -22,4 +22,5 @@ runs:
         ENVIRONMENT_ALLOW_LIST: ${{ inputs.environment_allow_list }}
         RUN_ID: ${{ github.run_id }}
         REPO: ${{ github.repository }}
+        JOB_NAME: ${{ github.job }}
       run: bash ${{ github.action_path }}/poll-and-approve.sh
