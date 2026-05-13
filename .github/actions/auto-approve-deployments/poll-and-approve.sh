@@ -31,9 +31,9 @@ while [[ $elapsed -lt $MAX_WAIT ]]; do
   # The run is always "in_progress" while this job itself is running, so we can't use run
   # status to detect completion. Instead check whether every *other* job has reached a
   # terminal state (completed). When they have and nothing is pending, we're done.
-  all_others_done=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" \
-    --jq --arg job "$JOB_NAME" '(.jobs | length > 0) and ([.jobs[] | select(.name != $job) | .status] | all(. == "completed"))' \
-    2>/dev/null || echo "false")
+  all_others_done=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" 2>/dev/null \
+    | jq -r --arg job "$JOB_NAME" '(.jobs | length > 0) and ([.jobs[] | select(.name != $job) | .status] | all(. == "completed"))' \
+    || echo "false")
 
   # Fetch the list of deployment gates currently waiting for a reviewer to approve.
   pending=$(gh api "repos/$REPO/actions/runs/$RUN_ID/pending_deployments" 2>/dev/null || echo "[]")
