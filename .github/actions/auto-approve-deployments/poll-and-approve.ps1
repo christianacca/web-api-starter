@@ -72,11 +72,11 @@ while ($elapsed -lt $maxWait) {
     $envIds = @($pending | Where-Object { $allowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
 
     if ($envIds.Count -gt 0) {
-        $envIdsStr = $envIds -join ','
-        Write-Host "Approving pending deployments (ids: $envIdsStr)"
+        Write-Host "Approving pending deployments (ids: $($envIds -join ','))"
         # POST to the pending_deployments endpoint to approve the gates in bulk.
         # Uses GH_TOKEN (the PAT of a required reviewer) so GitHub treats it as a valid approval.
-        $body = "{`"environment_ids`":[$envIdsStr],`"state`":`"approved`",`"comment`":`"Auto-approved by bot workflow`"}"
+        $bodyObj = @{ environment_ids = $envIds; state = "approved"; comment = "Auto-approved by bot workflow" }
+        $body = $bodyObj | ConvertTo-Json -Compress
         try {
             $body | gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" `
                 --method POST --input - --silent
