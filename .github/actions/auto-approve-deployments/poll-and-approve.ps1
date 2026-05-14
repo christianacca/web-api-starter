@@ -18,6 +18,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
+
 $maxWait = 900   # 15 minutes — give up if the run hasn't finished by then
 $pollInterval = 15
 $elapsed = 0
