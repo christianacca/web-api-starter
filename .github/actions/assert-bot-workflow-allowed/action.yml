@@ -20,6 +20,7 @@ runs:
           'github-integration-test.yml'
           'infra-grant-azure-env-access.yml'
           'infra-revoke-azure-env-access.yml'
+          '__infra-azure-env-access-approval-context.yml'
         )
 
         if ($allowedWorkflows -notcontains $workflowFile) {

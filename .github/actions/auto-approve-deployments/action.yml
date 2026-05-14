@@ -19,7 +19,8 @@ runs:
       shell: pwsh
       env:
         GH_TOKEN: ${{ inputs.github_token }}
-        ENVIRONMENT_ALLOW_LIST: ${{ inputs.environment_allow_list }}
-        RUN_ID: ${{ github.run_id }}
-        REPO: ${{ github.repository }}
-      run: ${{ github.action_path }}/poll-and-approve.ps1
+      run: |
+        ${{ github.action_path }}/poll-and-approve.ps1 `
+          -Repo '${{ github.repository }}' `
+          -RunId ${{ github.run_id }} `
+          -EnvironmentAllowList '${{ inputs.environment_allow_list }}'
