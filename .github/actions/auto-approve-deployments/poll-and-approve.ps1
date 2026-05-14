@@ -41,25 +41,31 @@ while ($elapsed -lt $maxWait) {
     # terminal state (completed). When they have and nothing is pending, we're done.
     $allOthersDone = $false
     try {
-        $jobsJson = gh api "repos/$Repo/actions/runs/$RunId/jobs" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $jobsJson) {
+        $jobsJson = gh api "repos/$Repo/actions/runs/$RunId/jobs"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "gh api jobs call failed (exit $LASTEXITCODE): $jobsJson"
+        } elseif ($jobsJson) {
             $jobs = ($jobsJson | ConvertFrom-Json).jobs
             $otherJobs = @($jobs | Where-Object { $_.name -ne 'auto_approve' })
             $allOthersDone = ($jobs.Count -gt 0) -and
                              ($otherJobs | Where-Object { $_.status -ne 'completed' } | Measure-Object).Count -eq 0
         }
     } catch {
+        Write-Warning "Failed to check jobs: $($_.Exception.Message)"
         $allOthersDone = $false
     }
 
     # Fetch the list of deployment gates currently waiting for a reviewer to approve.
     $pending = @()
     try {
-        $pendingJson = gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $pendingJson) {
+        $pendingJson = gh api "repos/$Repo/actions/runs/$RunId/pending_deployments"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "gh api pending_deployments call failed (exit $LASTEXITCODE): $pendingJson"
+        } elseif ($pendingJson) {
             $pending = @($pendingJson | ConvertFrom-Json)
         }
     } catch {
+        Write-Warning "Failed to check pending deployments: $($_.Exception.Message)"
         $pending = @()
     }
 
