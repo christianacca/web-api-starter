@@ -13,13 +13,17 @@ param(
     [string] $RunId,
 
     [Parameter(Mandatory)]
-    [string] $EnvironmentAllowList
+    [string] $EnvironmentAllowList,
+
+    [int] $MaxWait = 900,
+
+    [int] $PollInterval = 15
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$maxWait = 900   # 15 minutes — give up if the run hasn't finished by then
-$pollInterval = 15
+$env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
+
 $elapsed = 0
 
 Write-Host "Starting auto-approval polling for run $RunId in $Repo"
@@ -33,7 +37,7 @@ try {
     $allowList = @($EnvironmentAllowList)
 }
 
-while ($elapsed -lt $maxWait) {
+while ($elapsed -lt $MaxWait) {
     # The run is always "in_progress" while this job itself is running, so we can't use run
     # status to detect completion. Instead check whether every *other* job has reached a
     # terminal state (completed). When they have and nothing is pending, we're done.
@@ -91,8 +95,8 @@ while ($elapsed -lt $maxWait) {
         }
     }
 
-    Start-Sleep -Seconds $pollInterval
-    $elapsed += $pollInterval
+    Start-Sleep -Seconds $PollInterval
+    $elapsed += $PollInterval
 }
 
-Write-Host "Polling timed out after ${maxWait}s."
+Write-Host "Polling timed out after ${MaxWait}s."
