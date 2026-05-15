@@ -201,9 +201,7 @@ jobs:
   auto_approve:
     runs-on: ubuntu-latest
     needs: github-app-authz
-    if: |
-      endsWith(github.triggering_actor, '[bot]') &&
-      needs.github-app-authz.result == 'success'
+    if: needs.github-app-authz.result == 'success'
     permissions:
       actions: read
       contents: read
