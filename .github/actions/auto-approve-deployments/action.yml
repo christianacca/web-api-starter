@@ -11,6 +11,9 @@ inputs:
   environment_allow_list:
     description: JSON array of environment names eligible for auto-approval (e.g. '["dev","qa"]')
     required: true
+  self_job_name:
+    description: Name of the calling job (pass github.job) so it is excluded from the completion check
+    required: true
 
 runs:
   using: composite
@@ -19,9 +22,9 @@ runs:
       shell: pwsh
       env:
         GH_TOKEN: ${{ inputs.github_token }}
-        ENVIRONMENT_ALLOW_LIST: ${{ inputs.environment_allow_list }}
       run: |
         ${{ github.action_path }}/poll-and-approve.ps1 `
           -Repo '${{ github.repository }}' `
           -RunId ${{ github.run_id }} `
-          -EnvironmentAllowList $env:ENVIRONMENT_ALLOW_LIST
+          -EnvironmentAllowList ('${{ inputs.environment_allow_list }}' | ConvertFrom-Json) `
+          -SelfJobName '${{ inputs.self_job_name }}'
