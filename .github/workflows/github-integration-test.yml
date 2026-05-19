@@ -211,6 +211,7 @@ jobs:
         with:
           github_token: ${{ secrets.AUTO_APPROVE_DEPLOYMENTS_TOKEN }}
           environment_allow_list: ${{ needs.github-app-authz.outputs.authz-authorized-target-envs }}
+          self_job_name: ${{ github.job }}
 
   # Bot dispatch:    runs if 'qa' is in authorized-target-envs; skipped otherwise
   # Human dispatch:  always runs, but waits at the GitHub environment protection gate for a human to approve
