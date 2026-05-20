@@ -55,12 +55,12 @@ while ($elapsed -lt $MaxWaitSeconds) {
         Write-Error "Failed to check pending deployments: $($_.Exception.Message)"
         $pending = @()
     }
-    
+
     if ($allOthersDone -and $pending.Count -eq 0) {
         Write-Host "All other jobs completed and no pending deployments. Exiting."
         exit 0
     }
-    
+
     # Only approve allowed environments; leave others for human reviewers.
     $envIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
     
@@ -71,11 +71,8 @@ while ($elapsed -lt $MaxWaitSeconds) {
         $bodyObj = @{ environment_ids = $envIds; state = "approved"; comment = "Auto-approved by bot workflow" }
         $body = $bodyObj | ConvertTo-Json -Compress
         try {
-            $null = $body | gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" `
-                --method POST --input -
-            if ($LASTEXITCODE -ne 0) {
-                throw "gh POST returned exit code $LASTEXITCODE"
-            }
+            $body | gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" `
+                --method POST --input - | Out-Null
         } catch {
             Write-Error "Could not approve pending deployments: $($_.Exception.Message)"
         }
