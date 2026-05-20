@@ -23,8 +23,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandErrorActionPreference = 'Stop'
 
-$env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
-
 $elapsed = 0
 
 Write-Host "Starting auto-approval polling for run $RunId in $Repo"
@@ -57,15 +55,17 @@ while ($elapsed -lt $MaxWaitSeconds) {
         Write-Error "Failed to check pending deployments: $($_.Exception.Message)"
         $pending = @()
     }
-
+    
     if ($allOthersDone -and $pending.Count -eq 0) {
         Write-Host "All other jobs completed and no pending deployments. Exiting."
         exit 0
     }
-
+    
     # Only approve allowed environments; leave others for human reviewers.
     $envIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
-
+    
+    $env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
+    
     if ($envIds.Count -gt 0) {
         Write-Host "Approving pending deployments (ids: $($envIds -join ','))"
         $bodyObj = @{ environment_ids = $envIds; state = "approved"; comment = "Auto-approved by bot workflow" }
