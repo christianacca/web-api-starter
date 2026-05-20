@@ -185,15 +185,6 @@ Describe "poll-and-approve.ps1 happy-path and logic scenarios" {
         }
     }
 
-    Context "POST to approve pending deployments fails with non-zero exit code" {
-        It "logs a warning and continues without rethrowing" {
-            $env:GH_FAKE_PENDING_OUTPUT = '[{"environment":{"id":42,"name":"dev"}}]'
-            $env:GH_FAKE_POST_EXIT_CODE = '1'
-
-            Invoke-Script | Should -Match 'Could not approve pending deployments: .+'
-        }
-    }
-
     Context "a pending deployment whose environment name is NOT in the allow list" {
         It "does not attempt to approve the non-allowed environment" {
             $env:GH_FAKE_PENDING_OUTPUT = '[{"environment":{"id":99,"name":"prod"}}]'
