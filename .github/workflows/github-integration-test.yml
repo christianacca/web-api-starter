@@ -217,27 +217,6 @@ jobs:
 
   # Bot dispatch:    runs if 'qa' is in authorized-target-envs; skipped otherwise
   # Human dispatch:  always runs, but waits at the GitHub environment protection gate for a human to approve
-  qa-task:
-    runs-on: ubuntu-latest
-    needs: publish-inprogress
-    if: |
-      always() && !cancelled() &&
-      (
-        !endsWith(github.triggering_actor, '[bot]') ||
-        (needs.publish-inprogress.result == 'success' &&
-         contains(fromJSON(needs.publish-inprogress.outputs.authz-authorized-target-envs), 'qa'))
-      )
-    environment:
-      name: qa
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          echo "Building workflow for ${{ inputs.workflowName }} in QA environment"
-          echo "Test mode: ${{ inputs.testMode }}"
-          echo "Notification email: ${{ inputs.notificationEmail || '(none)' }}"
-          echo "Verbose logging: ${{ inputs.verboseLogging }}"
-          echo "Max retries: ${{ inputs.maxRetries }}"
-
   # Bot dispatch:    runs — publishes GithubWorkflowCompleted queue message
   # Human dispatch:  skipped (published-in-progress output is empty when publish-inprogress was skipped)
   publish-completed:
@@ -245,7 +224,6 @@ jobs:
     needs:
       - publish-inprogress
       - dev-task
-      - qa-task
     if: ${{ always() && needs.publish-inprogress.outputs.published-in-progress == 'true' }}
     environment:
       name: ${{ needs.publish-inprogress.outputs.authz-primary-env }}
