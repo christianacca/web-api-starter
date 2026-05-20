@@ -195,8 +195,6 @@ jobs:
           echo "Notification email: ${{ inputs.notificationEmail || '(none)' }}"
           echo "Verbose logging: ${{ inputs.verboseLogging }}"
           echo "Max retries: ${{ inputs.maxRetries }}"
-          echo "Sleeping for 5 minutes to simulate long-running task..."
-          sleep 300
 
   # Bot dispatch:    runs if github-app-authz succeeded — polls and auto-approves any gates in the allow list
   # Human dispatch:  skipped — the GitHub environment protection gate requires a human to approve qa-task
