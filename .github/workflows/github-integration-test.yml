@@ -135,6 +135,7 @@ jobs:
       authz-installation-id: ${{ steps.authz.outputs.installation-id }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/assert-bot-workflow-allowed
       - id: authz
         uses: ./.github/actions/github-app-authz-envs
         with:
@@ -201,7 +202,6 @@ jobs:
   auto_approve:
     runs-on: ubuntu-latest
     needs: github-app-authz
-    if: needs.github-app-authz.result == 'success'
     permissions:
       actions: read
       contents: read

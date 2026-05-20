@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4 # need to checkout so that our custom action is available
+      - uses: ./.github/actions/assert-bot-workflow-allowed
       - uses: ./.github/actions/gh-context
 
   setup:
