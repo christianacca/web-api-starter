@@ -43,7 +43,7 @@ while ($elapsed -lt $MaxWaitSeconds) {
             $allOthersDone = ($otherJobs.Count -gt 0) -and ($incompleteOtherJobs.Count -eq 0)
         }
     } catch {
-        Write-Error "Failed to check jobs: $($_.Exception.Message)"
+        Write-Warning "Failed to check jobs: $($_.Exception.Message)"
         $allOthersDone = $false
     }
 
@@ -54,7 +54,7 @@ while ($elapsed -lt $MaxWaitSeconds) {
             $pending = @($pendingJson | ConvertFrom-Json)
         }
     } catch {
-        Write-Error "Failed to check pending deployments: $($_.Exception.Message)"
+        Write-Warning "Failed to check pending deployments: $($_.Exception.Message)"
         $pending = @()
     }
 
