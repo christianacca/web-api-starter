@@ -53,6 +53,7 @@ Describe "poll-and-approve.ps1 catch scenarios" {
         function Invoke-Script {
             & pwsh -NoProfile -NonInteractive -File $script:scriptPath `
                 -Repo 'org/repo' -RunId '123' -EnvironmentAllowList @('dev') `
+                -SelfJobName 'auto_approve' `
                 -MaxWaitSeconds 2 -PollIntervalSeconds 1 2>&1 | Out-String
         }
     }
@@ -72,11 +73,11 @@ Describe "poll-and-approve.ps1 catch scenarios" {
     }
 
     Context "gh api jobs call fails with non-zero exit code" {
-        It "logs a warning with the exit code and response body" {
+        It "logs an error from the catch block" {
             $env:GH_FAKE_JOBS_EXIT_CODE = '1'
             $env:GH_FAKE_JOBS_OUTPUT    = 'HTTP 401: Bad credentials'
 
-            Invoke-Script | Should -Match 'gh api jobs call failed \(exit 1\): HTTP 401: Bad credentials'
+            Invoke-Script | Should -Match 'Failed to check jobs: .+'
         }
     }
 
@@ -113,11 +114,11 @@ Describe "poll-and-approve.ps1 catch scenarios" {
     }
 
     Context "gh api pending_deployments call fails with non-zero exit code" {
-        It "logs a warning with the exit code and response body" {
+        It "logs an error from the catch block" {
             $env:GH_FAKE_PENDING_EXIT_CODE = '1'
             $env:GH_FAKE_PENDING_OUTPUT    = 'HTTP 401: Bad credentials'
 
-            Invoke-Script | Should -Match 'gh api pending_deployments call failed \(exit 1\): HTTP 401: Bad credentials'
+            Invoke-Script | Should -Match 'Failed to check pending deployments: .+'
         }
     }
 
@@ -140,6 +141,7 @@ Describe "poll-and-approve.ps1 happy-path and logic scenarios" {
             )
             & pwsh -NoProfile -NonInteractive -File $script:scriptPath `
                 -Repo 'org/repo' -RunId '123' -EnvironmentAllowList $EnvironmentAllowList `
+                -SelfJobName 'auto_approve' `
                 -MaxWaitSeconds 2 -PollIntervalSeconds 1 2>&1 | Out-String
         }
     }

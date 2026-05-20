@@ -23,6 +23,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandErrorActionPreference = 'Stop'
 
+$env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
+
 $elapsed = 0
 
 Write-Host "Starting auto-approval polling for run $RunId in $Repo"
@@ -69,8 +71,11 @@ while ($elapsed -lt $MaxWaitSeconds) {
         $bodyObj = @{ environment_ids = $envIds; state = "approved"; comment = "Auto-approved by bot workflow" }
         $body = $bodyObj | ConvertTo-Json -Compress
         try {
-            $body | gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" `
-                --method POST --input - | Out-Null
+            $null = $body | gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" `
+                --method POST --input -
+            if ($LASTEXITCODE -ne 0) {
+                throw "gh POST returned exit code $LASTEXITCODE"
+            }
         } catch {
             Write-Error "Could not approve pending deployments: $($_.Exception.Message)"
         }
