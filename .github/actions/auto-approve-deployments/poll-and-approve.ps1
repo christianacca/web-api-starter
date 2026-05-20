@@ -21,7 +21,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$PSNativeCommandErrorActionPreference = 'Stop'
+# $PSNativeCommandErrorActionPreference = 'Stop'
 
 $env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
 
