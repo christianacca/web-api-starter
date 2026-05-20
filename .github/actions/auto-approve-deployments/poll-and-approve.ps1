@@ -29,7 +29,6 @@ Write-Host "Starting auto-approval polling for run $RunId in $Repo"
 Write-Host "Environment allow list: $EnvironmentAllowList"
 
 while ($elapsed -lt $MaxWaitSeconds) {
-    # The run stays "in_progress" while this job runs, so check other jobs' status instead.
     $allOthersDone = $false
     try {
         $jobsJson = gh api "repos/$Repo/actions/runs/$RunId/jobs"
