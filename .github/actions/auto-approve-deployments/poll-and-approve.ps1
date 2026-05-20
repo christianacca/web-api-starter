@@ -64,8 +64,6 @@ while ($elapsed -lt $MaxWaitSeconds) {
     # Only approve allowed environments; leave others for human reviewers.
     $envIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
     
-    $env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
-    
     if ($envIds.Count -gt 0) {
         Write-Host "Approving pending deployments (ids: $($envIds -join ','))"
         $bodyObj = @{ environment_ids = $envIds; state = "approved"; comment = "Auto-approved by bot workflow" }
