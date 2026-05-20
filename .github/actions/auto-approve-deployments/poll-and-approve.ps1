@@ -33,7 +33,6 @@ while ($elapsed -lt $MaxWaitSeconds) {
     $allOthersDone = $false
     try {
         $jobsJson = gh api "repos/$Repo/actions/runs/$RunId/jobs"
-        Write-Host "Jobs API response: $jobsJson"
         if ($jobsJson) {
             $jobs = ($jobsJson | ConvertFrom-Json).jobs
             $otherJobs = @($jobs | Where-Object { $_.name -ne $SelfJobName })
