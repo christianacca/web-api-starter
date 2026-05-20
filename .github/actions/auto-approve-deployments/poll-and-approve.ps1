@@ -61,12 +61,12 @@ while ($elapsed -lt $MaxWaitSeconds) {
         exit 0
     }
 
-    # Only approve allowed environments; leave others for human reviewers.
-    $envIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
+    # Approve any pending deployments whose environment name matches the allow list.
+    $allowedEnvIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
     
-    if ($envIds.Count -gt 0) {
-        Write-Host "Approving pending deployments (ids: $($envIds -join ','))"
-        $bodyObj = @{ environment_ids = $envIds; state = "approved"; comment = "Auto-approved by bot workflow" }
+    if ($allowedEnvIds.Count -gt 0) {
+        Write-Host "Approving pending deployments (ids: $($allowedEnvIds -join ','))"
+        $bodyObj = @{ environment_ids = $allowedEnvIds; state = "approved"; comment = "Auto-approved by bot workflow" }
         $body = $bodyObj | ConvertTo-Json -Compress
         try {
             $body | gh api "repos/$Repo/actions/runs/$RunId/pending_deployments" `
