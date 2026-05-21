@@ -22,9 +22,10 @@ runs:
       shell: pwsh
       env:
         GH_TOKEN: ${{ inputs.github_token }}
+        ENVIRONMENT_ALLOW_LIST: ${{ inputs.environment_allow_list }}
       run: |
         ${{ github.action_path }}/poll-and-approve.ps1 `
           -Repo '${{ github.repository }}' `
           -RunId ${{ github.run_id }} `
-          -EnvironmentAllowList ('${{ inputs.environment_allow_list }}' | ConvertFrom-Json) `
+          -EnvironmentAllowList ($env:ENVIRONMENT_ALLOW_LIST | ConvertFrom-Json) `
           -SelfJobName '${{ inputs.self_job_name }}'
