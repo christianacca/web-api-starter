@@ -29,6 +29,7 @@ jobs:
     environment: ${{ github.event.inputs.environment-name }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/assert-bot-workflow-allowed
 
       - name: Azure login
         uses: ./.github/actions/azure-login

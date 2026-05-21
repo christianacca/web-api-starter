@@ -36,7 +36,7 @@ jobs:
       - name: Set nuget package credentials
         run: dotnet nuget update source mrisoftware --username az --password "${{ secrets.PACKAGE_FEED_TOKEN }}" --store-password-in-clear-text
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore -p:Configuration=${{ env.BUILD_CONFIGURATION }}
       - name: Build
         run: dotnet build -c ${{ env.BUILD_CONFIGURATION }} --no-restore -p:Version=${{ inputs.build-version }}
       - name: Test
