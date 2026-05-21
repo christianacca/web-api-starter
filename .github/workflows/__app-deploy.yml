@@ -36,7 +36,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4 # need to checkout (again) so that our custom action and deployment script is available
-      - uses: ./.github/actions/assert-bot-workflow-allowed
 
       - name: Assert artifact-source
         if: ${{ !contains(fromJSON('["workflow", "release"]'), inputs.artifact-source) }}

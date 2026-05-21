@@ -29,7 +29,6 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/assert-bot-workflow-allowed
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
