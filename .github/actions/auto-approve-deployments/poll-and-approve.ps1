@@ -21,7 +21,7 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$PSNativeCommandErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
 
 $elapsed = 0
 
@@ -61,7 +61,7 @@ while ($elapsed -lt $MaxWaitSeconds) {
 
     # Approve any pending deployments whose environment name matches the allow list.
     $allowedEnvIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
-    
+
     if ($allowedEnvIds.Count -gt 0) {
         Write-Host "Approving pending deployments (ids: $($allowedEnvIds -join ','))"
         $bodyObj = @{ environment_ids = $allowedEnvIds; state = "approved"; comment = "Auto-approved by bot workflow" }
