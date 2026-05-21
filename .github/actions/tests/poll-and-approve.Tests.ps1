@@ -13,18 +13,18 @@ BeforeAll {
 
     # Fake gh logic: reads GH_FAKE_* env vars to control exit code and output per call type.
     $fakeGhImpl = @'
-$url    = $args[1]
-$isPost = $args -contains '--method'
-if ($url -match '/jobs$') {
-    $env:GH_FAKE_JOBS_OUTPUT
-    exit [int]($env:GH_FAKE_JOBS_EXIT_CODE ?? 0)
-} elseif ($isPost) {
-    exit [int]($env:GH_FAKE_POST_EXIT_CODE ?? 0)
-} else {
-    $env:GH_FAKE_PENDING_OUTPUT
-    exit [int]($env:GH_FAKE_PENDING_EXIT_CODE ?? 0)
-}
-'@
+        $url    = $args[1]
+        $isPost = $args -contains '--method'
+        if ($url -match '/jobs$') {
+            $env:GH_FAKE_JOBS_OUTPUT
+            exit [int]($env:GH_FAKE_JOBS_EXIT_CODE ?? 0)
+        } elseif ($isPost) {
+            exit [int]($env:GH_FAKE_POST_EXIT_CODE ?? 0)
+        } else {
+            $env:GH_FAKE_PENDING_OUTPUT
+            exit [int]($env:GH_FAKE_PENDING_EXIT_CODE ?? 0)
+        }
+    '@
     Set-Content -Path (Join-Path $script:fakeGhDir 'gh-impl.ps1') -Value $fakeGhImpl -Encoding utf8
 
     if ($IsWindows) {
