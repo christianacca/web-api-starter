@@ -20,8 +20,6 @@ param(
     [int] $PollIntervalSeconds = 15
 )
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-$PSNativeCommandUseErrorActionPreference = $true
 
 $env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
 
