@@ -23,8 +23,6 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 
-$env:GH_TOKEN = "ABC"  # TODO: remove — hard-coded for failure scenario testing only
-
 $elapsed = 0
 
 Write-Host "Starting auto-approval polling for run $RunId in $Repo"
