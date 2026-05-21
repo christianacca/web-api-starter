@@ -60,7 +60,7 @@ while ($elapsed -lt $MaxWaitSeconds) {
     }
 
     # Approve any pending deployments whose environment name matches the allow list.
-    $allowedEnvIds = @($pending | Where-Object { $EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
+    $allowedEnvIds = @($pending | Where-Object { $_.environment -and $_.environment.name -and ($EnvironmentAllowList -contains $_.environment.name } | ForEach-Object { $_.environment.id })
 
     if ($allowedEnvIds.Count -gt 0) {
         Write-Host "Approving pending deployments (ids: $($allowedEnvIds -join ','))"
