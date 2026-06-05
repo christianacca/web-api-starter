@@ -66,7 +66,9 @@ public class GitHubClientFactory(IOptionsMonitor<GithubAppCredentialOptions> cre
     var signingCredentials = new SigningCredentials(
       new RsaSecurityKey(rsa),
       SecurityAlgorithms.RsaSha256
-    );
+    ) {
+      CryptoProviderFactory = new CryptoProviderFactory { CacheSignatureProviders = false }
+    };
 
     var handler = new JsonWebTokenHandler();
     var tokenDescriptor = new SecurityTokenDescriptor {
