@@ -60,7 +60,7 @@ module azureMonitor 'azure-monitor.bicep' = {
 }
 
 var reportStorage = settings.SubProducts.PbiReportStorage
-module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.31.1' = {
+module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.32.0' = {
   name: '${uniqueString(deployment().name, location)}-PbiReportStorage'
   params: {
     name: reportStorage.StorageAccountName
@@ -68,6 +68,7 @@ module pbiReportStorage 'br/public:avm/res/storage/storage-account:0.31.1' = {
     accessTier: reportStorage.DefaultStorageTier
     allowSharedKeyAccess: false
     defaultToOAuthAuthentication: true
+    minimumTlsVersion: 'TLS1_3'
     blobServices: {
       changeFeedEnabled: true
       changeFeedRetentionInDays: 95
@@ -348,12 +349,13 @@ resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@
 
 var internalApiGithubActionsPrincipalId = settings.CliPrincipals[settings.EnvironmentName]
 
-module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31.1' = {
+module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.32.0' = {
   name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
   params: {
     name: settings.SubProducts.InternalApi.StorageAccountName
     kind: 'Storage'
     skuName: 'Standard_LRS'
+    minimumTlsVersion: 'TLS1_3'
     blobServices: {}
     networkAcls: {
       bypass: 'AzureServices'
