@@ -1,0 +1,87 @@
+# Why this action exists
+# -----------------------
+# Introduced as part of the migration of the Azure Functions deployment model
+# away from storage-account connection strings (WEBSITE_RUN_FROM_PACKAGE +
+# AzureWebJobsStorage using shared keys) towards managed identity / Azure RBAC.
+#
+# Microsoft's out-of-the-box functions deploy action relies on a storage
+# connection string (shared key) to publish the package. That approach is
+# incompatible with the identity-based model we are moving to, so we replaced
+# it with this custom action, which:
+#   1. Packages the function app into a zip.
+#   2. Uploads it to the `function-packages` blob container using
+#      `--auth-mode login` (the runner's Azure identity / RBAC, no shared keys).
+#   3. Restarts the app and syncs its function triggers so the new package is
+#      picked up.
+
+name: Azure Functions package deployment
+description: >-
+  Upload an Azure Functions package to Blob Storage using Azure RBAC (managed
+  identity based deployment). Custom replacement for Microsoft's connection
+  string based functions deploy action, created when migrating Functions to the
+  managed identity model.
+inputs:
+  app-name:
+    description: Name of the Azure Function App
+    required: true
+  package:
+    description: Path to a function app folder or zip package
+    required: true
+  resource-group:
+    description: Resource group containing the Function App
+    required: true
+  storage-account-name:
+    description: Storage account containing the function-packages container
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Package and upload Function App
+      shell: bash
+      env:
+        APP_NAME: ${{ inputs.app-name }}
+        PACKAGE_PATH: ${{ inputs.package }}
+        RESOURCE_GROUP: ${{ inputs.resource-group }}
+        STORAGE_ACCOUNT_NAME: ${{ inputs.storage-account-name }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! -e "$PACKAGE_PATH" ]]; then
+          echo "Function package path does not exist: $PACKAGE_PATH" >&2
+          exit 1
+        fi
+
+        blob_name="${APP_NAME,,}.zip"
+
+        # Stage the package as a zip in a temporary directory that is always cleaned up
+        archive_directory="$(mktemp -d)"
+        archive_path="$archive_directory/$blob_name"
+        trap 'rm -rf "$archive_directory"' EXIT
+
+        if [[ -d "$PACKAGE_PATH" ]]; then
+          (cd "$PACKAGE_PATH" && zip -qr "$archive_path" .)
+        elif [[ "$PACKAGE_PATH" == *.zip ]]; then
+          cp "$PACKAGE_PATH" "$archive_path"
+        else
+          echo "Function package must be an existing directory or a .zip file: $PACKAGE_PATH" >&2
+          exit 1
+        fi
+
+        # Publish the package using the runner's Azure identity (no shared keys)
+        az storage blob upload \
+          --account-name "$STORAGE_ACCOUNT_NAME" \
+          --container-name function-packages \
+          --name "$blob_name" \
+          --file "$archive_path" \
+          --auth-mode login \
+          --overwrite true \
+          --only-show-errors
+
+        # Restart the app and sync triggers so the new package is picked up
+        az functionapp restart --name "$APP_NAME" --resource-group "$RESOURCE_GROUP"
+
+        subscription_id="$(az account show --query id --output tsv)"
+        az rest \
+          --method post \
+          --url "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.Web/sites/${APP_NAME}/syncfunctiontriggers?api-version=2022-03-01" \
+          --only-show-errors
