@@ -8,6 +8,10 @@ Technical Story: Migrate Function App host/deployment storage from connection st
 
 > **Where this decision belongs.** `web-api-starter` is the **template/starter** application for `data-services-gateway` (DSG/AIG). Infrastructure changes are prototyped and validated **here first**, then flow down into DSG. The substantive decision — including the full **measured, per-environment cost analysis** across all 20 DSG production Function Apps — is recorded in the DSG repo at `docs/decisions/0004-remain-on-y1-consumption-plan-rather-than-flex.md`. This ADR is the template-side counterpart: it captures the same decision so that anyone starting from `web-api-starter` inherits the rationale and the same Y1-plus-managed-identity pattern. Where numbers matter, defer to the DSG ADR.
 
+> **Where the scale-out evidence lives.** The claim that dropping the Azure Files content share (managed identity + `WEBSITE_RUN_FROM_PACKAGE`) does not degrade Y1 dynamic scale-out was tested directly in this repo, not assumed. See
+> [`docs/decisions/evidence/0002-y1-vs-flex-scale-out-tests/README.md`](./evidence/0002-y1-vs-flex-scale-out-tests/README.md)
+> for the full write-up: a baseline run (old content-share config) plus two after-rounds (post managed-identity migration), each burst-testing an HTTP-triggered function and a queue-triggered function, with KQL queries, instance-ramp-up timing, and latency percentiles for every run. Summary: **zero server-side failures across all three runs**; P95/P99 latency and peak instance counts moved around run-to-run without any consistent directional regression after removing the content share. This is the evidence behind the “scale-out is fine at current load” claim in this ADR, and behind gating the Flex move on an _observed_ scale-out ceiling rather than a theoretical one (see “When to revisit”).
+
 ## Context and Problem Statement
 
 We are moving the template's Function Apps off connection-string (shared-key) access to the host storage account and onto **managed identity** (`allowSharedKeyAccess = false`, `AzureWebJobsStorage` via identity, package run from a private blob using `WEBSITE_RUN_FROM_PACKAGE` + `WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID`).
@@ -78,9 +82,11 @@ Y1 fully satisfies the keyless/managed-identity security goal, keeps the templat
 ### Option 2 — Adopt Flex Consumption
 
 - Good, because it is keyless-first by design and the strategic long-term plan.
-- Good, because it adds VNet integration, faster/larger scale-out (1,000 vs 200), and always-ready cold-start mitigation.
+- Good, because it adds **VNet integration**, letting Function Apps reach private endpoints / VNet-restricted resources without needing an Elastic Premium plan.
+- Good, because it adds faster/larger scale-out (1,000 vs 200) and always-ready cold-start mitigation.
 - Bad, because it is **Linux-only** — the Windows apps must be re-platformed.
 - Bad, because **in-place migration is not supported**: a new app must be created and code redeployed; only one app per Flex plan.
+- Bad, because **the "one app per plan" restriction blocks a cost-mitigation option that exists on Y1/Premium/Dedicated**: on those plans, multiple Function Apps can share a single plan to spread its fixed/base cost. Flex Consumption has no equivalent — each Function App requires its own dedicated Flex plan (confirmed in Microsoft's docs: _"Apps per plan: You can only have one app per Flex Consumption plan"_). For DSG specifically, this means its two Function Apps (`DataServicesGateway.Functions` and `DataServicesGateway.DeployFunctions`) could **not** be consolidated onto one Flex plan to offset the higher per-unit cost — each would be billed as a fully separate plan, so the measured 12×/46× cost multiplier in the DSG ADR applies per app, not amortized across apps.
 - Bad, because it is **materially more expensive per unit of work** (higher rates, smaller free grants, instance-size-based GB-s billing, 1 s minimum execution) — see the measured factors in the DSG ADR.
 - Bad, because the added capabilities are not needed at template scale.
 
@@ -102,9 +108,10 @@ Until an actual scale-out limitation is observed, stay on Y1 — cost is not a r
 
 ## Links
 
+- Scale-out burst-test evidence (baseline + 2 after-rounds, KQL queries + results): [`docs/decisions/evidence/0002-y1-vs-flex-scale-out-tests/README.md`](./evidence/0002-y1-vs-flex-scale-out-tests/README.md)
 - DSG decision with full measured cost analysis: `data-services-gateway` → `docs/decisions/0004-remain-on-y1-consumption-plan-rather-than-flex.md`
 - Storage considerations for Azure Functions — "Create an app without Azure Files": <https://learn.microsoft.com/en-us/azure/azure-functions/storage-considerations>
-- Azure Functions Flex Consumption plan (instance sizes, billing, Linux-only, no in-place migration): <https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan>
+- Azure Functions Flex Consumption plan (instance sizes, billing, Linux-only, no in-place migration, one app per plan): <https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-plan>
 - Azure Functions pricing: <https://azure.microsoft.com/en-us/pricing/details/functions/>
 
 [^scaleout]: The precise internal mechanism is **not published by Microsoft**. What Microsoft documents is the observable behaviour — that running a Windows Consumption app _without_ an Azure Files content share means _“scaling could be limited”_. The statement that dynamic scale-out is “optimised around” the content share is our **interpretation** of that guidance (the share backs the app's content/deployment state that the scale controller relies on when adding instances), not a documented Microsoft internal. Treat it as a well-supported inference, not an official mechanism, and rely on the quoted “scaling could be limited” wording as the authoritative claim.
