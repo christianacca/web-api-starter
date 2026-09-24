@@ -1,0 +1,25 @@
+// Paste into Log Analytics workspace 'log-was-dev' (or the linked App Insights resource).
+// Run label: after-managed-identity
+
+// --- HTTP burst window: 2026-09-24T09:16:26.1120737Z .. 2026-09-24T09:18:10.1997206Z ---
+AppRequests
+| where TimeGenerated between (datetime(2026-09-24T09:16:26.1120737Z) .. datetime(2026-09-24T09:18:10.1997206Z))
+| where AppRoleName == "Web API Starter Functions"
+| summarize instanceCount = dcount(AppRoleInstance), reqCount = count(), p50 = percentile(DurationMs, 50), p95 = percentile(DurationMs, 95), p99 = percentile(DurationMs, 99), failures = countif(Success == false) by bin(TimeGenerated, 10s)
+| order by TimeGenerated asc
+
+AppRequests
+| where TimeGenerated between (datetime(2026-09-24T09:16:26.1120737Z) .. datetime(2026-09-24T09:18:10.1997206Z))
+| where AppRoleName == "Web API Starter Functions"
+| summarize firstSeen = min(TimeGenerated) by AppRoleInstance
+| order by firstSeen asc
+
+// --- Queue burst window: enqueue started 2026-09-24T09:18:12.5062360Z (drain may continue after enqueue finishes) ---
+AppRequests
+| where TimeGenerated > datetime(2026-09-24T09:18:12.5062360Z)
+| where AppRoleName == "Web API Starter Functions"
+| where Name has "ExampleQueue" and Name !has "ExceptionHandler"
+| summarize instanceCount = dcount(AppRoleInstance), invocationCount = count(), succeeded = countif(Success == true), failed = countif(Success == false), lastSeen = max(TimeGenerated) by bin(TimeGenerated, 10s)
+| order by TimeGenerated asc
+
+// drain time = (max(lastSeen) across all rows above) - queue burst StartedUtc shown above

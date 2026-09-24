@@ -47,7 +47,7 @@ jobs:
         if: inputs.artifact-source == 'release'
         uses: dsaltares/fetch-gh-release-asset@aa2ab1243d6e0d5b405b973c89fa4d06a2d0fff7 # <- 1.1.2
         with:
-          version: 'tags/${{ inputs.git-tag }}'
+          version: "tags/${{ inputs.git-tag }}"
           file: release.tar.gz
           target: obj/release.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -220,8 +220,10 @@ jobs:
           resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
           testRevision: true
 
-      - name: Azure Function App (internalapi) - Deploy
-        uses: Azure/functions-action@v1
+      - name: Azure Function App (internalapi) - Deploy managed-identity package
+        uses: ./.github/actions/azure-function-packages
         with:
           app-name: ${{ env.Convention_SubProducts_InternalApi_ResourceName }}
           package: ./out/Template.Functions
+          resource-group: ${{ env.Convention_AppResourceGroup_ResourceName }}
+          storage-account-name: ${{ env.Convention_SubProducts_InternalApi_StorageAccountName }}

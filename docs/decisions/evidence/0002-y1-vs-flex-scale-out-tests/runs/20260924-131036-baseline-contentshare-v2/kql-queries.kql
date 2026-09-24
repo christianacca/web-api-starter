@@ -1,0 +1,25 @@
+// Paste into Log Analytics workspace 'log-was-dev' (or the linked App Insights resource).
+// Run label: baseline-contentshare-v2
+
+// --- HTTP burst window: 2026-09-24T07:40:52.2180552Z .. 2026-09-24T07:42:30.6343544Z ---
+requests
+| where timestamp between (datetime(2026-09-24T07:40:52.2180552Z) .. datetime(2026-09-24T07:42:30.6343544Z))
+| where cloud_RoleName == "Web API Starter Functions"
+| summarize instanceCount = dcount(cloud_RoleInstance), reqCount = count(), p50 = percentile(duration, 50), p95 = percentile(duration, 95), p99 = percentile(duration, 99), failures = countif(success == false) by bin(timestamp, 10s)
+| order by timestamp asc
+
+requests
+| where timestamp between (datetime(2026-09-24T07:40:52.2180552Z) .. datetime(2026-09-24T07:42:30.6343544Z))
+| where cloud_RoleName == "Web API Starter Functions"
+| summarize firstSeen = min(timestamp) by cloud_RoleInstance
+| order by firstSeen asc
+
+// --- Queue burst window: enqueue started 2026-09-24T07:42:32.4375817Z (drain may continue after enqueue finishes) ---
+requests
+| where timestamp > datetime(2026-09-24T07:42:32.4375817Z)
+| where cloud_RoleName == "Web API Starter Functions"
+| where name has "ExampleQueue" and name !has "ExceptionHandler"
+| summarize instanceCount = dcount(cloud_RoleInstance), invocationCount = count(), lastSeen = max(timestamp) by bin(timestamp, 10s)
+| order by timestamp asc
+
+// drain time = (max(lastSeen) across all rows above) - queue burst StartedUtc shown above

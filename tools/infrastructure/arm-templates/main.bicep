@@ -354,7 +354,13 @@ module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31
     name: settings.SubProducts.InternalApi.StorageAccountName
     kind: 'Storage'
     skuName: 'Standard_LRS'
-    blobServices: {}
+    allowSharedKeyAccess: false
+    defaultToOAuthAuthentication: true
+    blobServices: {
+      containers: [
+        { name: 'function-packages' }
+      ]
+    }
     networkAcls: {
       bypass: 'AzureServices'
       defaultAction: 'Allow'
@@ -366,8 +372,11 @@ module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31
       ]
     }
     roleAssignments: [
-      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Processor', principalType: 'ServicePrincipal' }
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Blob Data Owner', principalType: 'ServicePrincipal' }
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Contributor', principalType: 'ServicePrincipal' }
+      { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Table Data Contributor', principalType: 'ServicePrincipal' }
       { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
+      { principalId: internalApiGithubActionsPrincipalId, roleDefinitionIdOrName: 'Storage Blob Data Contributor', principalType: 'ServicePrincipal' }
       { principalId: internalApiGithubActionsPrincipalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
     ]
   }

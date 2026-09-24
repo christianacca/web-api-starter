@@ -1,0 +1,20 @@
+{
+  "Label": "after-managed-identity-round2",
+  "EnvironmentName": "dev",
+  "Mode": "Both",
+  "ApiHostName": "dev-api-was.codingdemo.co.uk",
+  "FunctionApp": "func-clc-was-dev-internalapi",
+  "CloudRoleName": "Web API Starter Functions",
+  "Http": {
+    "StartedUtc": "2026-09-24T09:32:13.5911395Z",
+    "EndedUtc": "2026-09-24T09:33:59.5824119Z",
+    "Total": 2311,
+    "Failures": 16
+  },
+  "Queue": {
+    "StartedUtc": "2026-09-24T09:34:01.2022509Z",
+    "EndedUtc": "2026-09-24T09:34:10.2627724Z",
+    "Total": 500,
+    "Failures": 0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "Label": "baseline-contentshare-v2",
+  "EnvironmentName": "dev",
+  "Mode": "Both",
+  "ApiHostName": "dev-api-was.codingdemo.co.uk",
+  "FunctionApp": "func-clc-was-dev-internalapi",
+  "CloudRoleName": "Web API Starter Functions",
+  "Http": {
+    "StartedUtc": "2026-09-24T07:40:52.2180552Z",
+    "EndedUtc": "2026-09-24T07:42:30.6343544Z",
+    "Total": 6567,
+    "Failures": 0
+  },
+  "Queue": {
+    "StartedUtc": "2026-09-24T07:42:32.4375817Z",
+    "EndedUtc": "2026-09-24T07:42:41.8803418Z",
+    "Total": 500,
+    "Failures": 0
+  }
+}

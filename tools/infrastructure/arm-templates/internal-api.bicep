@@ -79,17 +79,21 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
       {
         name: 'appsettings'
         applicationInsightResourceId: appInsightsResourceId
+        retainCurrentAppSettings: false
         storageAccountResourceId: storageAccount.id
+        storageAccountUseIdentityAuthentication: true
         properties: {
           // Disable the Application Insights agent/codeless attach - SDK is included directly in code instead
           ApplicationInsightsAgent_EXTENSION_VERSION: 'disabled'
           AzureWebJobsFeatureFlags: 'EnableHttpProxying'
+          AzureWebJobsStorage__credential: 'managedidentity'
+          AzureWebJobsStorage__managedIdentityResourceId: managedIdentityResourceIds[0]
           FUNCTIONS_EXTENSION_VERSION: '~4'
           FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
           WEBSITE_CLOUD_ROLENAME: appInsightsCloudRoleName
-          WEBSITE_CONTENTAZUREFILECONNECTIONSTRING: 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
-          WEBSITE_CONTENTSHARE: toLower(functionAppName)
-          WEBSITE_RUN_FROM_PACKAGE: '1'
+          // The package is stored privately and fetched with the Function App identity.
+          WEBSITE_RUN_FROM_PACKAGE: 'https://${storageAccountName}.blob.${environment().suffixes.storage}/function-packages/${toLower(functionAppName)}.zip'
+          WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID: managedIdentityResourceIds[0]
           WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED: '1'
         }
       }
