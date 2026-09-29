@@ -47,3 +47,11 @@ jobs:
       - name: Grant access
         shell: pwsh
         run: ./tools/infrastructure/grant-azure-environment-access.ps1 -InfA Continue -EnvironmentName ${{ inputs.environment-name }} -AccessLevel '${{ inputs.access-level }}' -SubProductName ${{ inputs.scope }} -UserPrincipalName "${{ inputs.user-principal-name }}" -SkipInstallModules
+
+      # TEMPORARY - one-off cleanup for the Reader-only DFM test. Do not merge; revert after the run.
+      - name: TEMP remove superseded Table Data Contributor assignment
+        if: ${{ inputs.environment-name == 'dev' }}
+        shell: bash
+        run: |
+          az role assignment delete --ids /subscriptions/402f88b4-9dd2-49e3-9989-96c788e93372/resourceGroups/rg-dev-was-eastus2/providers/Microsoft.Authorization/roleAssignments/4a2039dc-ebe5-4573-b234-61285eaca3ab
+          echo "Removed role assignment 4a2039dc-ebe5-4573-b234-61285eaca3ab"
