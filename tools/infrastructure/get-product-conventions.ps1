@@ -144,7 +144,7 @@
                     AppInsights         =   @{ Type = 'AppInsights' }
                     Sql                 =   @{ Type = 'SqlServer' }
                     Db                  =   @{ Type = 'SqlDatabase' }
-                    InternalApi         =   @{ Type = 'FunctionApp'; StorageUsage = 'Queue' }
+                    InternalApi         =   @{ Type = 'FunctionApp'; StorageUsage = 'Queue'; RestrictedStorageUsage = 'Table' }
                     # IMPORTANT: 'Api' should match the name of the c# project in the solution, as this value is 
                     # used in create-and-push-docker-images.ps1 to determine part of the ACR repository name for the docker image for this project
                     Api                 =   @{

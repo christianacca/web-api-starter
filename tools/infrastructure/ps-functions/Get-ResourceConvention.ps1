@@ -357,13 +357,45 @@ function Get-ResourceConvention {
                 } else {
                     @()
                 }
+
+                $restrictedStorageUsage = $spInput.RestrictedStorageUsage
+                $restrictedRbacAssignment = if ($restrictedStorageUsage) {
+                    switch -Wildcard ($EnvironmentName) {
+                        { $isTestEnv } {
+                            @{
+                                Role            =   Get-StorageRbacAccess $restrictedStorageUsage 'ReadWrite'
+                                Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                            }
+                        }
+                        'demo*' {
+                            @{
+                                Role            =   Get-StorageRbacAccess $restrictedStorageUsage 'ReadWrite'
+                                Member          =   @(
+                                    @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
+                                    @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+                                )
+                            }
+                        }
+                        { $isEnvProdLike } {
+                            @{
+                                Role            =   Get-StorageRbacAccess $restrictedStorageUsage 'ReadWrite'
+                                Member          =   @{ Name = $teamGroupNames.Tier2SupportGroup; Type = 'Group' }
+                            }
+                        }
+                        Default {
+                            Write-Output @() -NoEnumerate
+                        }
+                    }
+                } else {
+                    @()
+                }
                 @{
                     # Note: this `AuthTokenAudience` is the only value to work (in addition to the app client id)
                     # tried "api://$funcResourceName.azurewebsites.net" and "https://$funcResourceName.azurewebsites.net"
                     AuthTokenAudience   =   "api://$funcResourceName/.default"
                     ManagedIdentity     =   '{0}-{1}' -f $managedIdentityNamePrefix, $componentName.ToLower()
                     HostName            =   $funcHostName
-                    RbacAssignment      =   $rbacAssignment
+                    RbacAssignment      =   @($rbacAssignment) + @($restrictedRbacAssignment)
                     ResourceName        =   $funcResourceName
                     StorageAccountName  =   '{0}{1}' -f ($spInput.StorageAccountNamePrefix ?? 'funcsa'), $appReourceGroup.UniqueString
                     Name                =   $componentName
