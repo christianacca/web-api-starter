@@ -363,7 +363,7 @@ function Get-ResourceConvention {
                     switch -Wildcard ($EnvironmentName) {
                         { $isTestEnv } {
                             @{
-                                Role            =   Get-StorageRbacAccess $restrictedStorageUsage 'ReadWrite'
+                                Role            =   Get-StorageRbacAccess $restrictedStorageUsage 'Readonly'
                                 Member          =   @{ Name = $teamGroupNames.DevelopmentGroup; Type = 'Group' }
                             }
                         }
