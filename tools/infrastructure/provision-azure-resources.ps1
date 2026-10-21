@@ -168,6 +168,7 @@
         . "$PSScriptRoot/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
+        . "$PSScriptRoot/ps-functions/Remove-NonFlexFunctionApp.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
@@ -343,6 +344,12 @@
             $armParamsFileContent | ConvertTo-Json -Compress -Depth 100 | Out-File -FilePath $minifiedParamsPath -Encoding utf8
             $minifiedParamsSizeMb = [math]::Round((Get-Item $minifiedParamsPath).Length / 1MB, 2)
             Write-Information "  INFO | Minified parameters size: $minifiedParamsSizeMb MB"
+
+            # Function Apps can't be moved in-place onto the Flex Consumption plan; any app still on another plan
+            # must be deleted so the deployment below can re-create it (same name) on Flex Consumption
+            Write-Information "  Checking Function Apps are hosted on Flex Consumption..."
+            $convention.SubProducts.Values | Where-Object { $_.Type -eq 'FunctionApp' } | Select-Object -ExpandProperty ResourceName |
+                Remove-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName -WhatIf:$WhatIfAzureResourceDeployment
 
             # Use az CLI for deployment to avoid New-AzResourceGroupDeployment re-serializing the template
             # with indentation, which inflates the request body. The az CLI sends the file bytes directly.

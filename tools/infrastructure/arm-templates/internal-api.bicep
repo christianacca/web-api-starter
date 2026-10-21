@@ -30,6 +30,18 @@ param appInsightsResourceId string = ''
 @description('The name of the function app as it appears in application insights')
 param appInsightsCloudRoleName string = functionAppName
 
+@description('The name of the blob container (in storageAccountName) that Flex Consumption uses to store the deployment package')
+param deploymentContainerName string
+
+@description('The memory size of each Flex Consumption instance')
+@allowed([512, 2048, 4096])
+param instanceMemoryMB int = 512
+
+@description('The maximum number of on-demand instances the function app can scale out to')
+@minValue(1)
+@maxValue(1000)
+param maximumInstanceCount int = 100
+
 var roleName = 'app_only'
 var roleId = guid(roleName, functionAppName)
 resource appReg 'Microsoft.Graph/applications@v1.0' = {
@@ -70,10 +82,33 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
   name: '${uniqueString(deployment().name, location)}-InternalApi'
   params:{
     name: functionAppName
-    kind: 'functionapp'
+    kind: 'functionapp,linux'
     managedIdentities: {
       systemAssigned: false
       userAssignedResourceIds: managedIdentityResourceIds
+    }
+    functionAppConfig: {
+      deployment: {
+        storage: {
+          type: 'blobContainer'
+          value: '${storageAccount.properties.primaryEndpoints.blob}${deploymentContainerName}'
+          authentication: {
+            type: 'UserAssignedIdentity'
+            userAssignedIdentityResourceId: managedIdentityResourceIds[0]
+          }
+        }
+      }
+      runtime: {
+        name: 'dotnet-isolated'
+        version: '10.0'
+      }
+      scaleAndConcurrency: {
+        instanceMemoryMB: instanceMemoryMB
+        maximumInstanceCount: maximumInstanceCount
+      }
+      // siteUpdateStrategy is left at the platform default ('Recreate'): every deployment restarts all instances and
+      // terminates in-flight executions. See docs/decisions/0003-move-function-apps-to-flex-consumption.md before
+      // switching to 'RollingUpdate'
     }
     configs: [
       {
@@ -83,18 +118,10 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
         storageAccountResourceId: storageAccount.id
         storageAccountUseIdentityAuthentication: true
         properties: {
-          // Disable the Application Insights agent/codeless attach - SDK is included directly in code instead
-          ApplicationInsightsAgent_EXTENSION_VERSION: 'disabled'
           AzureWebJobsFeatureFlags: 'EnableHttpProxying'
           AzureWebJobsStorage__credential: 'managedidentity'
           AzureWebJobsStorage__managedIdentityResourceId: managedIdentityResourceIds[0]
-          FUNCTIONS_EXTENSION_VERSION: '~4'
-          FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
           WEBSITE_CLOUD_ROLENAME: appInsightsCloudRoleName
-          // The package is stored privately and fetched with the Function App identity.
-          WEBSITE_RUN_FROM_PACKAGE: 'https://${storageAccountName}.blob.${environment().suffixes.storage}/function-packages/${toLower(functionAppName)}.zip'
-          WEBSITE_RUN_FROM_PACKAGE_BLOB_MI_RESOURCE_ID: managedIdentityResourceIds[0]
-          WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED: '1'
         }
       }
       {
@@ -134,8 +161,6 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
       }
     ]
     siteConfig: {
-      netFrameworkVersion: 'v10.0'
-      use32BitWorkerProcess: false
       cors: {
         allowedOrigins: corsAllowedOrigins
         supportCredentials: corsSupportCredentials
@@ -143,7 +168,6 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
       http20Enabled: true
       minTlsVersion: '1.3'
       minTlsCipherSuite: 'TLS_AES_256_GCM_SHA384'
-      ftpsState: 'FtpsOnly'
     }
     clientAffinityEnabled: false
     serverFarmResourceId: hostingPlan.outputs.resourceId
@@ -154,9 +178,9 @@ module hostingPlan 'br/public:avm/res/web/serverfarm:0.7.0' = {
   name: '${uniqueString(deployment().name, location)}-HostingPlan'
   params:{
     name: functionAppName
-    kind: 'FunctionApp'
-    skuName: 'Y1'
-    skuCapacity: 0
+    kind: 'functionapp'
+    skuName: 'FC1'
+    reserved: true
   }
 }
 
