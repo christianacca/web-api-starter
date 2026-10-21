@@ -118,6 +118,8 @@ module functionApp 'br/public:avm/res/web/site:0.21.0' = {
         storageAccountResourceId: storageAccount.id
         storageAccountUseIdentityAuthentication: true
         properties: {
+          // Disable the Application Insights agent/codeless attach - SDK is included directly in code instead
+          ApplicationInsightsAgent_EXTENSION_VERSION: 'disabled'
           AzureWebJobsFeatureFlags: 'EnableHttpProxying'
           AzureWebJobsStorage__credential: 'managedidentity'
           AzureWebJobsStorage__managedIdentityResourceId: managedIdentityResourceIds[0]
