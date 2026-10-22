@@ -21,6 +21,13 @@
       * Azure AD groups that will be mapped to Azure SQL database users authenticated by Azure AD
       * Azure AD groups that will be used to assign permissions to power-bi workspaces to the api and function app
       * Azure AD group membership for the above AD groups
+
+      Moving a Function App between hosting plans that run a different operating system (Windows Consumption to Flex
+      Consumption, or back again) can't be done in place. When the deployment fails only for that reason, the script
+      validates the deployment, deletes the Function App and plan that Azure names, and deploys again. That makes it
+      safe to deploy an older or newer version of this repo to an environment that has the other kind of plan. Work
+      running in the deleted app runs again from the start once the new app is up. If the deployment still fails after
+      the delete, run the script again.
       
       Required permission to run this script as a service principal:
       
@@ -159,6 +166,7 @@
         $WarningPreference = 'Continue'
 
         . "$PSScriptRoot/ps-functions/Get-AcaAppInfoVars.ps1"
+        . "$PSScriptRoot/ps-functions/Get-ArmOsChangeConflict.ps1"
         . "$PSScriptRoot/ps-functions/Get-AzModuleInfo.ps1"
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
@@ -168,6 +176,7 @@
         . "$PSScriptRoot/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
+        . "$PSScriptRoot/ps-functions/Remove-FunctionAppForPlan.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
@@ -358,13 +367,50 @@
                 return
             }
             Write-Information '  Creating desired resource state'
-            $deploymentResult = Invoke-Exe {
-                az deployment group create `
-                    --resource-group $appResourceGroup.ResourceName `
-                    --template-file $minifiedTemplatePath `
-                    --parameters "@$minifiedParamsPath" `
-                    --output json
-            } -EA Stop | ConvertFrom-Json
+            $deployResource = {
+                $errorFile = New-TemporaryFile
+                try {
+                    $output = az deployment group create `
+                        --resource-group $appResourceGroup.ResourceName `
+                        --template-file $minifiedTemplatePath `
+                        --parameters "@$minifiedParamsPath" `
+                        --output json 2> $errorFile
+                    [PSCustomObject]@{ ExitCode = $LASTEXITCODE; Output = ($output | Out-String); ErrorText = [string](Get-Content $errorFile -Raw) }
+                }
+                finally {
+                    Remove-Item $errorFile -Force -EA SilentlyContinue
+                }
+            }
+            $deployment = & $deployResource
+            if ($deployment.ExitCode -ne 0) {
+                # Azure can't change the OS of an existing hosting plan, which is what moving a Function App between
+                # Windows Consumption (Y1) and Flex Consumption (Linux) does, in either direction. When that is the only
+                # thing wrong, delete the Function App and plan that Azure names and let the deployment re-create them.
+                # Anything else fails as normal, and nothing is deleted
+                $conflict = Get-ArmOsChangeConflict -ErrorText $deployment.ErrorText
+                if (-not $conflict -or -not $conflict.OnlyOsChange -or -not $conflict.PlanNames) {
+                    throw "Deployment failed (exit code $($deployment.ExitCode)):`n$($deployment.ErrorText)"
+                }
+
+                Write-Information "  The hosting plan OS can't be changed in place for: $($conflict.PlanNames -join ', ')"
+                Write-Information '  Validating the deployment before deleting anything...'
+                Invoke-Exe {
+                    az deployment group validate `
+                        --resource-group $appResourceGroup.ResourceName `
+                        --template-file $minifiedTemplatePath `
+                        --parameters "@$minifiedParamsPath" `
+                        --output none
+                } -EA Stop
+
+                $conflict.PlanNames | Remove-FunctionAppForPlan -ResourceGroupName $appResourceGroup.ResourceName
+
+                Write-Information '  Creating desired resource state (again)'
+                $deployment = & $deployResource
+                if ($deployment.ExitCode -ne 0) {
+                    throw "Deployment failed after re-creating the Function App (exit code $($deployment.ExitCode)). Run this script again to retry:`n$($deployment.ErrorText)"
+                }
+            }
+            $deploymentResult = $deployment.Output | ConvertFrom-Json
             $armResources = $deploymentResult.properties.outputs
             Write-Information "  INFO | App Managed Identity Client Id:- $($armResources.appManagedIdentityClientId.Value)"
             Write-Information "  INFO | Api Managed Identity Client Id:- $($armResources.apiManagedIdentityClientId.Value)"
