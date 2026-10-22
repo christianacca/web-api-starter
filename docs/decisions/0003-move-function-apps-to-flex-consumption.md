@@ -68,7 +68,7 @@ Option 2 isn't possible with identity-only storage. The Y1 path the action uses 
 - Cost goes up. DSG's ADR 0004 projects $6 to $46 a month at 2,048 MB across its 14 prod-like apps, against about $1 on Y1. At 512 MB the projection is about a quarter of that.
 - Instance memory has to be chosen per app. See the evidence README. 512 MB worked for this template; DSG's `deploypbi` should start at 2,048 MB.
 - Linux only, one app per plan, and no deployment slots.
-- With the default `Recreate` update strategy, a deployment terminates executions that are running at the time, as the Y1 restart did. Queue messages are redelivered and Durable orchestrations replay, but long-running activities restart from the beginning.
+- A deployment with the default `Recreate` strategy drained the old instances in a dev test. They stopped taking new work and finished what they had, including jobs with more than 5 minutes left, so nothing ran twice. Microsoft's documentation says `Recreate` forcefully terminates running executions, so don't rely on this for long-running work. Stopping or deleting the app does kill running work, which the migration does once per environment. Queue messages are redelivered and Durable activities run again from the start, several minutes later. See section 5 of the evidence.
 
 ## Site update strategy
 

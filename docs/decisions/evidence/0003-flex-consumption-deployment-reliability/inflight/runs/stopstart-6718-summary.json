@@ -1,0 +1,10 @@
+{
+  "Scenario": "StopStart",
+  "Run": "stopstart-6718",
+  "Disruption": "stop, 180 s with no app, start",
+  "DisruptionStartUtc": "2026-10-22T08:49:39.6358273Z",
+  "DisruptionEndUtc": "2026-10-22T08:52:52.7700364Z",
+  "JobsRunningBeforeDisruption": 6,
+  "JobQueueLeft": 0,
+  "JobPoisonLeft": 0
+}

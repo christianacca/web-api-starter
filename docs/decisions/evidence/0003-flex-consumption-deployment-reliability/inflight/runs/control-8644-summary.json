@@ -1,0 +1,10 @@
+{
+  "Scenario": "Control",
+  "Run": "control-8644",
+  "Disruption": "none",
+  "DisruptionStartUtc": "2026-10-22T06:40:54.2358007Z",
+  "DisruptionEndUtc": "2026-10-22T06:40:54.2372578Z",
+  "JobsRunningBeforeDisruption": 6,
+  "JobQueueLeft": 0,
+  "JobPoisonLeft": 0
+}

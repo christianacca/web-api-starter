@@ -60,7 +60,7 @@ The pipeline no longer calls restart or sync itself. One Deploy writes the packa
 
 The one failure (Idle 4) was `RemoteDisconnected` while uploading the 17 MB package from the test machine, after 529 seconds. That machine was dropping large transfers in both directions the same afternoon (GitHub artifact and blob downloads stalled at about 85%). The activity log has no post-publish call for that attempt, so the upload never reached the platform. It is not the Y1 failure mode.
 
-During the 5 busy deployments the test sent 5,090 queue messages. Application Insights recorded 5,090 `ExampleQueue` executions, all successful, all on their first delivery (`DequeueCount: 1`). There were no exceptions, and both `default-queue` and `default-queue-poison` were empty afterwards. These executions take milliseconds. Long-running executions would still be cut off by the `Recreate` update strategy (see the ADR).
+During the 5 busy deployments the test sent 5,090 queue messages. Application Insights recorded 5,090 `ExampleQueue` executions, all successful, all on their first delivery (`DequeueCount: 1`). There were no exceptions, and both `default-queue` and `default-queue-poison` were empty afterwards. These executions take milliseconds, so they finished before any host stopped. Section 5 covers work that is still running when the app stops.
 
 ### Scale-out burst at 512 MB
 
@@ -92,6 +92,50 @@ Windows numbers overstate what the same code needs on Linux under a 512 MB limit
 - **DSG deploypbi** reached about 1 GB in prod-na, qa and dev on Y1. Start it at 2,048 MB.
 
 `instanceMemoryMB` is a parameter of `internal-api.bicep`, so each app can be sized on its own.
+
+## 5. Work that is still running when the app stops
+
+The Y1 repro and the deployments above only ran jobs that last milliseconds. This section tests jobs that are still running when something stops the app, and whether they run again. Everything ran against the dev Function App on Flex, using temporary functions ([`inflight/InflightTest.cs`](./inflight/InflightTest.cs)) that were deployed for the test and removed afterwards. They write a row to a table at the start and end of every unit of work, so a rerun shows up as a second `start` row. Scripts and raw rows: [`inflight/`](./inflight/).
+
+Each run started 3 queue jobs and 3 Durable orchestrations, waited until all 6 were running, then did one thing to the app. An orchestration is an activity (A), a durable timer, then a short activity (B). Queue jobs lasted 240 s and activity A 200 s (420 s and 380 s for the deployment run).
+
+| What was done to the app | Queue jobs | Orchestrations |
+| --- | --- | --- |
+| Nothing (control) | each started once, finished once | all 3 completed, each activity ran once |
+| `az functionapp restart`, about 15 s after the jobs started (what the old Y1 action did) | each started once, finished once | all 3 completed, each activity ran once |
+| Deployment with One Deploy (`Recreate`), started 13 s after the jobs. The old hosts were stopped 1 min 28 s in | each started once, finished once | all 3 completed, each activity ran once |
+| `az functionapp stop` about 30 s after the jobs started, 3 minutes with no app, `start` | each started twice, finished once | activity A started twice and finished once. Activity B ran once. All 3 completed |
+
+Results per run: [`inflight/runs/`](./inflight/runs/).
+
+### A deployment drained the old instances
+
+At 09:07:23 the platform stopped the listeners on the old instances, so they took no new work, and started new instances with the new package at 09:07:42. The old instances kept running what they had. The activity finished on its instance at 09:12:15 and that host stopped 9 seconds later. The queue jobs finished at 09:12:55 and that host stopped 28 seconds after. That is more than 5 minutes after the listeners stopped. Activity B then ran on a new instance.
+
+The task hub worker on the instance running the activities logged `IsGracefulStop: False` at the same moment, yet the activity result was still recorded and the activity did not run again.
+
+Microsoft's documentation says `Recreate` "forcefully" terminates running executions. We did not see that, with jobs that had more than 5 minutes left. This is one deployment, so don't rely on it for work that runs longer. We did not find where the limit is.
+
+While the old instances drained, old and new instances ran side by side for about 5 minutes.
+
+### Stopping the app killed the work and it ran again
+
+`az functionapp stop` ended the running jobs with no host shutdown logged on the instances running them. Nothing was recorded for the first attempts, and each ran again from the start on a new instance:
+
+- Queue jobs restarted 9 minutes 40 seconds after the stop (`DequeueCount: 2`).
+- Activity A restarted 7 minutes after the stop. That was 4 minutes after the app was started again, because nothing ran until Flex scaled an instance up for the waiting work.
+
+This is the same as deleting and re-creating the app, which is what the migration does to each environment. Any queue job or activity running at that moment runs again from the start, and not until several minutes after the app is back. Work that must not run twice has to tolerate that.
+
+### A restart changed nothing
+
+`az functionapp restart` succeeded at 08:41:54, but the two instances running the work never restarted their host, and the jobs finished once. I don't know why the restart had no effect here. On Y1 the same command stopped the host within seconds (section 2).
+
+### What was not tested
+
+- Y1. The dev app is on Flex, so I couldn't repeat this on the old setup. The Y1 logs in section 2 show hosts stopping about a second after the stop signal with `IsGracefulStop: False`, but only for jobs lasting milliseconds.
+- A first attempt at the deployment run stalled while uploading and never reached Azure, so it counts as a second control and isn't in the table.
+- `RollingUpdate`.
 
 ## What remains uncertain
 
