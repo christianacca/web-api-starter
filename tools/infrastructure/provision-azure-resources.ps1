@@ -161,6 +161,7 @@
         . "$PSScriptRoot/ps-functions/Get-AcaAppInfoVars.ps1"
         . "$PSScriptRoot/ps-functions/Get-AzModuleInfo.ps1"
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
+        . "$PSScriptRoot/ps-functions/Get-NonFlexFunctionApp.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
         . "$PSScriptRoot/ps-functions/Get-ServicePrincipalAccessToken.ps1"
@@ -346,10 +347,33 @@
             Write-Information "  INFO | Minified parameters size: $minifiedParamsSizeMb MB"
 
             # Function Apps can't be moved in-place onto the Flex Consumption plan; any app still on another plan
-            # must be deleted so the deployment below can re-create it (same name) on Flex Consumption
+            # must be deleted so the deployment below can re-create it (same name) on Flex Consumption.
+            # Checks run first so a deployment that is bound to fail doesn't leave the environment without its Function
+            # Apps. If the deployment still fails, re-running this script skips the delete and retries the create
             Write-Information "  Checking Function Apps are hosted on Flex Consumption..."
-            $convention.SubProducts.Values | Where-Object { $_.Type -eq 'FunctionApp' } | Select-Object -ExpandProperty ResourceName |
-                Remove-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName -WhatIf:$WhatIfAzureResourceDeployment
+            $nonFlexFunctionApps = @(
+                $convention.SubProducts.Values | Where-Object { $_.Type -eq 'FunctionApp' } | Select-Object -ExpandProperty ResourceName |
+                    Get-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName
+            )
+            if ($nonFlexFunctionApps) {
+                $location = $appResourceGroup.ResourceLocation
+                Write-Information "  Checking Flex Consumption is available in '$location'..."
+                $flexLocations = Invoke-Exe { az functionapp list-flexconsumption-locations --query '[].name' --output json } -EA Stop | ConvertFrom-Json
+                if (($location -replace '\s', '') -notin $flexLocations) {
+                    throw "Flex Consumption is not available in '$location'; existing Function Apps have not been deleted"
+                }
+
+                Write-Information '  Validating deployment before deleting Function Apps not on Flex Consumption...'
+                Invoke-Exe {
+                    az deployment group validate `
+                        --resource-group $appResourceGroup.ResourceName `
+                        --template-file $minifiedTemplatePath `
+                        --parameters "@$minifiedParamsPath" `
+                        --output none
+                } -EA Stop
+
+                $nonFlexFunctionApps | Remove-NonFlexFunctionApp -WhatIf:$WhatIfAzureResourceDeployment
+            }
 
             # Use az CLI for deployment to avoid New-AzResourceGroupDeployment re-serializing the template
             # with indentation, which inflates the request body. The az CLI sends the file bytes directly.
