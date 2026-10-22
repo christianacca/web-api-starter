@@ -182,6 +182,7 @@ module hostingPlan 'br/public:avm/res/web/serverfarm:0.7.0' = {
     name: functionAppName
     kind: 'functionapp'
     skuName: 'FC1'
+    // 'reserved' means a Linux plan (not reserved capacity). Flex is Linux only, and Azure rejects FC1 without it
     reserved: true
   }
 }
