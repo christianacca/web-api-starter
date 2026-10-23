@@ -52,7 +52,7 @@ Option 2 isn't possible with identity-only storage. The Y1 path the action uses 
 - Host storage still uses `AzureWebJobsStorage__credential: managedidentity` with the user-assigned identity, and the storage account still has `allowSharedKeyAccess: false`.
 - `.github/actions/azure-function-packages` is deleted. `__app-deploy.yml` uses `Azure/functions-action@v1` with the existing OIDC login.
 - The GitHub deployment principal loses `Storage Blob Data Contributor` on the Functions storage account. It only had it to upload the package. Removing it from bicep doesn't delete the existing assignment in already provisioned environments.
-- `provision-azure-resources.ps1` re-creates a Function App when the OS of its plan has to change. Azure can't do that in place. Deploying the Flex plan over the Y1 plan fails with `You cannot change the OS hosting your app at this time. Please recreate your app with the desired OS.` because Y1 is Windows (`reserved: false`) and Flex is Linux (`reserved: true`). Deploying Y1 over Flex fails with the same error. When that is the only error in a failed deployment, the script validates the deployment, deletes the Function App and plan that Azure names, and deploys again. Any other error fails as before and deletes nothing. The recovery works in both directions and doesn't need to know which plan the template asks for. It shipped in a separate change before this one, so that it stays in place if this change is reverted.
+- `provision-azure-resources.ps1` re-creates a Function App when the OS of its plan has to change. Azure can't do that in place. Deploying the Flex plan over the Y1 plan fails with `You cannot change the OS hosting your app at this time. Please recreate your app with the desired OS.` because Y1 is Windows (`reserved: false`) and Flex is Linux (`reserved: true`). Deploying Y1 over Flex fails with the same error. When that is the only error in a failed deployment, the script validates the deployment, deletes the Function App and plan that Azure names, and deploys again. Any other error fails as before and deletes nothing. The recovery works in both directions and doesn't need to know which plan the template asks for.
 
 ### Positive Consequences
 
@@ -80,16 +80,16 @@ The template uses Flex's default, `Recreate`. Switching to `RollingUpdate` is on
 
 ## Rolling back
 
-Any environment can be deployed from any commit that has the recovery above, whichever kind of plan the environment currently has. To go back to Y1, revert this change (or deploy a commit from before it) and run the infra and app pipelines for the environment. The infra pipeline fails on the plan OS change, deletes the Flex app and plan, and re-creates the Y1 app. The app pipeline then deploys the code. The same recovery moves an environment forward again.
+Reverting this change is not a supported way back. The recovery above is part of it, so a revert removes the recovery too, and the Y1 code then can't deploy to an environment that is on Flex. It fails with the OS change error.
 
-The round trip was run on dev through the real pipelines, in both directions. Know before you do it:
+To go back to Y1 anyway, delete the Function App and its plan by hand first (`'<app name>' | Remove-FunctionAppForPlan -ResourceGroupName <resource group>`, from `tools/infrastructure/ps-functions`), then run the older commit's infra pipeline and app pipeline.
+
+While the recovery is in the repo, moving between the two kinds of plan works in both directions. That was run on dev through the real pipelines. Know before you do it:
 
 - The app is deleted, so work running in it runs again from the start once the new app is up, and not for several minutes. Pick a quiet time.
 - The app is unavailable until the infra pipeline finishes and the app pipeline has deployed code.
 - A deployment that fails for a different reason than the OS change is left alone. Fix it and run again.
 - Durable Functions state is in the storage account, which isn't touched. The app name, and so the task hub name, is the same on both sides.
-- The recovery can't help a commit from before it was added. Deploying such a commit to an environment with the other kind of plan fails with the OS change error. Delete the app and plan by hand first, then run the pipelines.
-
 ## Links
 
 - Supersedes [ADR 0002](0002-remain-on-y1-consumption-plan-rather-than-flex.md)
