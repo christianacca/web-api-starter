@@ -52,7 +52,7 @@ Option 2 isn't possible with identity-only storage. The Y1 path the action uses 
 - Host storage still uses `AzureWebJobsStorage__credential: managedidentity` with the user-assigned identity, and the storage account still has `allowSharedKeyAccess: false`.
 - `.github/actions/azure-function-packages` is deleted. `__app-deploy.yml` uses `Azure/functions-action@v1` with the existing OIDC login.
 - The GitHub deployment principal loses `Storage Blob Data Contributor` on the Functions storage account. It only had it to upload the package. Removing it from bicep doesn't delete the existing assignment in already provisioned environments.
-- `provision-azure-resources.ps1` re-creates a Function App when the OS of its plan has to change. Azure can't do that in place. Deploying the Flex plan over the Y1 plan fails with `You cannot change the OS hosting your app at this time. Please recreate your app with the desired OS.` because Y1 is Windows (`reserved: false`) and Flex is Linux (`reserved: true`). Deploying Y1 over Flex fails with the same error. When that is the only error in a failed deployment, the script validates the deployment, deletes the Function App and plan that Azure names, and deploys again. Any other error fails as before and deletes nothing. The recovery works in both directions and doesn't need to know which plan the template asks for.
+- `provision-azure-resources.ps1` moves Function Apps onto Flex before the ARM deployment. Azure can't change the OS of an existing hosting plan, so the app has to be deleted and re-created under the same name. Deploying the Flex plan over the Y1 plan fails with `You cannot change the OS hosting your app at this time. Please recreate your app with the desired OS.` because Y1 is Windows (`reserved: false`) and Flex is Linux (`reserved: true`). `Get-NonFlexFunctionApp` finds apps that exist and aren't on Flex. If there are any, the script checks Flex is available in the region and runs `az deployment group validate` on the full deployment. Only then does `Remove-NonFlexFunctionApp` delete the app, and its plan if that is left empty. Validation catches template, parameter, policy and permission errors while the old app still exists. It can't catch everything (regional capacity, for example). If the create still fails, re-running the script skips the delete and retries the create. Nothing changes on later runs, and `-WhatIfAzureResourceDeployment` only reports.
 
 ### Positive Consequences
 
@@ -80,15 +80,14 @@ The template uses Flex's default, `Recreate`. Switching to `RollingUpdate` is on
 
 ## Rolling back
 
-Reverting this change is not a supported way back. The recovery above is part of it, so a revert removes the recovery too, and the Y1 code then can't deploy to an environment that is on Flex. It fails with the OS change error.
+Rolling back is a manual change. The script only moves environments towards Flex. Deploying the Y1 code (a revert of this change, or an older commit) to an environment that is on Flex fails with the OS change error, because Azure can't change the plan's OS.
 
-To go back to Y1 anyway, delete the Function App and its plan by hand first (`'<app name>' | Remove-FunctionAppForPlan -ResourceGroupName <resource group>`, from `tools/infrastructure/ps-functions`), then run the older commit's infra pipeline and app pipeline.
+To go back to Y1, delete the Function App and its plan by hand first (`az functionapp delete` and `az appservice plan delete`, using the app name for both), then run the older commit's infra pipeline and app pipeline.
 
-While the recovery is in the repo, moving between the two kinds of plan works in both directions. That was run on dev through the real pipelines. Know before you do it:
+Know before you do it:
 
 - The app is deleted, so work running in it runs again from the start once the new app is up, and not for several minutes. Pick a quiet time.
 - The app is unavailable until the infra pipeline finishes and the app pipeline has deployed code.
-- A deployment that fails for a different reason than the OS change is left alone. Fix it and run again.
 - Durable Functions state is in the storage account, which isn't touched. The app name, and so the task hub name, is the same on both sides.
 ## Links
 
