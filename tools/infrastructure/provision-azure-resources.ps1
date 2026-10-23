@@ -21,6 +21,13 @@
       * Azure AD groups that will be mapped to Azure SQL database users authenticated by Azure AD
       * Azure AD groups that will be used to assign permissions to power-bi workspaces to the api and function app
       * Azure AD group membership for the above AD groups
+
+      A Function App can't be moved onto the Flex Consumption plan from another plan in place (the operating system
+      changes). Before deploying, any Function App that exists but is not on Flex Consumption is deleted, along with
+      its plan if that is left empty, so that the deployment re-creates it (same name) on Flex Consumption. The
+      deployment is validated first, and Flex Consumption must be available in the region. Work running in the deleted
+      app runs again from the start once the new app is up. If the deployment fails after the delete, run the script
+      again. Moving back to another plan is a manual change.
       
       Required permission to run this script as a service principal:
       
@@ -161,6 +168,7 @@
         . "$PSScriptRoot/ps-functions/Get-AcaAppInfoVars.ps1"
         . "$PSScriptRoot/ps-functions/Get-AzModuleInfo.ps1"
         . "$PSScriptRoot/ps-functions/Get-CurrentUserAsMember.ps1"
+        . "$PSScriptRoot/ps-functions/Get-NonFlexFunctionApp.ps1"
         . "$PSScriptRoot/ps-functions/Get-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Get-ScriptDependencyList.ps1"
         . "$PSScriptRoot/ps-functions/Get-ServicePrincipalAccessToken.ps1"
@@ -168,6 +176,7 @@
         . "$PSScriptRoot/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
+        . "$PSScriptRoot/ps-functions/Remove-NonFlexFunctionApp.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
@@ -343,6 +352,35 @@
             $armParamsFileContent | ConvertTo-Json -Compress -Depth 100 | Out-File -FilePath $minifiedParamsPath -Encoding utf8
             $minifiedParamsSizeMb = [math]::Round((Get-Item $minifiedParamsPath).Length / 1MB, 2)
             Write-Information "  INFO | Minified parameters size: $minifiedParamsSizeMb MB"
+
+            # Function Apps can't be moved in-place onto the Flex Consumption plan; any app still on another plan
+            # must be deleted so the deployment below can re-create it (same name) on Flex Consumption.
+            # Checks run first so a deployment that is bound to fail doesn't leave the environment without its Function
+            # Apps. If the deployment still fails, re-running this script skips the delete and retries the create
+            Write-Information "  Checking Function Apps are hosted on Flex Consumption..."
+            $nonFlexFunctionApps = @(
+                $convention.SubProducts.Values | Where-Object { $_.Type -eq 'FunctionApp' } | Select-Object -ExpandProperty ResourceName |
+                    Get-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName
+            )
+            if ($nonFlexFunctionApps) {
+                $location = $appResourceGroup.ResourceLocation
+                Write-Information "  Checking Flex Consumption is available in '$location'..."
+                $flexLocations = Invoke-Exe { az functionapp list-flexconsumption-locations --query '[].name' --output json } -EA Stop | ConvertFrom-Json
+                if (($location -replace '\s', '') -notin $flexLocations) {
+                    throw "Flex Consumption is not available in '$location'; existing Function Apps have not been deleted"
+                }
+
+                Write-Information '  Validating deployment before deleting Function Apps not on Flex Consumption...'
+                Invoke-Exe {
+                    az deployment group validate `
+                        --resource-group $appResourceGroup.ResourceName `
+                        --template-file $minifiedTemplatePath `
+                        --parameters "@$minifiedParamsPath" `
+                        --output none
+                } -EA Stop
+
+                $nonFlexFunctionApps | Remove-NonFlexFunctionApp -WhatIf:$WhatIfAzureResourceDeployment
+            }
 
             # Use az CLI for deployment to avoid New-AzResourceGroupDeployment re-serializing the template
             # with indentation, which inflates the request body. The az CLI sends the file bytes directly.

@@ -1,6 +1,6 @@
 # Remain on the Y1 Consumption plan for Function Apps rather than migrating to Flex Consumption
 
-- Status: accepted
+- Status: superseded by [ADR 0003](0003-move-function-apps-to-flex-consumption.md)
 - Deciders: Sumedh Bhat
 - Date: 2026-09-21
 

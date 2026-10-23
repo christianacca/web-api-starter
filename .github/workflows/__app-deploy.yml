@@ -220,10 +220,8 @@ jobs:
           resourceGroup: ${{ env.Convention_AppResourceGroup_ResourceName }}
           testRevision: true
 
-      - name: Azure Function App (internalapi) - Deploy managed-identity package
-        uses: ./.github/actions/azure-function-packages
+      - name: Azure Function App (internalapi) - Deploy
+        uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.Convention_SubProducts_InternalApi_ResourceName }}
           package: ./out/Template.Functions
-          resource-group: ${{ env.Convention_AppResourceGroup_ResourceName }}
-          storage-account-name: ${{ env.Convention_SubProducts_InternalApi_StorageAccountName }}

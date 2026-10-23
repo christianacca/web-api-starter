@@ -347,6 +347,7 @@ resource internalApiManagedId 'Microsoft.ManagedIdentity/userAssignedIdentities@
 }
 
 var internalApiGithubActionsPrincipalId = settings.CliPrincipals[settings.EnvironmentName]
+var internalApiDeploymentContainerName = 'app-package'
 
 module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31.1' = {
   name: '${uniqueString(deployment().name, location)}-FunctionsStorageAccount'
@@ -358,7 +359,7 @@ module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31
     defaultToOAuthAuthentication: true
     blobServices: {
       containers: [
-        { name: 'function-packages' }
+        { name: internalApiDeploymentContainerName }
       ]
     }
     networkAcls: {
@@ -376,7 +377,6 @@ module internalApiStorageAccount 'br/public:avm/res/storage/storage-account:0.31
       { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Contributor', principalType: 'ServicePrincipal' }
       { principalId: internalApiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Table Data Contributor', principalType: 'ServicePrincipal' }
       { principalId: apiManagedId.properties.principalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
-      { principalId: internalApiGithubActionsPrincipalId, roleDefinitionIdOrName: 'Storage Blob Data Contributor', principalType: 'ServicePrincipal' }
       { principalId: internalApiGithubActionsPrincipalId, roleDefinitionIdOrName: 'Storage Queue Data Message Sender', principalType: 'ServicePrincipal' }
     ]
   }
@@ -389,6 +389,7 @@ module internalApi 'internal-api.bicep' = {
     allowedPrincipalIds: [apiManagedId.properties.principalId]
     appInsightsCloudRoleName: 'Web API Starter Functions'
     appInsightsResourceId: azureMonitor.outputs.appInsightsResourceId
+    deploymentContainerName: internalApiDeploymentContainerName
     functionAppName: internalApiSettings.ResourceName
     managedIdentityResourceIds: [
       internalApiManagedId.id
