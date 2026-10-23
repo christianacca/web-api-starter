@@ -137,6 +137,33 @@ This is the same as deleting and re-creating the app, which is what the migratio
 - A first attempt at the deployment run stalled while uploading and never reached Azure, so it counts as a second control and isn't in the table.
 - `RollingUpdate`.
 
+## 6. Rolling back and forward
+
+Azure can't change the OS of an existing plan, so deploying master's Y1 template to an environment that is on Flex, or the other way round, fails. [ADR 0003](../../0003-move-function-apps-to-flex-consumption.md) describes the recovery in `provision-azure-resources.ps1`. It ran on dev through the real pipelines in both directions, using the recovery as a separate change on top of master (`sb/function-app-plan-recreate`).
+
+| Step | Pipeline run | Result |
+| --- | --- | --- |
+| Dev on Flex, deploy master plus the recovery (rollback) | [infra 39781138367](https://github.com/christianacca/web-api-starter/actions/runs/39781138367) | The deployment failed on the OS change, was validated, the Flex app and plan were deleted, and the Y1 app was created. Dev: `Y1/Dynamic`, `reserved: False` |
+| Deploy the app with master's custom action | [app 39782780843](https://github.com/christianacca/web-api-starter/actions/runs/39782780843) | Succeeded. 12 functions registered. 20 of 20 queue messages processed through identity-based storage, none poisoned |
+| Deploy the Flex branch (forward again) | [infra 39784087591](https://github.com/christianacca/web-api-starter/actions/runs/39784087591) | Same sequence the other way. Dev: `FC1/FlexConsumption`, `reserved: True` |
+| Deploy the app with `Azure/functions-action` | [app 39785505810](https://github.com/christianacca/web-api-starter/actions/runs/39785505810) | One Deploy, 12 functions registered, 20 of 20 messages processed, none poisoned |
+
+The recovery only deletes when every error in the failed deployment is the OS change error. The parser ([`Get-ArmOsChangeConflict.ps1`](../../../../tools/infrastructure/ps-functions/Get-ArmOsChangeConflict.ps1)) was tested against the error Azure returned for Flex over Y1 and some made-up ones:
+
+| Error text | Delete? |
+| --- | --- |
+| The real Azure error for Flex over Y1 | yes, names the plan |
+| A different error (authorization) | no |
+| The OS error mixed with another error | no |
+| The OS error, nested one level deeper | yes |
+| Text that is not a deployment error | no |
+
+What was not tested:
+
+- Deploying a commit from before the recovery existed (today's master) to an environment on the other kind of plan. That fails with the OS error and needs the app and plan deleted by hand first.
+- The create failing after the delete. The script says to run it again, and a second run creates the app because nothing is left to delete.
+- An environment with more than one Function App.
+
 ## What remains uncertain
 
 - The Y1 repro was 2 failures in 13 restarts. That is enough to show the race but not to estimate DSG's failure rate.
