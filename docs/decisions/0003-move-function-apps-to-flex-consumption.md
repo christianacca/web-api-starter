@@ -6,7 +6,7 @@
 
 Technical Story: deployments of the managed-identity Y1 setup ([ADR 0002](0002-remain-on-y1-consumption-plan-rather-than-flex.md)) failed intermittently in `data-services-gateway` (DSG) and had to be rerun up to 10 times.
 
-Evidence: [`evidence/0003-flex-consumption-deployment-reliability/README.md`](./evidence/0003-flex-consumption-deployment-reliability/README.md)
+Performance results (burst test and memory sizing): [`evidence/0003-flex-consumption-performance/README.md`](./evidence/0003-flex-consumption-performance/README.md)
 
 ## Context and Problem Statement
 
@@ -68,7 +68,7 @@ Option 2 isn't possible with identity-only storage. The Y1 path the action uses 
 - Cost goes up. DSG's ADR 0004 projects $6 to $46 a month at 2,048 MB across its 14 prod-like apps, against about $1 on Y1. At 512 MB the projection is about a quarter of that.
 - Instance memory has to be chosen per app. See the evidence README. 512 MB worked for this template; DSG's `deploypbi` should start at 2,048 MB.
 - Linux only, one app per plan, and no deployment slots.
-- A deployment with the default `Recreate` strategy drained the old instances in a dev test. They stopped taking new work and finished what they had, including jobs with more than 5 minutes left, so nothing ran twice. Microsoft's documentation says `Recreate` forcefully terminates running executions, so don't rely on this for long-running work. Stopping or deleting the app does kill running work, which the migration does once per environment. Queue messages are redelivered and Durable activities run again from the start, several minutes later. See section 5 of the evidence.
+- A deployment with the default `Recreate` strategy drained the old instances in a dev test. They stopped taking new work and finished what they had, including jobs with more than 5 minutes left, so nothing ran twice. Microsoft's documentation says `Recreate` forcefully terminates running executions, so don't rely on this for long-running work. Stopping or deleting the app does kill running work, which the migration does once per environment. Queue messages are redelivered and Durable activities run again from the start, several minutes later.
 
 ## Site update strategy
 
@@ -82,9 +82,9 @@ The template uses Flex's default, `Recreate`. Switching to `RollingUpdate` is on
 
 Any environment can be deployed from any commit that has the recovery above, whichever kind of plan the environment currently has. To go back to Y1, revert this change (or deploy a commit from before it) and run the infra and app pipelines for the environment. The infra pipeline fails on the plan OS change, deletes the Flex app and plan, and re-creates the Y1 app. The app pipeline then deploys the code. The same recovery moves an environment forward again.
 
-The round trip was run on dev through the real pipelines, in both directions (see the evidence README, section 6). Know before you do it:
+The round trip was run on dev through the real pipelines, in both directions. Know before you do it:
 
-- The app is deleted, so work running in it runs again from the start once the new app is up, and not for several minutes (section 5 of the evidence). Pick a quiet time.
+- The app is deleted, so work running in it runs again from the start once the new app is up, and not for several minutes. Pick a quiet time.
 - The app is unavailable until the infra pipeline finishes and the app pipeline has deployed code.
 - A deployment that fails for a different reason than the OS change is left alone. Fix it and run again.
 - Durable Functions state is in the storage account, which isn't touched. The app name, and so the task hub name, is the same on both sides.
@@ -93,7 +93,7 @@ The round trip was run on dev through the real pipelines, in both directions (se
 ## Links
 
 - Supersedes [ADR 0002](0002-remain-on-y1-consumption-plan-rather-than-flex.md)
-- Evidence: [`evidence/0003-flex-consumption-deployment-reliability/README.md`](./evidence/0003-flex-consumption-deployment-reliability/README.md)
+- Performance results (burst test and memory sizing): [`evidence/0003-flex-consumption-performance/README.md`](./evidence/0003-flex-consumption-performance/README.md)
 - Flex Consumption plan: <https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan>
 - Site update strategies: <https://learn.microsoft.com/azure/azure-functions/flex-consumption-site-updates>
 - Flex Consumption app setting deprecations: <https://learn.microsoft.com/azure/azure-functions/functions-app-settings#flex-consumption-plan-deprecations>
