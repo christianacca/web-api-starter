@@ -349,16 +349,8 @@
             # on Flex Consumption. Azure can't change the OS of an existing plan, so a Function App still on another plan
             # (eg Y1) is deleted here and re-created (same name) on Flex Consumption by the deployment below
             $convention.SubProducts.Values | Where-Object { $_.Type -eq 'FunctionApp' } | Select-Object -ExpandProperty ResourceName |
-                Remove-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName -WhatIf:$WhatIfAzureResourceDeployment -BeforeDelete {
-                    # a deployment that is bound to fail must not leave the environment without its Function App
-                    Invoke-Exe {
-                        az deployment group validate `
-                            --resource-group $appResourceGroup.ResourceName `
-                            --template-file $minifiedTemplatePath `
-                            --parameters "@$minifiedParamsPath" `
-                            --output none
-                    } -EA Stop
-                }
+                Remove-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName -TemplateFile $minifiedTemplatePath `
+                    -ParametersFile $minifiedParamsPath -WhatIf:$WhatIfAzureResourceDeployment
             # Use az CLI for deployment to avoid New-AzResourceGroupDeployment re-serializing the template
             # with indentation, which inflates the request body. The az CLI sends the file bytes directly.
             if ($WhatIfAzureResourceDeployment) {
