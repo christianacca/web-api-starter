@@ -9,7 +9,7 @@ function Remove-NonFlexFunctionApp {
       Durable Functions state lives in the storage account, which is not touched.
 
       .PARAMETER TemplateFile
-      The template of the deployment that will re-create the app. It is validated once, before the first delete, so that
+      The template of the deployment that will re-create the app. It is validated before each delete, so that
       a deployment that is bound to fail doesn't leave the environment without its Function App
 
       .PARAMETER ParametersFile
@@ -36,7 +36,6 @@ function Remove-NonFlexFunctionApp {
         Set-StrictMode -Version 'Latest'
         $callerEA = $ErrorActionPreference
         $ErrorActionPreference = 'Stop'
-        $validated = $false
     }
     process {
         try {
@@ -46,11 +45,10 @@ function Remove-NonFlexFunctionApp {
                 return
             }
 
-            if (-not $validated -and -not $WhatIfPreference) {
+            if (-not $WhatIfPreference) {
                 Invoke-Exe {
                     az deployment group validate --resource-group $ResourceGroupName --template-file $TemplateFile --parameters "@$ParametersFile" --output none
                 } -EA Stop
-                $validated = $true
             }
             if ($PSCmdlet.ShouldProcess($Name, "Delete Function App on '$($plan.Sku.Tier)' plan so it can be re-created on Flex Consumption")) {
                 Write-Information "  Deleting Function App '$Name' and its plan (on '$($plan.Sku.Tier)') so it can be re-created on Flex Consumption..."
