@@ -4,7 +4,7 @@ Supports [ADR 0003](../../0003-move-function-apps-to-flex-consumption.md). Run a
 
 ## Scale-out burst at 512 MB
 
-Same script and settings as the [Y1 runs in ADR 0002](../0002-y1-vs-flex-scale-out-tests/README.md) (`-HttpConcurrency 50 -HttpDurationSeconds 90 -QueueMessageCount 500 -QueueConcurrency 50`). Artifacts: [`runs/20261021-150302-flex-512mb/`](./runs/20261021-150302-flex-512mb/).
+Same script and settings as the [Y1 runs in ADR 0002](../0002-y1-vs-flex-scale-out-tests/README.md) (`-HttpConcurrency 50 -HttpDurationSeconds 90 -QueueMessageCount 500 -QueueConcurrency 50`). The totals are in [`summary.json`](./runs/20261021-150302-flex-512mb/summary.json) and the App Insights queries behind the instance counts and latencies are in [`kql-queries.kql`](./runs/20261021-150302-flex-512mb/kql-queries.kql). The per-request CSVs the script writes are not kept, run the script again to get them.
 
 | Burst | Result | Instances |
 | --- | --- | --- |
