@@ -11,6 +11,8 @@ Same script and settings as the [Y1 runs in ADR 0002](../0002-y1-vs-flex-scale-o
 | HTTP, API to Easy Auth to Function | 6,092 Echo executions, 0 failures, p50 97 ms, p95 246 ms | 11 |
 | Queue, identity-based trigger | 500 of 500 processed, 0 failures | 9 |
 
+As the test client saw it (including the API, Easy Auth and the network from the test machine, so higher than the Function times above): all 6,089 requests returned 200, with p50 693 ms, p95 936 ms, p99 1,989 ms and a maximum of 5,285 ms. All 500 queue messages were enqueued without error.
+
 Each of the 23 instances that ran during the test started its host exactly once. An instance killed for running out of memory would have started again, so none were. The worker's App Insights `Private Bytes` counter read p50 410 MB, p95 476 MB, max 492 MB. On Linux that counter can include memory that is reserved but not resident, so treat it as an upper bound. It is still close to the 512 MB instance size, which is why the sizing below matters.
 
 ## Memory sizing
