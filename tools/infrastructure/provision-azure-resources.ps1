@@ -168,6 +168,7 @@
         . "$PSScriptRoot/ps-functions/hashtable-functions.ps1"
         . "$PSScriptRoot/ps-functions/Invoke-Exe.ps1"
         . "$PSScriptRoot/ps-functions/Install-ScriptDependency.ps1"
+        . "$PSScriptRoot/ps-functions/Remove-NonFlexFunctionApp.ps1"
         . "$PSScriptRoot/ps-functions/Resolve-RbacRoleAssignment.ps1"
         . "$PSScriptRoot/ps-functions/Set-AADGroup.ps1"
         . "$PSScriptRoot/ps-functions/Set-AzureAccountContext.ps1"
@@ -344,6 +345,12 @@
             $minifiedParamsSizeMb = [math]::Round((Get-Item $minifiedParamsPath).Length / 1MB, 2)
             Write-Information "  INFO | Minified parameters size: $minifiedParamsSizeMb MB"
 
+            # TEMPORARY: remove this block and ps-functions/Remove-NonFlexFunctionApp.ps1 once every environment is hosted
+            # on Flex Consumption. Azure can't change the OS of an existing plan, so a Function App still on another plan
+            # (eg Y1) is deleted here and re-created (same name) on Flex Consumption by the deployment below
+            $convention.SubProducts.Values | Where-Object { $_.Type -eq 'FunctionApp' } | Select-Object -ExpandProperty ResourceName |
+                Remove-NonFlexFunctionApp -ResourceGroupName $appResourceGroup.ResourceName -TemplateFile $minifiedTemplatePath `
+                    -ParametersFile $minifiedParamsPath -WhatIf:$WhatIfAzureResourceDeployment
             # Use az CLI for deployment to avoid New-AzResourceGroupDeployment re-serializing the template
             # with indentation, which inflates the request body. The az CLI sends the file bytes directly.
             if ($WhatIfAzureResourceDeployment) {
